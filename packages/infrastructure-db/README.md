@@ -30,10 +30,17 @@ version, query ordered history/activity, and write events/outbox transactionally
 `findCurrentForAiProcessing` filters active/current/Standard in SQL and is the
 only AI-intended WP-05 entry query.
 
+WP-06 adapters claim pending rows with `FOR UPDATE SKIP LOCKED`, enqueue pg-boss
+jobs and mark `in_flight` in the same postgres-js transaction, claim numbered
+attempts under RLS, and record success or sanitized terminal failure. The raw
+transaction wrapper is intentionally narrow because the pinned pg-boss Drizzle
+adapter targets a later Drizzle result shape. Health reads only counts and
+content-free dead-letter summaries.
+
 Tests: `pnpm test:integration` creates a temporary PostgreSQL 18 cluster when
 `TEST_DATABASE_URL` is absent. It covers empty and seeded migration paths,
 installed-but-unused pgvector, unpartitioned tables, two-user isolation,
 transactional resource creation, provenance deletion, authentication schema,
-journal migration/backfill, immutable revisions, optimistic state, event/outbox
-atomicity, retry idempotency, and Private exclusion. Playwright proves the full
-authenticated journal path.
+journal/worker migrations, immutable revisions, optimistic state, event/outbox
+atomicity, retry idempotency, concurrent queue dispatch, terminal dead letters,
+and Private exclusion. Playwright proves journal and authenticated health paths.

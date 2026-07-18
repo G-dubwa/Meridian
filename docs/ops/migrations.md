@@ -23,6 +23,14 @@ and adds the processing eligibility index.
 `0004_wp05_command_idempotency.sql` adds the matching command uniqueness index;
 the repository also serialises identical command keys transaction-locally.
 
+Worker migration `0005_wp06_reliable_event_processing.sql` adds sanitized error
+and dead-letter timestamps, backfills any legacy terminal rows, and constrains
+terminal state consistency. pg-boss owns its separate `pgboss` schema and
+version table. Install/upgrade that schema with the migration credential by
+starting the verified worker once, then stop it, grant the runtime role only
+usage plus required table/sequence/function privileges in `pgboss`, and restart
+with the runtime credential. The web process never administers pg-boss.
+
 ## Authoring
 
 1. Change the Drizzle schema.
@@ -35,7 +43,11 @@ Never edit a migration that may have run outside the current disposable developm
 
 ## Applying
 
-Set `DATABASE_URL` to an administrative migration connection and run `pnpm db:migrate`. Application credentials must not own tables or migrate schemas. CI verifies both an empty database and a seeded previous snapshot against PostgreSQL 18 with pgvector 0.8.x.
+Set `DATABASE_URL` to an administrative migration connection and run
+`pnpm db:migrate`. Application credentials must not own tables or migrate
+schemas. Provision pg-boss as described above before first runtime start. CI
+verifies both an empty database and a seeded previous snapshot against
+PostgreSQL 18 with pgvector 0.8.x.
 
 ## Rollback
 

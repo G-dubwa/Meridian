@@ -453,6 +453,9 @@ export const outboxMessages = pgTable(
       .notNull()
       .defaultNow(),
     processedAt: timestamp('processed_at', { withTimezone: true }),
+    lastErrorCode: text('last_error_code'),
+    lastErrorAt: timestamp('last_error_at', { withTimezone: true }),
+    deadLetteredAt: timestamp('dead_lettered_at', { withTimezone: true }),
   },
   (table) => [
     foreignKey({
@@ -465,6 +468,14 @@ export const outboxMessages = pgTable(
     check(
       'outbox_messages_status_valid',
       sql`${table.status} in ('pending', 'in_flight', 'succeeded', 'failed', 'uncertain')`,
+    ),
+    check(
+      'outbox_messages_error_code_valid',
+      sql`${table.lastErrorCode} is null or ${table.lastErrorCode} ~ '^[A-Z][A-Z0-9_]{2,63}$'`,
+    ),
+    check(
+      'outbox_messages_terminal_state_valid',
+      sql`(${table.status} = 'succeeded' and ${table.processedAt} is not null and ${table.deadLetteredAt} is null) or (${table.status} = 'failed' and ${table.processedAt} is null and ${table.deadLetteredAt} is not null and ${table.lastErrorCode} is not null) or (${table.status} not in ('succeeded', 'failed') and ${table.processedAt} is null and ${table.deadLetteredAt} is null)`,
     ),
     index('outbox_messages_claim_idx').on(table.status, table.availableAt),
     index('outbox_messages_user_created_idx').on(table.userId, table.createdAt),

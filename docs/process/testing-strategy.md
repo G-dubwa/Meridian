@@ -11,14 +11,15 @@ related-docs: ../README.md
 Meridian verifies each risk at the lowest useful layer and keeps a live-path
 test for boundaries whose behaviour depends on a real runtime.
 
-| Layer                         | Purpose                                                        |
-| ----------------------------- | -------------------------------------------------------------- |
-| Domain/application unit tests | Invariants, policies, schemas, and orchestration without I/O.  |
-| Dependency rules              | Architectural direction plus deliberately failing fixtures.    |
-| Database integration tests    | PostgreSQL migrations, constraints, RLS, and transactions.     |
-| Playwright API/UI journeys    | Real Next.js, cookies, CSRF, sessions, recovery, and lockout.  |
-| Document/schema checks        | Headers, links, generated dictionary, and migration snapshots. |
-| Production builds             | Package exports and deployable application compilation.        |
+| Layer                         | Purpose                                                                 |
+| ----------------------------- | ----------------------------------------------------------------------- |
+| Domain/application unit tests | Invariants, policies, schemas, and orchestration without I/O.           |
+| Dependency rules              | Architectural direction plus deliberately failing fixtures.             |
+| Database integration tests    | PostgreSQL migrations, constraints, RLS, and transactions.              |
+| Worker integration tests      | Real pg-boss dispatch, concurrency, retry, dead letter, restart safety. |
+| Playwright API/UI journeys    | Real Next.js, cookies, CSRF, sessions, recovery, and lockout.           |
+| Document/schema checks        | Headers, links, generated dictionary, and migration snapshots.          |
+| Production builds             | Package exports and deployable application compilation.                 |
 
 `pnpm check` is the required local and CI gate. Authentication acceptance uses
 an isolated PostgreSQL cluster, applies every committed migration, builds the
@@ -32,6 +33,13 @@ The WP-05 journey creates/revises Standard evidence, inspects both revisions,
 creates Private evidence, invokes the real owner-scoped AI query, and proves only
 Standard returns. Integration tests prove content-free events/outbox,
 correlation retry, update-trigger rejection, privacy invalidation, and upgrade.
+
+WP-06 unit tests prove content-free job/observation schemas, idempotent duplicate
+completion, retry, and terminal classification. The live database suite installs
+real pg-boss, races two dispatchers, proves five outbox rows become five jobs,
+then completes four events and retries one controlled failure three times into
+matching Meridian/pg-boss dead-letter state. Playwright proves health is denied
+without a session and presents content-free owner state after journal writes.
 
 Tests may use synthetic fixture identifiers and passphrases only. Test output,
 snapshots, traces, and screenshots must not contain credentials, recovery codes,

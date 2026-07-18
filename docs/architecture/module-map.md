@@ -23,10 +23,11 @@ related-docs: ../README.md
 | `prompts`                 | versioned prompt definitions and output contracts                  | infrastructure provider SDKs                 |
 | `apps/web`, `apps/worker` | presentation, hosting, and explicit process composition            | adapter access outside composition roots     |
 
-`apps/web/app/_server/composition.ts` is the web process composition root and is
-the only web source allowed to construct infrastructure adapters. Route handlers
-depend on its application service facade; client components cannot import server
-or infrastructure modules.
+`apps/web/app/_server/composition.ts` and `apps/worker/src/composition.ts` are
+the exact process composition roots allowed to construct infrastructure
+adapters. Web route handlers depend on an application service facade; worker
+runtime handlers do the same. Client components and non-composition runtime code
+cannot import infrastructure modules.
 
 `dependency-cruiser.config.mjs` is executable authority for accepted ADR-0002
 rules. Its negative fixtures prove both domain-to-infrastructure and

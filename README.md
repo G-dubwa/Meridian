@@ -2,7 +2,11 @@
 
 Meridian is a single-owner intelligent diary that converts natural reflection into trustworthy memory, realistic action, and progressively better personal context.
 
-WP-01 provides the quality and documentation foundation only. It intentionally contains no database, authentication, product API, model integration, Microsoft integration, or functional product UI beyond a health page.
+The Foundation release (WP-01–WP-06) provides local-owner authentication, an
+immutable walking journal with processing classes and activity, PostgreSQL
+resource/event/outbox storage, and a separate reliable pg-boss worker with
+owner-visible health. Microsoft, models, Triage, tasks/reminders, and production
+deployment are not yet active.
 
 ## Clean-clone setup
 
@@ -15,10 +19,14 @@ corepack enable
 corepack prepare pnpm@11.14.0 --activate
 pnpm install --frozen-lockfile
 pnpm run check
+docker compose up -d postgres
+pnpm db:migrate
 pnpm --filter @meridian/web dev
 ```
 
-Open <http://localhost:3000/health>. Local environment details and troubleshooting are in [local development](docs/ops/local-dev.md).
+Bootstrap the local owner, build/start the worker, and open the journal according
+to [local development](docs/ops/local-dev.md). The unauthenticated process probe
+remains <http://localhost:3000/health>.
 
 ## Governance
 

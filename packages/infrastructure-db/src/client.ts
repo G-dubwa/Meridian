@@ -14,3 +14,4 @@ export function createDatabaseClient(connectionString: string) {
 export type DatabaseClient = ReturnType<
   typeof createDatabaseClient
 >['database'];
+export type DatabaseSql = ReturnType<typeof createDatabaseClient>['sql'];

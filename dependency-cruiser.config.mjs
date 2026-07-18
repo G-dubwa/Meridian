@@ -24,7 +24,9 @@ export default {
       severity: 'error',
       comment:
         'Web and worker call application services rather than adapters directly.',
-      from: { path: '(^|/)apps/(web|worker)/(?!app/_server/composition\\.ts)' },
+      from: {
+        path: '(^|/)apps/(web|worker)/(?!app/_server/composition\\.ts|src/composition\\.ts)',
+      },
       to: { path: '(^|/)packages/infrastructure-[^/]+/' },
     },
     {

@@ -42,6 +42,32 @@ the bearer and CSRF values. Password change revokes other sessions and keeps the
 current verified session. "Sign out other sessions" preserves the current
 session; "Sign out everywhere" includes it.
 
+## Worker and queue health
+
+Run `apps/web` and `apps/worker` as separate processes. The worker requires the
+bootstrapped owner, all Meridian migrations, and an installed/current pg-boss
+schema. Settings > System health and `GET /api/system/worker-health` show
+owner-scoped pending, in-flight, succeeded, failed, uncertain, oldest-unfinished,
+and newest dead-letter state. The endpoint requires an active session and is
+read-only.
+
+Normal journal work should move `pending → in_flight → succeeded`. The worker
+tries three times total with exponential backoff. A dead letter shows event type,
+opaque IDs, attempt count, time, and stable error code; do not augment incident
+records with event payloads or entry content.
+
+If pending age grows, confirm the worker process and database path, then restart
+the worker normally. If in-flight work is stale, inspect the matching pg-boss job
+and sanitized observations before intervention. If failed work appears, correct
+the cause and reconcile the consumer's idempotency key/provider state before
+redrive. Do not update outbox status, delete a job, or redrive an external write
+blindly. WP-06 has no external side effects, so its Foundation journal consumer
+requires no provider reconciliation.
+
+During shutdown, send SIGTERM and allow ten seconds. During restore or migration,
+stop the worker before web writes and preserve both public outbox and `pgboss`
+schema in the same backup boundary.
+
 ## Recovery-code use
 
 Use `/login` recovery mode from a trusted browser with the owner identifier and
@@ -88,3 +114,7 @@ types/outcomes/reasons, and affected session IDs. Exclude passwords, recovery
 codes, bearer/CSRF values, hashes, database URLs, and journal content. A suspected
 secret disclosure requires rotation/recovery, revocation, and a threat-model
 review before closure.
+
+Worker incident evidence may add outbox/event/job IDs, event type, state,
+attempt, duration, dead-letter time, and sanitized error code. Raw exception
+messages, job/event payloads, and database connection strings remain prohibited.

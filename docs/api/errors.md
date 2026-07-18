@@ -31,3 +31,8 @@ credentials, stack traces, SQL, or personal content.
 
 On journal `CONFLICT`, reload and let the owner decide how to apply the edit.
 The server never silently merges or overwrites evidence.
+
+Worker failures are durable domain-adjacent health records, not HTTP errors.
+Their stable uppercase `errorCode` appears only in the authenticated health
+response. Raw exceptions, SQL, job data, and event payloads remain internal and
+are never substituted for `INTERNAL_ERROR`.

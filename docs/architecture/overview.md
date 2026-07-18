@@ -8,4 +8,26 @@ related-docs: ../README.md
 
 # Architecture overview
 
-Status: WP-01 governed placeholder. Populate this document only in the work package that introduces its authoritative definitions.
+Meridian Foundation is a modular monolith with two runtime processes and one
+PostgreSQL database:
+
+`Next.js web → application → domain ports ← PostgreSQL/auth adapters`
+
+`Node worker → application → domain ports ← PostgreSQL/pg-boss adapters`
+
+The web owns same-origin REST, local-owner cookie/CSRF presentation, Journal,
+Security, and System health. The worker owns polling/consumption hosting only.
+Application services orchestrate transactions and policies through domain-owned
+ports. Domain imports no Meridian package. Infrastructure implements ports and
+is constructed only in exact process composition roots.
+
+PostgreSQL stores canonical resources, immutable entry revisions, events,
+outbox, authentication technical state, and pg-boss jobs. State/event/outbox
+writes are atomic. Dispatch job insertion/in-flight state is also atomic.
+Content repositories use forced RLS with transaction-local owner scope; the
+pre-authentication singleton credential boundary remains narrow and server-only.
+
+ADR-0001/0002 govern modularity/dependencies, ADR-0003 persistence/RLS,
+ADR-0004 authentication, ADR-0005 journal revision history, and ADR-0006 reliable
+worker processing. Microsoft, models, notifications, and external effects remain
+adapters activated only by later governed packages.

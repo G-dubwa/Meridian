@@ -24,6 +24,10 @@ typed same-origin `createJournalApiClientV1` methods. Mutation clients attach
 CSRF and a UUID command correlation header; callers retrying a raw command reuse
 that UUID.
 
-Tests: Type checking and Playwright exercise authentication and journal schemas
+WP-06 adds a strict read-only worker-health response and same-origin client. It
+contains counts, timestamps, identifiers, event types, attempts, and sanitized
+error codes only; event payloads and exception messages have no response field.
+
+Tests: Type checking and Playwright exercise authentication, journal, and health schemas
 against the live boundary. `docs/api/openapi.yaml` is reviewed and documentation
 checked; automated OpenAPI generation/diff remains later tooling.

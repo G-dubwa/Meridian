@@ -43,7 +43,7 @@ async function login(
   });
 }
 
-test.describe.serial('WP-04/WP-05 authenticated acceptance', () => {
+test.describe.serial('WP-04/WP-05/WP-06 authenticated acceptance', () => {
   test('bootstraps exactly one owner and stores only Argon2id/recovery hashes', async () => {
     const first = spawnSync(
       'pnpm',
@@ -283,6 +283,7 @@ test.describe.serial('WP-04/WP-05 authenticated acceptance', () => {
   test('creates and revises Standard evidence while keeping Private evidence outside AI queries', async ({
     request,
   }) => {
+    expect((await request.get('/api/system/worker-health')).status()).toBe(401);
     expect((await login(request)).status()).toBe(200);
     const standardBody = 'First standard journal evidence.';
     const revisedBody = 'Revised standard journal evidence.';
@@ -412,6 +413,20 @@ test.describe.serial('WP-04/WP-05 authenticated acceptance', () => {
     expect(
       ((await activity.json()) as { activity: unknown[] }).activity,
     ).toHaveLength(5);
+
+    const workerHealth = await request.get('/api/system/worker-health');
+    expect(workerHealth.status()).toBe(200);
+    expect(await workerHealth.json()).toMatchObject({
+      deadLetters: [],
+      failed: 0,
+      inFlight: 0,
+      pending: 5,
+      succeeded: 0,
+      uncertain: 0,
+    });
+    const healthPage = await request.get('/settings/health');
+    expect(healthPage.status()).toBe(200);
+    expect(await healthPage.text()).toContain('System health');
   });
 
   test('locks the credential after repeated failures without revealing lock state', async ({

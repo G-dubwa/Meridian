@@ -4,6 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsc --build"
+    "build": "tsc --build",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@meridian/application": "workspace:*",
+    "@meridian/domain": "workspace:*",
+    "@meridian/infrastructure-db": "workspace:*",
+    "pg-boss": "12.26.1"
   }
 }

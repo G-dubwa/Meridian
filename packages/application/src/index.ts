@@ -6,6 +6,7 @@ import type {
 
 export * from './authentication.js';
 export * from './journal.js';
+export * from './reliable-events.js';
 
 export interface UseCase<Input, Output> {
   execute(input: Input): Promise<Output>;

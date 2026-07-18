@@ -45,6 +45,14 @@ Bodies never enter auth audit or domain-event/outbox payloads. The AI-intended
 adapter selects only active current Standard revisions in SQL; Private/Sensitive
 exclusion is not entrusted to presentation or model code.
 
+The worker is a separate process with one narrow composition root. It resolves
+the singleton owner through the technical authentication boundary, then every
+outbox read/update sets transaction-local owner scope. Queue dispatch inserts a
+pg-boss job and advances the outbox in one PostgreSQL transaction. Runtime jobs
+carry identifiers and event type only; the canonical envelope stays behind RLS.
+The health endpoint requires the owner session and never exposes pg-boss
+administration or event payloads.
+
 Authentication tables are a deliberately separate pre-authentication boundary.
 Credential lookup, rate limiting, and session-token resolution must occur before
 an owner scope exists, so those technical tables do not use owner RLS. They are
@@ -62,3 +70,8 @@ least-privilege production role provisioning, database encryption at rest,
 connection TLS, and backup automation become deployment controls in their
 governing packages. Tests prove owner isolation and the real local authentication
 path; they do not claim protection from a compromised administrator.
+
+pg-boss schema installation and upgrades require a migration credential.
+Ongoing worker credentials must not own Meridian/pg-boss tables, bypass RLS, or
+retain schema-creation authority. Later external-effect consumers add provider
+reconciliation and per-effect idempotency before they can use retry safely.

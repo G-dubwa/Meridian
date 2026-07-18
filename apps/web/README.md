@@ -10,8 +10,8 @@ related-docs: ../../docs/architecture/module-map.md
 
 Responsibility: mobile-responsive UI, thin REST presentation, and explicit
 server-process composition. It includes `/login`, `/settings/security`,
-`/journal`, `/journal/[entryId]`, and the auth/journal REST routes while
-preserving `/health`.
+`/journal`, `/journal/[entryId]`, `/settings/health`, and the
+auth/journal/worker-health REST routes while preserving `/health`.
 
 Exclusions: domain invariants, persistence policy, provider calls, and business
 orchestration. Client/presentation sources import application contracts and API
@@ -23,5 +23,6 @@ Authentication uses hardened cookie transport, no-store responses, strict
 boundary validation, double-submit/session-bound CSRF, and generic error bodies.
 Journal presentation exposes processing class before save, immutable history,
 optimistic edit/archive/deletion request, and a content-free activity ledger.
-Playwright covers live Next.js and PostgreSQL. Architecture is ADR-0002,
-ADR-0004, and ADR-0005.
+Worker health exposes owner-scoped durable counts/dead letters without queue or
+event payloads. Playwright covers live Next.js and PostgreSQL. Architecture is
+ADR-0002, ADR-0004, ADR-0005, and ADR-0006.

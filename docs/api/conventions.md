@@ -46,6 +46,11 @@ command correlation identity; retry the same mutation with the same UUID.
 Generated journal methods use strict bodies/responses. Entry bodies never enter
 URLs, event payloads, or errors.
 
+`GET /api/system/worker-health` is authenticated, read-only, and no-store. Its
+generated client parses only owner-scoped counts, timestamps, opaque IDs, event
+types, attempt counts, and stable error codes. Event/job payloads, raw exception
+messages, and pg-boss administrative state are not API fields.
+
 Clients may supply a UUID `X-Request-ID`; invalid or absent values are replaced
 server-side. Request fingerprints used for abuse controls and audit are hashed
 immediately. Raw network addresses and user-agent strings are not persisted by

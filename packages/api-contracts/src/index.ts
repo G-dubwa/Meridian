@@ -8,9 +8,11 @@ import {
   userScopeV1Schema,
 } from '@meridian/domain';
 import { z } from 'zod';
+import { workerHealthResponseV1Schema } from './worker-health.js';
 
 export * from './journal-client.js';
 export * from './journal.js';
+export * from './worker-health.js';
 
 export const csrfResponseV1Schema = z
   .object({ csrfToken: z.string().min(32).max(256) })
@@ -87,6 +89,7 @@ export const generatedSchemaPlaceholdersV1 = {
   revokeSessionsRequest: revokeSessionsRequestV1Schema,
   sessionResponse: sessionResponseV1Schema,
   userScope: userScopeV1Schema,
+  workerHealthResponse: workerHealthResponseV1Schema,
 } as const;
 
 export const apiContractSchemaVersion = 1 as const;

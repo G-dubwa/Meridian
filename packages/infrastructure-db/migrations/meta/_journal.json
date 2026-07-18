@@ -36,6 +36,13 @@
       "when": 1784377488055,
       "tag": "0004_wp05_command_idempotency",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1784378611256,
+      "tag": "0005_wp06_reliable_event_processing",
+      "breakpoints": true
     }
   ]
 }

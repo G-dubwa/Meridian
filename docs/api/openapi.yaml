@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: Meridian API
-  version: 0.5.0
-  description: Same-origin REST contract for local owner authentication and journal evidence.
+  version: 0.6.0
+  description: Same-origin REST contract for owner authentication, journal evidence, and worker health.
 paths:
   /api/auth/csrf:
     get:
@@ -239,6 +239,18 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/JournalActivityResponseV1' }
         '401': { $ref: '#/components/responses/SessionInvalid' }
+  /api/system/worker-health:
+    get:
+      operationId: getWorkerHealth
+      summary: Read owner-scoped outbox and dead-letter health without event content.
+      security: [{ sessionCookie: [] }]
+      responses:
+        '200':
+          description: Current durable work counts and newest terminal failures.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkerHealthResponseV1' }
+        '401': { $ref: '#/components/responses/SessionInvalid' }
 components:
   securitySchemes:
     sessionCookie:
@@ -462,6 +474,51 @@ components:
                   ]
               occurredAt: { type: string, format: date-time }
               entryId: { type: string, format: uuid }
+    WorkerDeadLetterV1:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          attempts,
+          createdAt,
+          deadLetteredAt,
+          domainEventId,
+          errorCode,
+          eventType,
+          outboxMessageId,
+        ]
+      properties:
+        attempts: { type: integer, minimum: 1 }
+        createdAt: { type: string, format: date-time }
+        deadLetteredAt: { type: string, format: date-time }
+        domainEventId: { type: string, format: uuid }
+        errorCode: { type: string, pattern: '^[A-Z][A-Z0-9_]{2,63}$' }
+        eventType: { type: string, minLength: 1, maxLength: 160 }
+        outboxMessageId: { type: string, format: uuid }
+    WorkerHealthResponseV1:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          pending,
+          inFlight,
+          succeeded,
+          failed,
+          uncertain,
+          oldestUnfinishedAt,
+          deadLetters,
+        ]
+      properties:
+        pending: { type: integer, minimum: 0 }
+        inFlight: { type: integer, minimum: 0 }
+        succeeded: { type: integer, minimum: 0 }
+        failed: { type: integer, minimum: 0 }
+        uncertain: { type: integer, minimum: 0 }
+        oldestUnfinishedAt: { type: [string, 'null'], format: date-time }
+        deadLetters:
+          type: array
+          maxItems: 20
+          items: { $ref: '#/components/schemas/WorkerDeadLetterV1' }
     ErrorResponseV1:
       type: object
       additionalProperties: false
@@ -530,8 +587,8 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorResponseV1' }
 x-document-metadata:
-  purpose: Canonical local-owner authentication and journal REST contract.
+  purpose: Canonical local-owner authentication, journal, and worker-health REST contract.
   audience: Contributors, clients, and coding agents.
-  authoritative-for: WP-04 authentication and WP-05 journal HTTP request and response shapes.
-  update-triggers: Versioned API boundary schemas, authentication routes, or journal routes change.
+  authoritative-for: WP-04 authentication, WP-05 journal, and WP-06 health HTTP request and response shapes.
+  update-triggers: Versioned API boundary schemas, authentication, journal, or system-health routes change.
   related-docs: conventions.md

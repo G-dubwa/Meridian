@@ -8,7 +8,7 @@ related-docs: product/spec.md
 
 # Meridian documentation
 
-Read the [product specification](product/spec.md), [project state](product/project-state.md), [roadmap](product/roadmap.md), and active work-package record first.
+Read the [product specification](product/spec.md), [project state](product/project-state.md), [roadmap](product/roadmap.md), and active work-package record first. The latest release evidence is the [Foundation report](process/releases/Foundation-release-report.md).
 
 ## Authority
 

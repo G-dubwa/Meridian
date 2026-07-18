@@ -186,6 +186,9 @@ Indexes: `entry_revisions_entry_number_unique`, `entry_revisions_user_created_id
 | `available_at` | `timestamp with time zone` | no | yes | no |
 | `created_at` | `timestamp with time zone` | no | yes | no |
 | `processed_at` | `timestamp with time zone` | yes | no | no |
+| `last_error_code` | `text` | yes | no | no |
+| `last_error_at` | `timestamp with time zone` | yes | no | no |
+| `dead_lettered_at` | `timestamp with time zone` | yes | no | no |
 
 Foreign keys:
 - `outbox_messages_user_id_users_id_fk`: (user_id) → `users` (id)

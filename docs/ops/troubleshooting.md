@@ -10,16 +10,20 @@ related-docs: ../README.md
 
 ## Authentication
 
-| Symptom                                | Diagnosis and safe action                                                                                   |
-| -------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| Bootstrap returns `BOOTSTRAP_COMPLETE` | The singleton owner exists. Log in or use a recovery code; do not delete rows to rerun bootstrap.           |
-| Bootstrap returns `BOOTSTRAP_FAILED`   | Confirm migrations, runtime `DATABASE_URL`, and passphrase confirmation. Secrets are intentionally absent.  |
-| Every state change returns 403         | Fetch a fresh CSRF token before login, or reload the authenticated page so its cookie/header values match.  |
-| Login remains 401 with valid input     | The credential may be locked. Wait 15 minutes and inspect sanitized audit reason codes.                     |
-| Response is 429                        | Respect `Retry-After`; repeated retries extend neither access nor diagnostic value.                         |
-| Session unexpectedly becomes 401       | It expired, was rotated, or was revoked. Clear cookies and authenticate again.                              |
-| Recovery code works only once          | Expected. Consumption is atomic; use a different unused offline code next time.                             |
-| Security page cannot load session      | Confirm the production server can reach PostgreSQL and that cookies are sent only over HTTPS in production. |
+| Symptom                                | Diagnosis and safe action                                                                                                                      |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Bootstrap returns `BOOTSTRAP_COMPLETE` | The singleton owner exists. Log in or use a recovery code; do not delete rows to rerun bootstrap.                                              |
+| Bootstrap returns `BOOTSTRAP_FAILED`   | Confirm migrations, runtime `DATABASE_URL`, and passphrase confirmation. Secrets are intentionally absent.                                     |
+| Every state change returns 403         | Fetch a fresh CSRF token before login, or reload the authenticated page so its cookie/header values match.                                     |
+| Login remains 401 with valid input     | The credential may be locked. Wait 15 minutes and inspect sanitized audit reason codes.                                                        |
+| Response is 429                        | Respect `Retry-After`; repeated retries extend neither access nor diagnostic value.                                                            |
+| Session unexpectedly becomes 401       | It expired, was rotated, or was revoked. Clear cookies and authenticate again.                                                                 |
+| Recovery code works only once          | Expected. Consumption is atomic; use a different unused offline code next time.                                                                |
+| Security page cannot load session      | Confirm the production server can reach PostgreSQL and that cookies are sent only over HTTPS in production.                                    |
+| Worker exits during startup            | Confirm bootstrap and Meridian/pg-boss migrations, then verify the runtime role has the documented `pgboss` grants. Do not log `DATABASE_URL`. |
+| Pending work age grows                 | Start/restart the worker, verify database reachability, and inspect sanitized dispatch observations. Do not mark rows succeeded manually.      |
+| Work reaches dead letter               | Use Settings > System health and the stable error code; fix the cause and reconcile idempotency before a governed redrive.                     |
+| Health endpoint returns 401            | Authenticate again; worker state is intentionally owner-only.                                                                                  |
 
 Local production builds resolve internal packages from their built `dist`
 outputs. If Next.js reports a missing `@meridian/*` module, run the workspace

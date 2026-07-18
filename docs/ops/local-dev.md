@@ -39,7 +39,23 @@ Run the web application with `pnpm --filter @meridian/web dev`, then open
 <http://localhost:3000/journal>. See the operations runbook before automating
 bootstrap or handling lockout/recovery.
 
-`pnpm test:integration` uses `TEST_DATABASE_URL` when supplied. Otherwise, on macOS with Homebrew PostgreSQL 18 and pgvector installed, it creates and destroys an isolated temporary cluster automatically. It never uses the persistent Compose database by default.
+Build and start the separate worker after bootstrap:
+
+```sh
+pnpm --filter @meridian/worker build
+pnpm --filter @meridian/worker start
+```
+
+The first start installs pg-boss tables when the development `DATABASE_URL`
+owns the disposable local database. Keep it running beside the web process, then
+open <http://localhost:3000/settings/health>. Stop with SIGTERM or Ctrl-C; the
+worker stops polling and gives in-flight work up to ten seconds to settle.
+
+`pnpm test:integration` uses `TEST_DATABASE_URL` when supplied. Otherwise, on
+macOS with Homebrew PostgreSQL 18 and pgvector installed, it creates and destroys
+an isolated temporary cluster automatically. It installs pg-boss inside that
+cluster and proves concurrent dispatch, retry, and dead letter. It never uses
+the persistent Compose database by default.
 
 ## Individual checks
 

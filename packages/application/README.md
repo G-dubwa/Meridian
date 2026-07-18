@@ -25,6 +25,12 @@ optimistic current-pointer/lifecycle changes, correlation-id idempotency,
 content-free event/outbox orchestration, and the no-op material-change
 invalidation boundary. It performs no model or provider work.
 
+`ReliableEventService` owns content-free dispatch observations, numbered attempt
+claims, consumer idempotency identity, bounded retry classification, duplicate
+completion, and terminal recording. `OutboxHealthService` exposes scoped durable
+state. Neither imports pg-boss, SQL, logging frameworks, or worker hosting.
+
 Tests: dependency-cruiser proves application-to-infrastructure imports fail. The
-authentication and journal services are exercised through real PostgreSQL and
-live Next.js journeys. Unit tests cover schemas and the no-op hook.
+authentication, journal, and event services are exercised through real
+PostgreSQL, pg-boss, and live Next.js journeys. Unit tests cover schemas, the
+no-op hook, retry/terminal transitions, and content-safe observations.

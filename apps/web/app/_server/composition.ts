@@ -2,6 +2,7 @@ import {
   AuthenticationService,
   JournalService,
   NoopMaterialChangeInvalidationHook,
+  OutboxHealthService,
 } from '@meridian/application';
 import {
   Argon2idPasswordHasher,
@@ -20,6 +21,7 @@ export interface AuthenticationRuntime {
   readonly journal: JournalService;
   readonly secrets: NodeSecretService;
   readonly service: AuthenticationService;
+  readonly workerHealth: OutboxHealthService;
 }
 
 function createRuntime(): AuthenticationRuntime {
@@ -28,6 +30,7 @@ function createRuntime(): AuthenticationRuntime {
   const database = createDatabaseClient(connectionString);
   const ids = new CryptoIdGenerator();
   const secrets = new NodeSecretService();
+  const transactions = new DrizzleTransactionManager(database.database);
   return {
     ids,
     journal: new JournalService({
@@ -35,7 +38,7 @@ function createRuntime(): AuthenticationRuntime {
       contentHasher: secrets,
       ids,
       invalidation: new NoopMaterialChangeInvalidationHook(),
-      transactions: new DrizzleTransactionManager(database.database),
+      transactions,
     }),
     secrets,
     service: new AuthenticationService({
@@ -47,6 +50,7 @@ function createRuntime(): AuthenticationRuntime {
         database.database,
       ),
     }),
+    workerHealth: new OutboxHealthService(transactions),
   };
 }
 

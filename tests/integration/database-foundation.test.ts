@@ -14,6 +14,7 @@ import {
   entryRevisionIdV1Schema,
   resourceIdV1Schema,
   userIdV1Schema,
+  workerErrorCodeV1Schema,
 } from '../../packages/domain/src/index.js';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import postgres from 'postgres';
@@ -21,10 +22,24 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { createDatabaseClient } from '../../packages/infrastructure-db/src/client.js';
 import { DrizzleTransactionManager } from '../../packages/infrastructure-db/src/transaction-manager.js';
 import {
+  DrizzlePgBossOutboxDispatchGateway,
+  DrizzleWorkerOutboxRepository,
+} from '../../packages/infrastructure-db/src/worker-repositories.js';
+import {
   JournalService,
   type MaterialChangeInvalidation,
   type MaterialChangeInvalidationHook,
 } from '../../packages/application/src/journal.js';
+import {
+  EventHandlingError,
+  OUTBOX_QUEUE_V1,
+  ReliableEventService,
+} from '../../packages/application/src/reliable-events.js';
+import {
+  MeridianWorkerRuntime,
+  ensureWorkerQueues,
+} from '../../apps/worker/src/runtime.js';
+import { PgBoss } from 'pg-boss';
 import {
   CryptoIdGenerator,
   NodeSecretService,
@@ -157,6 +172,14 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
           'utf8',
         ),
       );
+      await snapshotSql.unsafe(
+        readFileSync(
+          resolve(
+            'packages/infrastructure-db/migrations/0005_wp06_reliable_event_processing.sql',
+          ),
+          'utf8',
+        ),
+      );
       const [seeded] = await snapshotSql<{ count: string }[]>`
         select count(*)::text as count from users
       `;
@@ -172,6 +195,14 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
         ) as exists
       `;
       expect(journalConstraint?.exists).toBe(true);
+      const [workerColumn] = await snapshotSql<{ exists: boolean }[]>`
+        select exists (
+          select 1 from information_schema.columns
+          where table_name = 'outbox_messages'
+            and column_name = 'dead_lettered_at'
+        ) as exists
+      `;
+      expect(workerColumn?.exists).toBe(true);
     } finally {
       await snapshotSql.end();
       await admin.sql.unsafe(`drop database if exists ${snapshotDatabase}`);
@@ -424,4 +455,119 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
       ),
     ).resolves.toHaveLength(0);
   });
+
+  it('claims concurrent outbox dispatch exactly once in the queue transaction', async () => {
+    if (!app) throw new Error('Application database was not initialized.');
+    const installer = new PgBoss(adminUrl);
+    await installer.start();
+    await ensureWorkerQueues(installer);
+    await admin.sql.unsafe(`grant usage on schema pgboss to ${appRole}`);
+    await admin.sql.unsafe(
+      `grant select, insert, update, delete on all tables in schema pgboss to ${appRole}`,
+    );
+    await admin.sql.unsafe(
+      `grant usage, select, update on all sequences in schema pgboss to ${appRole}`,
+    );
+    await admin.sql.unsafe(
+      `grant execute on all functions in schema pgboss to ${appRole}`,
+    );
+    const dispatcher = new DrizzlePgBossOutboxDispatchGateway(
+      app.sql,
+      installer,
+      OUTBOX_QUEUE_V1,
+    );
+    try {
+      const batches = await Promise.all([
+        dispatcher.dispatchAvailable(scopeB, new Date(), 20),
+        dispatcher.dispatchAvailable(scopeB, new Date(), 20),
+      ]);
+      const jobs = batches.flat();
+      expect(jobs).toHaveLength(5);
+      expect(new Set(jobs.map((job) => job.outboxMessageId)).size).toBe(5);
+      expect(
+        await installer.findJobs(OUTBOX_QUEUE_V1, { queued: true }),
+      ).toHaveLength(5);
+    } finally {
+      await installer.stop();
+    }
+  });
+
+  it('processes pg-boss work and dead-letters after bounded retries', async () => {
+    if (!app) throw new Error('Application database was not initialized.');
+    const boss = new PgBoss(adminUrl);
+    const observations: unknown[] = [];
+    const controlledCode = workerErrorCodeV1Schema.parse(
+      'CONTROLLED_INTEGRATION_FAILURE',
+    );
+    const service = new ReliableEventService({
+      clock: { now: () => new Date() },
+      consumer: {
+        handle: (event) =>
+          event.eventType === 'journal.entry_privacy_changed.v1'
+            ? Promise.reject(new EventHandlingError(controlledCode, true))
+            : Promise.resolve(),
+      },
+      dispatcher: new DrizzlePgBossOutboxDispatchGateway(
+        app.sql,
+        boss,
+        OUTBOX_QUEUE_V1,
+      ),
+      observations: {
+        observe: (observation) => observations.push(observation),
+      },
+      outbox: new DrizzleWorkerOutboxRepository(app.database),
+    });
+    const runtime = new MeridianWorkerRuntime({
+      boss,
+      closeDatabase: () => Promise.resolve(),
+      events: service,
+      observations: {
+        observe: (observation) => observations.push(observation),
+      },
+      scope: scopeB,
+    });
+
+    try {
+      await runtime.start();
+      const deadline = Date.now() + 15_000;
+      let health = await new DrizzleTransactionManager(app.database).run(
+        scopeB,
+        (ports) => ports.outbox.health(scopeB, 20),
+      );
+      while (
+        (health.inFlight > 0 || health.pending > 0) &&
+        Date.now() < deadline
+      ) {
+        await new Promise((resolveWait) => setTimeout(resolveWait, 200));
+        health = await new DrizzleTransactionManager(app.database).run(
+          scopeB,
+          (ports) => ports.outbox.health(scopeB, 20),
+        );
+      }
+      expect(health).toMatchObject({
+        failed: 1,
+        inFlight: 0,
+        pending: 0,
+        succeeded: 4,
+        uncertain: 0,
+      });
+      expect(health.deadLetters[0]).toMatchObject({
+        attempts: 3,
+        errorCode: controlledCode,
+        eventType: 'journal.entry_privacy_changed.v1',
+      });
+      const deadJobs = await boss.findJobs('meridian.outbox.dead.v1', {
+        queued: true,
+      });
+      expect(deadJobs).toHaveLength(1);
+      expect(deadJobs[0]?.sourceId).toBe(
+        health.deadLetters[0]?.outboxMessageId,
+      );
+      expect(JSON.stringify(observations)).not.toContain(
+        'This remains local display only.',
+      );
+    } finally {
+      await runtime.stop();
+    }
+  }, 30_000);
 });

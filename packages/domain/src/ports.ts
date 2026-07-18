@@ -19,6 +19,12 @@ import type {
 } from './ids.js';
 import type { ProcessingClass } from './processing-class.js';
 import type { UserScope } from './scope.js';
+import type {
+  OutboxHealthSnapshot,
+  OutboxJobV1,
+  WorkerErrorCode,
+  WorkerObservationV1,
+} from './worker.js';
 
 export interface UserRecord {
   readonly id: UserId;
@@ -100,6 +106,9 @@ export interface OutboxMessageRecord {
   readonly availableAt: Date;
   readonly createdAt: Date;
   readonly processedAt: Date | null;
+  readonly lastErrorCode: WorkerErrorCode | null;
+  readonly lastErrorAt: Date | null;
+  readonly deadLetteredAt: Date | null;
 }
 
 export interface UserRepository {
@@ -160,6 +169,49 @@ export interface OutboxRepository {
     scope: UserScope,
     id: OutboxMessageId,
   ): Promise<OutboxMessageRecord | null>;
+  health(
+    scope: UserScope,
+    deadLetterLimit: number,
+  ): Promise<OutboxHealthSnapshot>;
+}
+
+export interface OutboxDispatchGateway {
+  dispatchAvailable(
+    scope: UserScope,
+    now: Date,
+    limit: number,
+  ): Promise<readonly OutboxJobV1[]>;
+}
+
+export type OutboxAttemptClaim =
+  | { readonly state: 'claimed'; readonly message: OutboxMessageRecord }
+  | { readonly state: 'duplicate' }
+  | { readonly state: 'succeeded' }
+  | { readonly state: 'dead_lettered' }
+  | { readonly state: 'missing' };
+
+export interface WorkerOutboxRepository {
+  claimAttempt(
+    job: OutboxJobV1,
+    attempt: number,
+    startedAt: Date,
+  ): Promise<OutboxAttemptClaim>;
+  markSucceeded(
+    job: OutboxJobV1,
+    attempt: number,
+    processedAt: Date,
+  ): Promise<boolean>;
+  markFailed(
+    job: OutboxJobV1,
+    attempt: number,
+    errorCode: WorkerErrorCode,
+    failedAt: Date,
+    terminal: boolean,
+  ): Promise<boolean>;
+}
+
+export interface WorkerObservationSink {
+  observe(observation: WorkerObservationV1): void;
 }
 
 export interface DerivationLinkRepository {

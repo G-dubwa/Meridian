@@ -26,3 +26,16 @@ All use the entry resource as aggregate, request UUID as correlation, and one
 pending outbox message with topic equal to event type. Body, raw text, content
 hash, and history are prohibited payload fields. Strict schema tests reject
 unknown fields including body text.
+
+## Reliable delivery
+
+Each committed event has exactly one owner-matching outbox row. WP-06 dispatches
+one `meridian.outbox.v1` job whose ID equals the outbox ID and whose strict data
+contains only schema version, owner/outbox/event IDs, and event type. The worker
+loads the canonical envelope from owner-scoped storage and passes event ID as
+the consumer idempotency key. Queue jobs and observations never copy payloads.
+
+Two backed-off retries produce three total attempts. Exhaustion or a classified
+non-retryable error records `failed` with a stable code/time and moves pg-boss
+work to `meridian.outbox.dead.v1`. These are delivery states, not new domain
+events, so no product event vocabulary was added in WP-06.

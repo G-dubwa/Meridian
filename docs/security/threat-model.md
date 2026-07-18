@@ -81,3 +81,20 @@ confirmation records intent without claiming erasure.
 Residual risks include a compromised browser/session/process/administrator,
 future response-size growth, and retention after a deletion request until a
 later deletion executor is governed and tested.
+
+## WP-06 worker extension
+
+| Threat                            | Controls                                                                                                  |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Lost outbox-to-queue handoff      | Row lock, pg-boss insert, and `in_flight` transition share one transaction.                               |
+| Concurrent duplicate dispatch     | `SKIP LOCKED`, one job ID per outbox ID, and unique pg-boss identity; live race test.                     |
+| Duplicate consumer execution      | Numbered claim, event-ID idempotency key, terminal duplicate handling; later side effects must reconcile. |
+| Infinite retry pressure           | Two exponential retries, three total attempts, terminal Meridian and pg-boss dead letter.                 |
+| Content leakage through jobs/logs | Strict identifier-only job and observation schemas; raw exception and payload omission tests.             |
+| Cross-owner health/processing     | Session-required health, transaction-local RLS, job/row owner and event identity match.                   |
+| Queue administration exposure     | Separate `pgboss` schema, least-privilege runtime grants, no administrative API/UI.                       |
+
+Residual risks are a compromised worker/host/database administrator, incorrect
+future consumer idempotency, operator redrive without provider reconciliation,
+and queue-schema privilege misconfiguration. WP-06 performs no external side
+effect, so `uncertain` is reserved rather than guessed.

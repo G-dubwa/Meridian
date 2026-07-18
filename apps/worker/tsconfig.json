@@ -2,7 +2,20 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "dist",
-    "rootDir": "src"
+    "rootDir": "src",
+    "types": ["node"],
+    "paths": {
+      "@meridian/application": ["../../packages/application/dist/index"],
+      "@meridian/domain": ["../../packages/domain/dist/index"],
+      "@meridian/infrastructure-db": [
+        "../../packages/infrastructure-db/dist/index"
+      ]
+    }
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts"],
+  "references": [
+    { "path": "../../packages/domain" },
+    { "path": "../../packages/application" },
+    { "path": "../../packages/infrastructure-db" }
+  ]
 }

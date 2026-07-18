@@ -7,6 +7,7 @@ import type {
   EntryRepository,
   EntryRevisionRecord,
   EntryRevisionRepository,
+  OutboxHealthSnapshot,
   OutboxMessageRecord,
   OutboxRepository,
   ResourceRecord,
@@ -15,7 +16,11 @@ import type {
   UserRepository,
   UserScope,
 } from '@meridian/domain';
-import { domainEventEnvelopeV1Schema, userIdV1Schema } from '@meridian/domain';
+import {
+  domainEventEnvelopeV1Schema,
+  userIdV1Schema,
+  workerErrorCodeV1Schema,
+} from '@meridian/domain';
 import { and, asc, desc, eq, like, sql } from 'drizzle-orm';
 import type { DatabaseClient } from './client.js';
 import {
@@ -402,6 +407,9 @@ export class DrizzleOutboxRepository implements OutboxRepository {
       createdAt: message.createdAt,
       domainEventId: message.event.eventId,
       id: message.id,
+      deadLetteredAt: message.deadLetteredAt,
+      lastErrorAt: message.lastErrorAt,
+      lastErrorCode: message.lastErrorCode,
       payload: message.event,
       processedAt: message.processedAt,
       status: message.status,
@@ -421,19 +429,88 @@ export class DrizzleOutboxRepository implements OutboxRepository {
         and(eq(outboxMessages.userId, scope.userId), eq(outboxMessages.id, id)),
       )
       .limit(1);
-    return row
-      ? {
-          attempts: row.attempts,
-          availableAt: row.availableAt,
-          createdAt: row.createdAt,
-          event: domainEventEnvelopeV1Schema.parse(row.payload),
-          id: row.id as OutboxMessageRecord['id'],
-          processedAt: row.processedAt,
-          status: row.status as OutboxMessageRecord['status'],
-          topic: row.topic,
-        }
-      : null;
+    return row ? mapOutboxMessage(row) : null;
   }
+
+  public async health(
+    scope: UserScope,
+    deadLetterLimit: number,
+  ): Promise<OutboxHealthSnapshot> {
+    const counts = await this.database
+      .select({
+        count: sql<number>`count(*)::integer`,
+        status: outboxMessages.status,
+      })
+      .from(outboxMessages)
+      .where(eq(outboxMessages.userId, scope.userId))
+      .groupBy(outboxMessages.status);
+    const [oldest] = await this.database
+      .select({ oldest: outboxMessages.createdAt })
+      .from(outboxMessages)
+      .where(
+        and(
+          eq(outboxMessages.userId, scope.userId),
+          sql`${outboxMessages.status} in ('pending', 'in_flight', 'uncertain')`,
+        ),
+      )
+      .orderBy(asc(outboxMessages.createdAt))
+      .limit(1);
+    const deadLetters = await this.database
+      .select()
+      .from(outboxMessages)
+      .where(
+        and(
+          eq(outboxMessages.userId, scope.userId),
+          eq(outboxMessages.status, 'failed'),
+        ),
+      )
+      .orderBy(desc(outboxMessages.deadLetteredAt))
+      .limit(deadLetterLimit);
+    const count = (status: OutboxMessageRecord['status']) =>
+      counts.find((row) => row.status === status)?.count ?? 0;
+    return {
+      deadLetters: deadLetters.map((row) => {
+        if (!row.deadLetteredAt)
+          throw new Error('Failed outbox row lacks terminal metadata.');
+        return {
+          attempts: row.attempts,
+          createdAt: row.createdAt,
+          deadLetteredAt: row.deadLetteredAt,
+          domainEventId: domainEventEnvelopeV1Schema.parse(row.payload).eventId,
+          errorCode: workerErrorCodeV1Schema.parse(row.lastErrorCode),
+          eventType: row.topic,
+          outboxMessageId: row.id as OutboxMessageRecord['id'],
+        };
+      }),
+      failed: count('failed'),
+      inFlight: count('in_flight'),
+      oldestUnfinishedAt: oldest?.oldest ?? null,
+      pending: count('pending'),
+      succeeded: count('succeeded'),
+      uncertain: count('uncertain'),
+    };
+  }
+}
+
+export function mapOutboxMessage(
+  row: typeof outboxMessages.$inferSelect,
+): OutboxMessageRecord {
+  return {
+    attempts: row.attempts,
+    availableAt: row.availableAt,
+    createdAt: row.createdAt,
+    deadLetteredAt: row.deadLetteredAt,
+    event: domainEventEnvelopeV1Schema.parse(row.payload),
+    id: row.id as OutboxMessageRecord['id'],
+    lastErrorAt: row.lastErrorAt,
+    lastErrorCode:
+      row.lastErrorCode === null
+        ? null
+        : workerErrorCodeV1Schema.parse(row.lastErrorCode),
+    processedAt: row.processedAt,
+    status: row.status as OutboxMessageRecord['status'],
+    topic: row.topic,
+  };
 }
 
 export class DrizzleDerivationLinkRepository implements DerivationLinkRepository {

@@ -23,3 +23,5 @@ related-docs: release.md
 - Strict local-auth REST contracts, hardened cookies, double-submit/session-bound CSRF, login and Security UI, operator recovery/lockout/revocation runbooks, and seven live Playwright acceptance journeys.
 - WP-05 stable journal identities, immutable revisions, processing-class-first capture, optimistic lifecycle, content-free domain events/outbox, correlation-id retries, and SQL-enforced Standard-only AI eligibility.
 - Typed journal REST client/contracts, composer/timeline/detail/history/activity UI, forward hash/lifecycle migration, and live create-revise-Private-boundary Playwright evidence.
+- WP-06 transactional outbox dispatch through pg-boss, separate worker runtime, bounded exponential retry, durable dead letters, strict content-free observations, and owner-only System health.
+- Foundation WP-01–WP-06 release report with real concurrent-dispatch, journal-processing, retry/dead-letter, privacy, migration, and live-server evidence.

@@ -29,3 +29,10 @@ owner; it means local display only.
 
 A deletion request does not claim erasure. Until later governed propagation
 completes, the entry and revisions remain with `deletion_requested` status.
+
+Worker jobs are not a second evidence store: they contain opaque IDs and event
+type only. The worker retrieves the already content-free event envelope through
+owner-scoped persistence. Structured observations and health responses permit
+state, attempt, duration, IDs, type, and stable error code; they prohibit event
+payloads, raw exceptions, database URLs, entry bodies, and hashes. pg-boss
+administrative data is not exposed through the application API.

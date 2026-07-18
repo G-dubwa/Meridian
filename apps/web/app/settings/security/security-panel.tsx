@@ -93,6 +93,9 @@ export function SecurityPanel() {
         <p>
           <Link href="/journal">Open journal</Link>
         </p>
+        <p>
+          <Link href="/settings/health">View system health</Link>
+        </p>
         <dl>
           <div>
             <dt>Owner</dt>
