@@ -10,6 +10,13 @@
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "moduleResolution": "Bundler",
+    "paths": {
+      "@meridian/application": ["./packages/application/src/index.ts"],
+      "@meridian/domain": ["./packages/domain/src/index.ts"],
+      "@meridian/infrastructure-db": [
+        "./packages/infrastructure-db/src/index.ts"
+      ]
+    },
     "noFallthroughCasesInSwitch": true,
     "noImplicitAny": true,
     "noImplicitOverride": true,

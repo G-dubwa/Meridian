@@ -1,4 +1,8 @@
-import type { TransactionManager, TransactionPorts } from '@meridian/domain';
+import type {
+  TransactionManager,
+  TransactionPorts,
+  UserScope,
+} from '@meridian/domain';
 
 export interface UseCase<Input, Output> {
   execute(input: Input): Promise<Output>;
@@ -12,9 +16,10 @@ export class ApplicationTransactionBoundary {
   public constructor(private readonly transactions: TransactionManager) {}
 
   public execute<Output>(
+    scope: UserScope,
     operation: TransactionalOperation<Output>,
   ): Promise<Output> {
-    return this.transactions.run(operation);
+    return this.transactions.run(scope, operation);
   }
 }
 

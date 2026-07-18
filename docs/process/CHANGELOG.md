@@ -17,3 +17,5 @@ related-docs: release.md
 - Authoritative v1.2 specification, governed documentation hierarchy, project state and roadmap, ADR-0001/0002, and PDR-0001.
 - WP-02 versioned branded identifiers, owner scope, authority and processing policies, typed domain errors, event envelope, repository and service ports.
 - Application use-case and transaction-boundary contracts, generated-schema placeholders, and negative domain/application dependency fixtures.
+- WP-03 PostgreSQL 18 and pgvector development service, Drizzle schema and forward-only migration snapshots for users, canonical resources, entries, revisions, provenance, domain events, outbox, and schema registry.
+- Transaction-scoped Drizzle repositories with forced row-level security, owner-matching foreign keys, append-only controls, real two-user database tests, and generated data-dictionary drift checks.

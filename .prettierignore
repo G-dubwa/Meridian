@@ -4,3 +4,4 @@ coverage
 pnpm-lock.yaml
 apps/web/next-env.d.ts
 docs/product/Meridian_Design_Specification_v1.2.md
+docs/domain/data-dictionary.md

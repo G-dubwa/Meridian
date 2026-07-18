@@ -10,14 +10,19 @@
   },
   "scripts": {
     "build": "pnpm --recursive --if-present run build",
-    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm deps:check && pnpm test && pnpm docs:check && pnpm build",
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm deps:check && pnpm db:check && pnpm test && pnpm test:integration && pnpm docs:check && pnpm build",
+    "db:check": "drizzle-kit check --config packages/infrastructure-db/drizzle.config.ts",
+    "db:generate": "drizzle-kit generate --config packages/infrastructure-db/drizzle.config.ts",
+    "db:migrate": "tsx packages/infrastructure-db/src/migrate.ts",
     "deps:check": "depcruise apps packages --config dependency-cruiser.config.mjs && node scripts/check-dependency-fixture.mjs",
-    "docs:check": "node scripts/check-docs.mjs",
+    "docs:check": "node scripts/check-docs.mjs && tsx scripts/generate-data-dictionary.ts --check",
+    "docs:data:generate": "tsx scripts/generate-data-dictionary.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint .",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "test:integration": "node scripts/run-postgres-integration.mjs",
     "typecheck": "tsc --build --pretty false"
   },
   "devDependencies": {
@@ -27,10 +32,14 @@
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
     "dependency-cruiser": "18.1.0",
+    "drizzle-kit": "0.31.10",
+    "drizzle-orm": "0.45.2",
     "eslint": "10.7.0",
     "prettier": "3.9.5",
+    "postgres": "3.4.9",
     "typescript": "6.0.3",
     "typescript-eslint": "8.64.0",
+    "tsx": "4.23.1",
     "vitest": "4.1.10"
   }
 }

@@ -1,10 +1,18 @@
 {
+  "extends": "./tsconfig.base.json",
   "compilerOptions": {
+    "composite": false,
     "declaration": false,
     "declarationMap": false,
     "noEmit": true
   },
-  "include": ["*.ts", "apps/web/next.config.ts", "tests/**/*.ts"],
+  "include": [
+    "*.ts",
+    "apps/web/next.config.ts",
+    "packages/infrastructure-db/drizzle.config.ts",
+    "scripts/**/*.ts",
+    "tests/**/*.ts"
+  ],
   "references": [
     { "path": "apps/web" },
     { "path": "apps/worker" },

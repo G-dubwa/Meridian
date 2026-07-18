@@ -16,6 +16,10 @@ export interface UserRecord {
   readonly id: UserId;
   readonly locale: string;
   readonly homeTimeZone: string;
+  readonly softActiveGoalLimit: number;
+  readonly settings: Readonly<Record<string, unknown>>;
+  readonly createdAt: Date;
+  readonly updatedAt: Date;
 }
 
 export interface ResourceRecord {
@@ -31,15 +35,29 @@ export interface EntryRecord {
   readonly resourceId: ResourceId;
   readonly scope: UserScope;
   readonly currentRevisionId: EntryRevisionId | null;
+  readonly status: 'active' | 'deleted';
+  readonly createdAt: Date;
+  readonly updatedAt: Date;
+  readonly version: number;
+  readonly sensitivity: 'normal' | 'sensitive' | 'private';
+  readonly attrs: Readonly<Record<string, unknown>>;
+  readonly attrsSchemaKey: string;
+  readonly attrsSchemaVersion: number;
 }
 
 export interface EntryRevisionRecord {
   readonly id: EntryRevisionId;
+  readonly scope: UserScope;
   readonly entryId: EntryId;
   readonly revisionNumber: number;
+  readonly bodyMarkdown: string;
+  readonly bodyRaw: string | null;
+  readonly occurredAt: Date;
   readonly processingClass: ProcessingClass;
+  readonly changeKind: 'content' | 'privacy' | 'redaction' | 'metadata';
   readonly contentHash: string;
   readonly createdAt: Date;
+  readonly createdBy: 'user' | 'system';
 }
 
 export interface DerivationLinkRecord {
@@ -48,14 +66,32 @@ export interface DerivationLinkRecord {
   readonly derivedResourceId: ResourceId;
   readonly sourceResourceId: ResourceId | null;
   readonly sourceRevisionId: EntryRevisionId | null;
+  readonly sourceSpanStart: number | null;
+  readonly sourceSpanEnd: number | null;
+  readonly relation:
+    | 'supports'
+    | 'contradicts'
+    | 'supersedes'
+    | 'derived_from'
+    | 'measures'
+    | 'summarises';
+  readonly assertionClass: string;
+  readonly confidence: number | null;
   readonly createdAt: Date;
   readonly invalidatedAt: Date | null;
+  readonly invalidationReason: string | null;
 }
 
 export interface OutboxMessageRecord {
   readonly id: OutboxMessageId;
   readonly event: DomainEventEnvelopeV1;
+  readonly topic: string;
+  readonly status:
+    'pending' | 'in_flight' | 'succeeded' | 'failed' | 'uncertain';
+  readonly attempts: number;
+  readonly availableAt: Date;
   readonly createdAt: Date;
+  readonly processedAt: Date | null;
 }
 
 export interface UserRepository {
@@ -87,7 +123,10 @@ export interface DomainEventRepository {
 
 export interface OutboxRepository {
   append(message: OutboxMessageRecord): Promise<void>;
-  findById(id: OutboxMessageId): Promise<OutboxMessageRecord | null>;
+  findById(
+    scope: UserScope,
+    id: OutboxMessageId,
+  ): Promise<OutboxMessageRecord | null>;
 }
 
 export interface DerivationLinkRepository {
@@ -109,7 +148,10 @@ export interface TransactionPorts {
 }
 
 export interface TransactionManager {
-  run<T>(operation: (ports: TransactionPorts) => Promise<T>): Promise<T>;
+  run<T>(
+    scope: UserScope,
+    operation: (ports: TransactionPorts) => Promise<T>,
+  ): Promise<T>;
 }
 
 export interface Clock {
