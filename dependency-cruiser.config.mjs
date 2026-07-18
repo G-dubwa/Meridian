@@ -5,19 +5,19 @@ export default {
       name: 'domain-has-no-outward-dependencies',
       severity: 'error',
       comment:
-        'The domain package must not import application or infrastructure.',
+        'The domain package must not import any other Meridian package or app.',
       from: { path: '(^|/)packages/domain/' },
       to: {
-        path: '(^|/)packages/(application|infrastructure-[^/]+)/',
+        path: '(^|/)(apps/|packages/(?!domain/))',
       },
     },
     {
       name: 'application-does-not-import-adapters',
       severity: 'error',
       comment:
-        'Application orchestration depends on domain ports, never adapters.',
+        'Application orchestration depends only on domain and its ports.',
       from: { path: '(^|/)packages/application/' },
-      to: { path: '(^|/)packages/infrastructure-[^/]+/' },
+      to: { path: '(^|/)(apps/|packages/(?!application/|domain/))' },
     },
     {
       name: 'presentation-does-not-import-adapters',

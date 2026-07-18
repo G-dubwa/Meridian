@@ -8,10 +8,10 @@ related-docs: ../../docs/architecture/module-map.md
 
 # api-contracts
 
-Responsibility: Canonical OpenAPI generation and generated web client.
+Responsibility: canonical OpenAPI generation, generated web client, and the registry of versioned boundary schemas eligible for generation.
 
-Exclusions: Business rules and alternate API protocols.
+Exclusions: HTTP handlers, business rules, and alternate API protocols.
 
-Allowed imports: May import domain boundary schemas when introduced.
+Allowed imports: versioned public schemas from `@meridian/domain`; no application or infrastructure implementation.
 
-Tests: WP-01 supplies only the repository-wide placeholder and architecture fixture; behaviour tests arrive with the package's first scoped capability.
+Tests: WP-02 exposes a typed generated-schema placeholder. Contract generation and diff tests arrive with the first HTTP API package.

@@ -8,4 +8,19 @@ related-docs: ../README.md
 
 # Module map
 
-Status: WP-01 governed placeholder. Populate this document only in the work package that introduces its authoritative definitions.
+## Runtime and dependency flow
+
+`apps/web → application → domain ports ← infrastructure adapters` and `apps/worker → application`. Domain contains invariants and ports and imports no Meridian package. Application imports domain only. Prompts may import domain schemas, never the reverse. API contracts may register versioned domain boundary schemas; they contain no business rules.
+
+## Package ownership
+
+| Package                   | Owns                                                               | Prohibited imports                           |
+| ------------------------- | ------------------------------------------------------------------ | -------------------------------------------- |
+| `domain`                  | IDs, owner scope, policies, errors, schemas, ports, event envelope | every other Meridian package                 |
+| `application`             | use-case and transaction orchestration                             | all infrastructure, presentation, prompts    |
+| `api-contracts`           | OpenAPI/schema-generation boundary                                 | application services and infrastructure      |
+| `infrastructure-*`        | adapters implementing domain ports                                 | web presentation and domain-policy invention |
+| `prompts`                 | versioned prompt definitions and output contracts                  | infrastructure provider SDKs                 |
+| `apps/web`, `apps/worker` | presentation and process composition                               | direct adapter access                        |
+
+`dependency-cruiser.config.mjs` is executable authority for accepted ADR-0002 rules. Its negative fixtures prove both domain-to-infrastructure and application-to-infrastructure imports are rejected.

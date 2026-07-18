@@ -15,3 +15,5 @@ related-docs: release.md
 - WP-01 pnpm TypeScript monorepo with minimal web health page, worker shell, and twelve package boundaries.
 - Strict formatting, linting, project-reference type checking, Vitest, Playwright scaffolding, dependency rules with a negative fixture, documentation validation, Gitleaks policy, and CI.
 - Authoritative v1.2 specification, governed documentation hierarchy, project state and roadmap, ADR-0001/0002, and PDR-0001.
+- WP-02 versioned branded identifiers, owner scope, authority and processing policies, typed domain errors, event envelope, repository and service ports.
+- Application use-case and transaction-boundary contracts, generated-schema placeholders, and negative domain/application dependency fixtures.

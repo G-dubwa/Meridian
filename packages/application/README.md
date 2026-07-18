@@ -8,10 +8,10 @@ related-docs: ../../docs/architecture/module-map.md
 
 # application
 
-Responsibility: Use cases and workflow orchestration over domain ports.
+Responsibility: use-case contracts and workflow orchestration over domain-owned ports and transaction boundaries.
 
-Exclusions: Persistence and provider implementations.
+Exclusions: domain invariants, persistence, provider implementations, HTTP presentation, and worker hosting.
 
-Allowed imports: May import domain only.
+Allowed imports: `@meridian/domain` only. Application must not import any infrastructure package. The domain package never imports application.
 
-Tests: WP-01 supplies only the repository-wide placeholder and architecture fixture; behaviour tests arrive with the package's first scoped capability.
+Tests: orchestration uses in-memory fakes. Dependency-cruiser proves application-to-infrastructure imports fail.

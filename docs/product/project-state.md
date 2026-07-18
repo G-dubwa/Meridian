@@ -12,20 +12,23 @@ Last updated: 18 July 2026
 
 ## Current work package
 
-- WP-02 — Domain and application boundaries: next eligible; not yet started.
+- WP-03 — Database and resource foundation: next eligible; not yet started.
 
 ## Completed packages
 
-- WP-01 — Repository and quality foundation. Completion commit: the commit titled `WP-01: Repository and quality foundation` (hash is reported from Git after creation).
+- WP-01 — Repository and quality foundation. Commit `07f9fcfbb85ebc3f639f817f8b44bde771b233fa`.
+- WP-02 — Domain and application boundaries. Completion commit: `WP-02: Domain and application boundaries`.
 
 ## Active branches or worktrees
 
-- `wp-01-repository-quality-foundation` — WP-01 complete and ready for integration.
-- Integration branch: `main` (empty remote baseline).
+- `wp-01-repository-quality-foundation` — WP-01 complete.
+- `wp-02-domain-application-boundaries` — WP-02 complete and ready for integration.
+- Integration branch: `main` at verified WP-01.
 
 ## Test status
 
 - WP-01 green on Node.js 24.18.0 and pnpm 11.14.0: frozen install, format, lint, strict typecheck, dependency rules and negative fixture, Vitest, docs headers and links, and production build.
+- WP-02 green: 119 modules pass dependency rules, both prohibited-import fixtures are rejected, 5 test files and 16 tests pass, 80 documents pass, and all workspace builds pass.
 - Gitleaks is configured in CI; local binary was not present. CI is not yet observable because the branch has not been pushed.
 
 ## Known risks
@@ -36,11 +39,11 @@ Last updated: 18 July 2026
 
 ## Open decisions
 
-- None blocking WP-01. Deliberately open later decisions remain in Specification §35.3.
+- None blocking WP-03. Deliberately open later decisions remain in Specification §35.3.
 
 ## Human gates
 
-- None for WP-01.
+- None for WP-03.
 - Later gates include Microsoft permissions, production secrets, model selection when materially tied, real-device delivery testing, and production deployment expenditure.
 
 ## Deferred work
@@ -49,4 +52,4 @@ Last updated: 18 July 2026
 
 ## Next package
 
-- WP-02 — Domain and application boundaries.
+- WP-03 — Database and resource foundation.

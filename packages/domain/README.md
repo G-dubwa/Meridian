@@ -8,10 +8,12 @@ related-docs: ../../docs/architecture/module-map.md
 
 # domain
 
-Responsibility: Domain entities, invariants, schemas, ports, and events.
+Responsibility: framework-independent entities, invariants, versioned Zod schemas, typed errors, repository and service ports, and domain-event contracts.
 
-Exclusions: Application, adapters, frameworks, prompts, and UI.
+Exclusions: use-case orchestration, persistence, provider adapters, frameworks, prompts, and UI.
 
-Allowed imports: No Meridian package imports are allowed in WP-01.
+Allowed imports: no other Meridian package. Zod is permitted only to define runtime-safe domain boundaries. Domain must never import application, infrastructure, API, prompt, worker, or web code.
 
-Tests: WP-01 supplies only the repository-wide placeholder and architecture fixture; behaviour tests arrive with the package's first scoped capability.
+Tests: authority and processing-class policies are unit tested; dependency-cruiser proves domain-to-infrastructure imports fail. Later packages add state-machine tests with their capabilities.
+
+Public schema names carry a version suffix such as `V1`; `domainSchemaVersion` identifies the active package contract version. Repository ports preserve user scope and have no implementation here.

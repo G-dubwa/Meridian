@@ -13,12 +13,16 @@ const result = spawnSync(
 );
 
 const output = `${result.stdout ?? ''}${result.stderr ?? ''}`;
+const expectedRules = [
+  'application-does-not-import-adapters',
+  'domain-has-no-outward-dependencies',
+];
 if (
   result.status === 0 ||
-  !output.includes('domain-has-no-outward-dependencies')
+  expectedRules.some((rule) => !output.includes(rule))
 ) {
   console.error(
-    'Dependency rules failed to reject the domain-to-infrastructure fixture.',
+    'Dependency rules failed to reject every prohibited import fixture.',
   );
   process.exit(1);
 }

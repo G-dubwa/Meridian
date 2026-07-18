@@ -1,0 +1,33 @@
+import { z } from 'zod';
+
+export const uuidV1Schema = z.uuid().brand<'Uuid'>();
+export type Uuid = z.infer<typeof uuidV1Schema>;
+
+export const userIdV1Schema = z.uuid().brand<'UserId'>();
+export type UserId = z.infer<typeof userIdV1Schema>;
+export const resourceIdV1Schema = z.uuid().brand<'ResourceId'>();
+export type ResourceId = z.infer<typeof resourceIdV1Schema>;
+export const entryIdV1Schema = z.uuid().brand<'EntryId'>();
+export type EntryId = z.infer<typeof entryIdV1Schema>;
+export const entryRevisionIdV1Schema = z.uuid().brand<'EntryRevisionId'>();
+export type EntryRevisionId = z.infer<typeof entryRevisionIdV1Schema>;
+export const domainEventIdV1Schema = z.uuid().brand<'DomainEventId'>();
+export type DomainEventId = z.infer<typeof domainEventIdV1Schema>;
+export const outboxMessageIdV1Schema = z.uuid().brand<'OutboxMessageId'>();
+export type OutboxMessageId = z.infer<typeof outboxMessageIdV1Schema>;
+export const derivationLinkIdV1Schema = z.uuid().brand<'DerivationLinkId'>();
+export type DerivationLinkId = z.infer<typeof derivationLinkIdV1Schema>;
+export const sessionIdV1Schema = z.uuid().brand<'SessionId'>();
+export type SessionId = z.infer<typeof sessionIdV1Schema>;
+
+export const idSchemasV1 = {
+  derivationLinkId: derivationLinkIdV1Schema,
+  domainEventId: domainEventIdV1Schema,
+  entryId: entryIdV1Schema,
+  entryRevisionId: entryRevisionIdV1Schema,
+  outboxMessageId: outboxMessageIdV1Schema,
+  resourceId: resourceIdV1Schema,
+  sessionId: sessionIdV1Schema,
+  userId: userIdV1Schema,
+  uuid: uuidV1Schema,
+} as const;

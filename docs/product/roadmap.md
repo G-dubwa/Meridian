@@ -13,7 +13,7 @@ Status legend: `IN PROGRESS`, `PENDING`, `GATED`, `COMPLETE`.
 | Release        |  WP | Title                                           | Status                      |
 | -------------- | --: | ----------------------------------------------- | --------------------------- |
 | Foundation     |  01 | Repository and quality foundation               | COMPLETE                    |
-| Foundation     |  02 | Domain and application boundaries               | PENDING                     |
+| Foundation     |  02 | Domain and application boundaries               | COMPLETE                    |
 | Foundation     |  03 | Database and resource foundation                | PENDING                     |
 | Foundation     |  04 | Local owner authentication                      | PENDING                     |
 | Foundation     |  05 | Walking journal slice                           | PENDING                     |

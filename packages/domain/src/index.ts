@@ -1,1 +1,9 @@
-export const packageId = '@meridian/domain' as const;
+export * from './authority.js';
+export * from './errors.js';
+export * from './events.js';
+export * from './ids.js';
+export type * from './ports.js';
+export * from './processing-class.js';
+export * from './scope.js';
+
+export const domainSchemaVersion = 1 as const;

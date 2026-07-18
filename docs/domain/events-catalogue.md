@@ -8,4 +8,6 @@ related-docs: ../README.md
 
 # Event catalogue
 
-Status: WP-01 governed placeholder. Populate this document only in the work package that introduces its authoritative definitions.
+WP-02 defines `DomainEventEnvelopeV1` only. No concrete domain event is registered yet.
+
+Every future event must provide schema version `1`, branded event identity, non-empty type, offset-aware ISO timestamp, `UserScope`, correlation identity, optional causation and aggregate resource identity, and a versioned validated payload. A concrete event and payload schema must be added together with producer/consumer contract tests.
