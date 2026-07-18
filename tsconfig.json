@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "declaration": false,
+    "declarationMap": false,
+    "noEmit": true
+  },
+  "include": ["*.ts", "apps/web/next.config.ts", "tests/**/*.ts"],
+  "references": [
+    { "path": "apps/web" },
+    { "path": "apps/worker" },
+    { "path": "packages/domain" },
+    { "path": "packages/application" },
+    { "path": "packages/api-contracts" },
+    { "path": "packages/infrastructure-db" },
+    { "path": "packages/infrastructure-ms-graph" },
+    { "path": "packages/infrastructure-notify" },
+    { "path": "packages/infrastructure-models" },
+    { "path": "packages/prompts" },
+    { "path": "packages/retrieval" },
+    { "path": "packages/scheduling" },
+    { "path": "packages/analytics" },
+    { "path": "packages/knowledge" }
+  ]
+}

@@ -1,0 +1,12 @@
+openapi: 3.1.0
+info:
+  title: Meridian API
+  version: 0.0.0
+  description: WP-01 placeholder; no API endpoints are in scope.
+paths: {}
+x-document-metadata:
+  purpose: Canonical generated application API contract placeholder.
+  audience: Contributors, clients, and coding agents.
+  authoritative-for: Application HTTP request and response contracts once generated.
+  update-triggers: Versioned API boundary schemas change.
+  related-docs: conventions.md

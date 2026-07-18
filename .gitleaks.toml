@@ -1,0 +1,11 @@
+title = "Meridian gitleaks configuration"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Documented placeholders only"
+paths = [
+  '''\.env\.example$''',
+  '''scripts/fixtures/'''
+]

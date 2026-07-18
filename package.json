@@ -1,0 +1,36 @@
+{
+  "name": "meridian",
+  "version": "0.0.0",
+  "private": true,
+  "description": "A personal diary that keeps its promises.",
+  "packageManager": "pnpm@11.14.0",
+  "engines": {
+    "node": ">=24.18.0 <25",
+    "pnpm": ">=11.14.0 <12"
+  },
+  "scripts": {
+    "build": "pnpm --recursive --if-present run build",
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm deps:check && pnpm test && pnpm docs:check && pnpm build",
+    "deps:check": "depcruise apps packages --config dependency-cruiser.config.mjs && node scripts/check-dependency-fixture.mjs",
+    "docs:check": "node scripts/check-docs.mjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "typecheck": "tsc --build --pretty false"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@playwright/test": "1.61.1",
+    "@types/node": "26.1.1",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
+    "dependency-cruiser": "18.1.0",
+    "eslint": "10.7.0",
+    "prettier": "3.9.5",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.64.0",
+    "vitest": "4.1.10"
+  }
+}
