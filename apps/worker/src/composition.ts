@@ -1,5 +1,5 @@
 import {
-  FoundationJournalEventConsumer,
+  FoundationEventConsumer,
   OUTBOX_QUEUE_V1,
   ReliableEventService,
 } from '@meridian/application';
@@ -28,7 +28,7 @@ export async function createMeridianWorkerRuntime(): Promise<MeridianWorkerRunti
   const observations = new JsonWorkerObservationSink();
   const events = new ReliableEventService({
     clock: { now: () => new Date() },
-    consumer: new FoundationJournalEventConsumer(),
+    consumer: new FoundationEventConsumer(),
     dispatcher: new DrizzlePgBossOutboxDispatchGateway(
       database.sql,
       boss,

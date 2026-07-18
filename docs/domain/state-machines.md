@@ -32,3 +32,17 @@ for a later external write whose provider state cannot yet be reconciled.
 Dispatch changes pending to in-flight in the same transaction as pg-boss job
 creation. Attempt counts increase monotonically. Succeeded requires
 `processed_at`; failed requires `dead_lettered_at` and a sanitized error code.
+
+## Microsoft connection
+
+No account becomes `connected` until code exchange, exact-scope validation,
+minimal profile read, encrypted token storage, grant consent row, domain event,
+and outbox row commit atomically. `connected → disconnected` occurs only after
+owner confirmation and clears token ciphertext. A revoked refresh produces
+`connected → reauthorization_required` and also clears tokens. Either terminal
+local state can return to connected only through a fresh one-time authorization.
+
+OAuth authorization sessions are `pending → consumed` or expire. Consumption
+atomically matches the SHA-256 state hash, returns the encrypted verifier to the
+server process once, and overwrites its stored ciphertext with `v1.consumed`.
+Consent records have no mutable state; each transition appends a new row.

@@ -11,7 +11,7 @@ related-docs: ../README.md
 | Release        | Packages | Status                                | Evidence                                                              |
 | -------------- | -------- | ------------------------------------- | --------------------------------------------------------------------- |
 | Foundation     | WP-01–06 | Complete and independently deployable | [Foundation report](../process/releases/Foundation-release-report.md) |
-| Personal Alpha | WP-07–13 | Pending; Microsoft permission gated   | Required at WP-13                                                     |
+| Personal Alpha | WP-07–13 | In progress; WP-07 complete           | Required at WP-13                                                     |
 | Personal Beta  | WP-14–18 | Pending                               | Required at WP-18                                                     |
 | Personal v1    | WP-19–22 | Pending                               | Required at WP-22                                                     |
 

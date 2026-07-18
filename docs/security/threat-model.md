@@ -98,3 +98,22 @@ Residual risks are a compromised worker/host/database administrator, incorrect
 future consumer idempotency, operator redrive without provider reconciliation,
 and queue-schema privilege misconfiguration. WP-06 performs no external side
 effect, so `uncertain` is reserved rather than guessed.
+
+## WP-07 Microsoft connection extension
+
+| Threat                                 | Controls                                                                                                                    |
+| -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Scope escalation                       | Exact ordered allowlist at request, token-response, domain, database, and UI boundaries; broad token response fails closed. |
+| Authorization interception             | Authorization code, confidential client, exact Web redirect URI, and S256 PKCE.                                             |
+| Callback CSRF or replay                | Random state stored only as SHA-256, ten-minute expiry, atomic one-time consume, verifier ciphertext erased.                |
+| Database token disclosure              | AES-256-GCM envelopes with external 32-byte key and owner/purpose authenticated context.                                    |
+| Token leakage through secondary stores | Strict contracts and content-free events omit codes, secrets, tokens, verifiers, and provider diagnostics.                  |
+| Cross-owner integration access         | Forced RLS for account/consent data and owner binding captured in the one-time callback session.                            |
+| Refresh replay or revoked consent      | Atomic rotated-token persistence; `invalid_grant` clears local tokens and requires deliberate reauthorization.              |
+| Microsoft outage blocks diary          | Local-owner authentication and journal remain independent; unconfigured integration fails with a bounded 503.               |
+
+Residual risks include a compromised application process or host with the token
+key, weak local secret custody, app-registration takeover, provider-side consent
+remaining after local disconnect, and absence of a production key-rotation
+procedure. WP-07 reads only profile ID/display name; calendar item risks remain
+for WP-12.

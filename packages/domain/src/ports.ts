@@ -8,6 +8,12 @@ import type {
 } from './auth.js';
 import type { JournalEntryStatus } from './journal.js';
 import type {
+  ConsentAction,
+  IntegrationAccountStatus,
+  MicrosoftDelegatedScope,
+  MicrosoftProfile,
+} from './integration.js';
+import type {
   DerivationLinkId,
   EntryId,
   EntryRevisionId,
@@ -230,6 +236,8 @@ export interface TransactionPorts {
   readonly domainEvents: DomainEventRepository;
   readonly outbox: OutboxRepository;
   readonly derivationLinks: DerivationLinkRepository;
+  readonly integrationAccounts: IntegrationAccountRepository;
+  readonly consentRecords: ConsentRecordRepository;
 }
 
 export interface TransactionManager {
@@ -372,4 +380,103 @@ export interface AuthenticationTransactionManager {
 
 export interface EventPublisher {
   publish(event: DomainEventEnvelopeV1): Promise<void>;
+}
+
+export interface IntegrationAccountRecord {
+  readonly id: Uuid;
+  readonly scope: UserScope;
+  readonly provider: 'microsoft';
+  readonly providerSubjectId: string;
+  readonly displayName: string;
+  readonly status: IntegrationAccountStatus;
+  readonly grantedScopes: readonly MicrosoftDelegatedScope[];
+  readonly accessTokenCiphertext: string | null;
+  readonly refreshTokenCiphertext: string | null;
+  readonly tokenExpiresAt: Date | null;
+  readonly tokenKeyVersion: number;
+  readonly connectedAt: Date;
+  readonly disconnectedAt: Date | null;
+  readonly lastRefreshedAt: Date | null;
+  readonly createdAt: Date;
+  readonly updatedAt: Date;
+}
+
+export interface ConsentRecord {
+  readonly id: Uuid;
+  readonly scope: UserScope;
+  readonly integrationAccountId: Uuid;
+  readonly provider: 'microsoft';
+  readonly action: ConsentAction;
+  readonly scopes: readonly MicrosoftDelegatedScope[];
+  readonly occurredAt: Date;
+}
+
+export interface OAuthAuthorizationSessionRecord {
+  readonly id: Uuid;
+  readonly userId: UserId;
+  readonly provider: 'microsoft';
+  readonly stateHash: string;
+  readonly codeVerifierCiphertext: string;
+  readonly redirectUri: string;
+  readonly requestedScopes: readonly MicrosoftDelegatedScope[];
+  readonly createdAt: Date;
+  readonly expiresAt: Date;
+  readonly consumedAt: Date | null;
+}
+
+export interface IntegrationAccountRepository {
+  findMicrosoft(scope: UserScope): Promise<IntegrationAccountRecord | null>;
+  save(record: IntegrationAccountRecord): Promise<void>;
+}
+
+export interface ConsentRecordRepository {
+  append(record: ConsentRecord): Promise<void>;
+  list(scope: UserScope): Promise<readonly ConsentRecord[]>;
+}
+
+export interface OAuthAuthorizationSessionStore {
+  create(record: OAuthAuthorizationSessionRecord): Promise<void>;
+  consume(
+    stateHash: string,
+    consumedAt: Date,
+  ): Promise<OAuthAuthorizationSessionRecord | null>;
+}
+
+export interface PkcePair {
+  readonly verifier: string;
+  readonly challenge: string;
+}
+
+export interface PkceGenerator {
+  generate(): PkcePair;
+}
+
+export interface TokenCipher {
+  seal(plainText: string, context: string): string;
+  open(ciphertext: string, context: string): string;
+}
+
+export interface MicrosoftAuthorizationRequest {
+  readonly state: string;
+  readonly codeChallenge: string;
+  readonly scopes: readonly MicrosoftDelegatedScope[];
+  readonly redirectUri: string;
+}
+
+export interface MicrosoftTokenGrant {
+  readonly accessToken: string;
+  readonly refreshToken: string;
+  readonly expiresInSeconds: number;
+  readonly grantedScopes: readonly MicrosoftDelegatedScope[];
+}
+
+export interface MicrosoftOAuthGateway {
+  authorizationUrl(request: MicrosoftAuthorizationRequest): URL;
+  exchangeAuthorizationCode(
+    code: string,
+    codeVerifier: string,
+    redirectUri: string,
+  ): Promise<MicrosoftTokenGrant>;
+  refresh(refreshToken: string): Promise<MicrosoftTokenGrant>;
+  readProfile(accessToken: string): Promise<MicrosoftProfile>;
 }

@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: Meridian API
-  version: 0.6.0
-  description: Same-origin REST contract for owner authentication, journal evidence, and worker health.
+  version: 0.7.0
+  description: Same-origin REST contract for owner authentication, journal evidence, worker health, and Microsoft consent.
 paths:
   /api/auth/csrf:
     get:
@@ -251,6 +251,87 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/WorkerHealthResponseV1' }
         '401': { $ref: '#/components/responses/SessionInvalid' }
+  /api/integrations/microsoft:
+    get:
+      operationId: getMicrosoftConnection
+      summary: Read owner-scoped Microsoft connection and consent status without tokens.
+      security: [{ sessionCookie: [] }]
+      responses:
+        '200':
+          description: Connection state, exact Stage-A scopes, and append-only consent history.
+          content:
+            application/json:
+              schema:
+                { $ref: '#/components/schemas/MicrosoftConnectionStatusV1' }
+        '401': { $ref: '#/components/responses/SessionInvalid' }
+    post:
+      operationId: beginMicrosoftConnection
+      summary: Create one encrypted PKCE session and return the consumers authorization URL.
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/CsrfHeader' }
+      responses:
+        '200':
+          description: One-time Microsoft authorization destination.
+          content:
+            application/json:
+              schema:
+                { $ref: '#/components/schemas/MicrosoftConnectResponseV1' }
+        '401': { $ref: '#/components/responses/SessionInvalid' }
+        '403': { $ref: '#/components/responses/CsrfInvalid' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '503': { $ref: '#/components/responses/IntegrationUnavailable' }
+  /api/integrations/microsoft/callback:
+    get:
+      operationId: completeMicrosoftConnection
+      summary: Consume one authorization code and one-time state, then redirect safely.
+      parameters:
+        - name: code
+          in: query
+          required: false
+          schema: { type: string, minLength: 1, maxLength: 8192 }
+        - name: state
+          in: query
+          required: false
+          schema:
+            {
+              type: string,
+              minLength: 32,
+              maxLength: 256,
+              pattern: '^[A-Za-z0-9_-]+$',
+            }
+        - name: error
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        '303':
+          description: Redirect to Settings with only a generic connected or failed outcome.
+  /api/integrations/microsoft/disconnect:
+    post:
+      operationId: disconnectMicrosoft
+      summary: Remove stored provider tokens and append consent/event evidence.
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/CsrfHeader' }
+        - { $ref: '#/components/parameters/RequestIdHeader' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              { $ref: '#/components/schemas/MicrosoftDisconnectRequestV1' }
+      responses:
+        '200':
+          description: Disconnected connection and updated consent status.
+          content:
+            application/json:
+              schema:
+                { $ref: '#/components/schemas/MicrosoftConnectionStatusV1' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '401': { $ref: '#/components/responses/SessionInvalid' }
+        '403': { $ref: '#/components/responses/CsrfInvalid' }
+        '409': { $ref: '#/components/responses/Conflict' }
 components:
   securitySchemes:
     sessionCookie:
@@ -291,6 +372,84 @@ components:
       type: string
       pattern: '^MRD-[A-Z2-9]{8}-[A-Z2-9]{8}$'
       writeOnly: true
+    MicrosoftStageAScopesV1:
+      type: array
+      minItems: 5
+      maxItems: 5
+      uniqueItems: true
+      prefixItems:
+        - { type: string, const: openid }
+        - { type: string, const: profile }
+        - { type: string, const: offline_access }
+        - { type: string, const: User.Read }
+        - { type: string, const: Calendars.Read }
+      items: false
+    MicrosoftConnectResponseV1:
+      type: object
+      additionalProperties: false
+      required: [authorizationUrl]
+      properties:
+        authorizationUrl: { type: string, format: uri }
+    MicrosoftDisconnectRequestV1:
+      type: object
+      additionalProperties: false
+      required: [confirmation]
+      properties:
+        confirmation: { type: string, const: DISCONNECT }
+    MicrosoftConsentRecordV1:
+      type: object
+      additionalProperties: false
+      required: [action, occurredAt, scopes]
+      properties:
+        action:
+          type: string
+          enum: [granted, disconnected, reauthorization_required]
+        occurredAt: { type: string, format: date-time }
+        scopes: { $ref: '#/components/schemas/MicrosoftStageAScopesV1' }
+    MicrosoftConnectionAccountV1:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          displayName,
+          status,
+          grantedScopes,
+          connectedAt,
+          disconnectedAt,
+          lastRefreshedAt,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        displayName: { type: string, minLength: 1, maxLength: 255 }
+        status:
+          type: string
+          enum: [connected, disconnected, reauthorization_required]
+        grantedScopes: { $ref: '#/components/schemas/MicrosoftStageAScopesV1' }
+        connectedAt: { type: string, format: date-time }
+        disconnectedAt:
+          anyOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        lastRefreshedAt:
+          anyOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+    MicrosoftConnectionStatusV1:
+      type: object
+      additionalProperties: false
+      required: [configured, requestedScopes, account, consentRecords]
+      properties:
+        configured: { type: boolean }
+        requestedScopes:
+          { $ref: '#/components/schemas/MicrosoftStageAScopesV1' }
+        account:
+          anyOf:
+            - { $ref: '#/components/schemas/MicrosoftConnectionAccountV1' }
+            - { type: 'null' }
+        consentRecords:
+          type: array
+          items: { $ref: '#/components/schemas/MicrosoftConsentRecordV1' }
     CsrfResponseV1:
       type: object
       additionalProperties: false
@@ -532,6 +691,7 @@ components:
               CONFLICT,
               CSRF_INVALID,
               INTERNAL_ERROR,
+              INTEGRATION_UNAVAILABLE,
               NOT_FOUND,
               RATE_LIMITED,
               SESSION_INVALID,
@@ -571,6 +731,11 @@ components:
       content:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorResponseV1' }
+    IntegrationUnavailable:
+      description: Microsoft local configuration or active consent is unavailable.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponseV1' }
     JournalEntry:
       description: Current entry state and complete immutable revision history.
       content:
@@ -587,8 +752,8 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorResponseV1' }
 x-document-metadata:
-  purpose: Canonical local-owner authentication, journal, and worker-health REST contract.
+  purpose: Canonical local-owner authentication, journal, worker-health, and integration REST contract.
   audience: Contributors, clients, and coding agents.
-  authoritative-for: WP-04 authentication, WP-05 journal, and WP-06 health HTTP request and response shapes.
-  update-triggers: Versioned API boundary schemas, authentication, journal, or system-health routes change.
+  authoritative-for: WP-04 authentication, WP-05 journal, WP-06 health, and WP-07 Microsoft consent HTTP request and response shapes.
+  update-triggers: Versioned API boundary schemas, authentication, journal, system-health, or integration routes change.
   related-docs: conventions.md

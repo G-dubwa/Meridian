@@ -24,6 +24,11 @@ related-docs: ../README.md
 | Pending work age grows                 | Start/restart the worker, verify database reachability, and inspect sanitized dispatch observations. Do not mark rows succeeded manually.      |
 | Work reaches dead letter               | Use Settings > System health and the stable error code; fix the cause and reconcile idempotency before a governed redrive.                     |
 | Health endpoint returns 401            | Authenticate again; worker state is intentionally owner-only.                                                                                  |
+| Microsoft Connect returns 503          | Configure all four `MICROSOFT_*` variables from `local-dev.md`, restart the web process, and never log their values.                           |
+| Microsoft reports redirect mismatch    | Register the Web URI exactly as `http://localhost:3000/api/integrations/microsoft/callback`; matching is case-sensitive.                       |
+| Microsoft callback shows failed        | Retry once from Settings. If it repeats, inspect sanitized server reason codes; never log the code, verifier, client secret, or token.         |
+| Connection needs reauthorization       | Microsoft rejected refresh consent. Connect again deliberately; Meridian has already cleared the locally stored provider tokens.               |
+| Disconnect still appears at Microsoft  | Expected: Meridian removes local tokens only. Withdraw consent separately in the Microsoft account if provider-side removal is wanted.         |
 
 Local production builds resolve internal packages from their built `dist`
 outputs. If Next.js reports a missing `@meridian/*` module, run the workspace

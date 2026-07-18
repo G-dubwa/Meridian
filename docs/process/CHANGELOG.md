@@ -25,3 +25,8 @@ related-docs: release.md
 - Typed journal REST client/contracts, composer/timeline/detail/history/activity UI, forward hash/lifecycle migration, and live create-revise-Private-boundary Playwright evidence.
 - WP-06 transactional outbox dispatch through pg-boss, separate worker runtime, bounded exponential retry, durable dead letters, strict content-free observations, and owner-only System health.
 - Foundation WP-01–WP-06 release report with real concurrent-dispatch, journal-processing, retry/dead-letter, privacy, migration, and live-server evidence.
+- WP-07 consumers-only Microsoft authorization-code/PKCE connection with exact
+  delegated `openid profile offline_access User.Read Calendars.Read`, encrypted
+  token custody, refresh rotation, disconnect, append-only consent history, and
+  owner Settings UI. Live owner acceptance confirmed the exact five-scope grant
+  and disconnect without additional permission.

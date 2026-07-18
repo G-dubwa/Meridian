@@ -13,16 +13,17 @@ are intentionally non-diagnostic: an unknown identifier, wrong passphrase,
 locked credential, invalid recovery code, or already-used recovery code all
 return the same public code.
 
-| HTTP | Code                    | Meaning for the client                                      |
-| ---: | ----------------------- | ----------------------------------------------------------- |
-|  400 | `VALIDATION_FAILED`     | JSON does not satisfy the versioned boundary schema.        |
-|  401 | `AUTHENTICATION_FAILED` | Supplied login or recovery proof was not accepted.          |
-|  401 | `SESSION_INVALID`       | Session is absent, expired, revoked, or otherwise invalid.  |
-|  403 | `CSRF_INVALID`          | CSRF cookie/header/session binding was absent or invalid.   |
-|  404 | `NOT_FOUND`             | Owner-scoped journal resource does not exist.               |
-|  409 | `CONFLICT`              | Expected version or lifecycle state changed.                |
-|  429 | `RATE_LIMITED`          | Abuse threshold was reached; respect `Retry-After`.         |
-|  500 | `INTERNAL_ERROR`        | Unclassified server failure; no internal detail is exposed. |
+| HTTP | Code                      | Meaning for the client                                       |
+| ---: | ------------------------- | ------------------------------------------------------------ |
+|  400 | `VALIDATION_FAILED`       | JSON does not satisfy the versioned boundary schema.         |
+|  401 | `AUTHENTICATION_FAILED`   | Supplied login or recovery proof was not accepted.           |
+|  401 | `SESSION_INVALID`         | Session is absent, expired, revoked, or otherwise invalid.   |
+|  403 | `CSRF_INVALID`            | CSRF cookie/header/session binding was absent or invalid.    |
+|  404 | `NOT_FOUND`               | Owner-scoped journal resource does not exist.                |
+|  409 | `CONFLICT`                | Expected version or lifecycle state changed.                 |
+|  429 | `RATE_LIMITED`            | Abuse threshold was reached; respect `Retry-After`.          |
+|  500 | `INTERNAL_ERROR`          | Unclassified server failure; no internal detail is exposed.  |
+|  503 | `INTEGRATION_UNAVAILABLE` | Microsoft is unconfigured or current consent is unavailable. |
 
 `BOOTSTRAP_COMPLETE` is a CLI/domain error and is not exposed by the REST API.
 The server may record a more precise reason in the append-only authentication
@@ -36,3 +37,8 @@ Worker failures are durable domain-adjacent health records, not HTTP errors.
 Their stable uppercase `errorCode` appears only in the authenticated health
 response. Raw exceptions, SQL, job data, and event payloads remain internal and
 are never substituted for `INTERNAL_ERROR`.
+
+The Microsoft callback does not serialize provider errors. It redirects to the
+integration settings page with a generic success/failure outcome. Refresh
+revocation becomes durable `reauthorization_required` connection state rather
+than exposing Microsoft error text.

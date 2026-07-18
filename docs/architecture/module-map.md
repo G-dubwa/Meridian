@@ -29,6 +29,12 @@ adapters. Web route handlers depend on an application service facade; worker
 runtime handlers do the same. Client components and non-composition runtime code
 cannot import infrastructure modules.
 
+`packages/infrastructure-ms-graph` implements only the WP-07 OAuth, minimal
+profile, PKCE, and token-cipher ports. Calendar reads and all write surfaces are
+absent. `packages/infrastructure-db` implements owner-scoped integration/consent
+repositories plus the narrow one-time callback-session store. The application
+service depends on those domain ports and never imports either adapter.
+
 `dependency-cruiser.config.mjs` is executable authority for accepted ADR-0002
 rules. Its negative fixtures prove both domain-to-infrastructure and
 application-to-infrastructure imports are rejected, while the exact composition

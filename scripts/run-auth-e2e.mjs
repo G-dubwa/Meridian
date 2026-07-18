@@ -89,6 +89,10 @@ try {
     ...process.env,
     AUTH_E2E_BASE_URL: baseUrl,
     DATABASE_URL: databaseUrl,
+    MICROSOFT_CLIENT_ID: '',
+    MICROSOFT_CLIENT_SECRET: '',
+    MICROSOFT_REDIRECT_URI: '',
+    MICROSOFT_TOKEN_ENCRYPTION_KEY: '',
   };
   run('pnpm', ['db:migrate'], { env: environment });
   for (const packageName of [
@@ -97,6 +101,7 @@ try {
     '@meridian/api-contracts',
     '@meridian/infrastructure-auth',
     '@meridian/infrastructure-db',
+    '@meridian/infrastructure-ms-graph',
   ]) {
     run('pnpm', ['--filter', packageName, 'build'], { env: environment });
   }

@@ -28,6 +28,13 @@ WP-06 adds a strict read-only worker-health response and same-origin client. It
 contains counts, timestamps, identifiers, event types, attempts, and sanitized
 error codes only; event payloads and exception messages have no response field.
 
-Tests: Type checking and Playwright exercise authentication, journal, and health schemas
+WP-07 adds strict Microsoft status/connect/disconnect schemas and a read-only
+status client. Responses expose configuration, exact scopes, display label,
+state, and consent timestamps only. There is no response field for access or
+refresh tokens, authorization codes, PKCE values, client secrets, or provider
+diagnostics.
+
+Tests: Type checking and Playwright exercise authentication, journal, health,
+and Microsoft schemas
 against the live boundary. `docs/api/openapi.yaml` is reviewed and documentation
 checked; automated OpenAPI generation/diff remains later tooling.

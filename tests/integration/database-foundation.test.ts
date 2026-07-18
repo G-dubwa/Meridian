@@ -5,10 +5,13 @@ import type {
   EntryRecord,
   EntryRevisionRecord,
   ResourceRecord,
+  MicrosoftOAuthGateway,
   UserRecord,
   UserScope,
 } from '../../packages/domain/src/index.js';
 import {
+  MICROSOFT_STAGE_A_SCOPES,
+  MicrosoftOAuthGatewayError,
   derivationLinkIdV1Schema,
   entryIdV1Schema,
   entryRevisionIdV1Schema,
@@ -21,6 +24,7 @@ import postgres from 'postgres';
 import { afterAll, describe, expect, it } from 'vitest';
 import { createDatabaseClient } from '../../packages/infrastructure-db/src/client.js';
 import { DrizzleTransactionManager } from '../../packages/infrastructure-db/src/transaction-manager.js';
+import { DrizzleOAuthAuthorizationSessionStore } from '../../packages/infrastructure-db/src/integration-repositories.js';
 import {
   DrizzlePgBossOutboxDispatchGateway,
   DrizzleWorkerOutboxRepository,
@@ -35,6 +39,7 @@ import {
   OUTBOX_QUEUE_V1,
   ReliableEventService,
 } from '../../packages/application/src/reliable-events.js';
+import { MicrosoftConnectionService } from '../../packages/application/src/microsoft-connection.js';
 import {
   MeridianWorkerRuntime,
   ensureWorkerQueues,
@@ -45,6 +50,10 @@ import {
   NodeSecretService,
   SystemClock,
 } from '../../packages/infrastructure-auth/src/index.js';
+import {
+  Aes256GcmTokenCipher,
+  NodePkceGenerator,
+} from '../../packages/infrastructure-ms-graph/src/index.js';
 
 const adminUrl = process.env.TEST_DATABASE_URL;
 if (!adminUrl) throw new Error('TEST_DATABASE_URL is required.');
@@ -94,10 +103,13 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
       'auth_events',
       'auth_rate_limits',
       'auth_sessions',
+      'consent_records',
       'derivation_links',
       'domain_events',
       'entries',
       'entry_revisions',
+      'integration_accounts',
+      'oauth_authorization_sessions',
       'outbox_messages',
       'recovery_codes',
       'resources',
@@ -180,6 +192,14 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
           'utf8',
         ),
       );
+      await snapshotSql.unsafe(
+        readFileSync(
+          resolve(
+            'packages/infrastructure-db/migrations/0006_wp07_microsoft_connection_consent.sql',
+          ),
+          'utf8',
+        ),
+      );
       const [seeded] = await snapshotSql<{ count: string }[]>`
         select count(*)::text as count from users
       `;
@@ -203,6 +223,10 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
         ) as exists
       `;
       expect(workerColumn?.exists).toBe(true);
+      const [integrationTable] = await snapshotSql<{ name: string }[]>`
+        select to_regclass('public.integration_accounts')::text as name
+      `;
+      expect(integrationTable?.name).toBe('integration_accounts');
     } finally {
       await snapshotSql.end();
       await admin.sql.unsafe(`drop database if exists ${snapshotDatabase}`);
@@ -217,7 +241,7 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
     await admin.sql.unsafe(`grant usage on schema public to ${appRole}`);
     await admin.sql.unsafe(`grant select on schema_registry to ${appRole}`);
     await admin.sql.unsafe(
-      `grant select, insert, update, delete on users, resources, entries, entry_revisions, derivation_links, domain_events, outbox_messages to ${appRole}`,
+      `grant select, insert, update, delete on users, resources, entries, entry_revisions, derivation_links, domain_events, outbox_messages, integration_accounts, consent_records, oauth_authorization_sessions to ${appRole}`,
     );
 
     app = createDatabaseClient(appUrl.toString());
@@ -570,4 +594,252 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
       await runtime.stop();
     }
   }, 30_000);
+
+  it('stores an exact-scope Microsoft connection encrypted, refreshes it, and disconnects without affecting local ownership', async () => {
+    if (!app) throw new Error('Application database was not initialized.');
+    const transactions = new DrizzleTransactionManager(app.database);
+    const ids = new CryptoIdGenerator();
+    const secrets = new NodeSecretService();
+    const cipher = new Aes256GcmTokenCipher(
+      Buffer.alloc(32, 7).toString('base64'),
+    );
+    let currentTime = new Date('2026-07-18T09:00:00.000Z');
+    let exchangedVerifier = '';
+    let refreshCount = 0;
+    let consentRevoked = false;
+    const gateway: MicrosoftOAuthGateway = {
+      authorizationUrl(request) {
+        const url = new URL(
+          'https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize',
+        );
+        url.search = new URLSearchParams({
+          client_id: '018f0f77-34f1-7ef2-8ca1-7a3bf7f01976',
+          code_challenge: request.codeChallenge,
+          code_challenge_method: 'S256',
+          redirect_uri: request.redirectUri,
+          response_type: 'code',
+          scope: request.scopes.join(' '),
+          state: request.state,
+        }).toString();
+        return url;
+      },
+      exchangeAuthorizationCode(code, codeVerifier, redirectUri) {
+        expect(code).toBe('one-time-code');
+        expect(redirectUri).toBe(
+          'http://localhost:3000/api/integrations/microsoft/callback',
+        );
+        exchangedVerifier = codeVerifier;
+        return Promise.resolve({
+          accessToken: 'initial-access-token',
+          expiresInSeconds: 60,
+          grantedScopes: MICROSOFT_STAGE_A_SCOPES,
+          refreshToken: 'initial-refresh-token',
+        });
+      },
+      readProfile(accessToken) {
+        expect(accessToken).toBe('initial-access-token');
+        return Promise.resolve({
+          displayName: 'Meridian Test Owner',
+          providerSubjectId: 'provider-subject-opaque',
+        });
+      },
+      refresh(refreshToken) {
+        expect(refreshToken).toBe('initial-refresh-token');
+        if (consentRevoked)
+          return Promise.reject(
+            new MicrosoftOAuthGatewayError('consent_revoked'),
+          );
+        refreshCount += 1;
+        return Promise.resolve({
+          accessToken: 'rotated-access-token',
+          expiresInSeconds: 3600,
+          grantedScopes: MICROSOFT_STAGE_A_SCOPES,
+          refreshToken: 'rotated-refresh-token',
+        });
+      },
+    };
+    const microsoft = new MicrosoftConnectionService({
+      authorization: {
+        cipher,
+        gateway,
+        pkce: new NodePkceGenerator(),
+        redirectUri:
+          'http://localhost:3000/api/integrations/microsoft/callback',
+      },
+      clock: { now: () => currentTime },
+      ids,
+      oauthSessions: new DrizzleOAuthAuthorizationSessionStore(app.database),
+      secrets,
+      transactions,
+    });
+
+    const authorizationUrl = await microsoft.beginConnection(scopeA);
+    expect(authorizationUrl.hostname).toBe('login.microsoftonline.com');
+    expect(authorizationUrl.pathname).toContain('/consumers/');
+    expect(authorizationUrl.searchParams.get('scope')?.split(' ')).toEqual(
+      MICROSOFT_STAGE_A_SCOPES,
+    );
+    expect(authorizationUrl.search).not.toMatch(
+      /ReadWrite|Mail|Tasks|Shared|\.default/i,
+    );
+    expect(authorizationUrl.searchParams.get('code_challenge_method')).toBe(
+      'S256',
+    );
+    const state = authorizationUrl.searchParams.get('state');
+    if (!state) throw new Error('Authorization state was not generated.');
+    const [pendingFlow] = await admin.sql<
+      { code_verifier_ciphertext: string; state_hash: string }[]
+    >`
+      select code_verifier_ciphertext, state_hash
+      from oauth_authorization_sessions
+      where user_id = ${scopeA.userId}
+      order by created_at desc
+      limit 1
+    `;
+    expect(pendingFlow?.state_hash).toBe(secrets.hash(state));
+    expect(pendingFlow?.state_hash).not.toContain(state);
+    expect(pendingFlow?.code_verifier_ciphertext).toMatch(/^v1\./);
+
+    await microsoft.completeConnection(state, 'one-time-code');
+    expect(exchangedVerifier).toMatch(/^[A-Za-z0-9._~-]{43,128}$/);
+    expect(pendingFlow?.code_verifier_ciphertext).not.toContain(
+      exchangedVerifier,
+    );
+    const [consumedFlow] = await admin.sql<
+      { code_verifier_ciphertext: string; consumed_at: Date | null }[]
+    >`
+      select code_verifier_ciphertext, consumed_at
+      from oauth_authorization_sessions
+      where state_hash = ${secrets.hash(state)}
+    `;
+    expect(consumedFlow?.code_verifier_ciphertext).toBe('v1.consumed');
+    expect(consumedFlow?.consumed_at).not.toBeNull();
+    expect(new Date(consumedFlow?.consumed_at ?? 0).toISOString()).toBe(
+      currentTime.toISOString(),
+    );
+    await expect(
+      microsoft.completeConnection(state, 'one-time-code'),
+    ).rejects.toMatchObject({ code: 'AUTHENTICATION_FAILED' });
+
+    const connected = await microsoft.status(scopeA);
+    expect(connected).toMatchObject({
+      account: {
+        displayName: 'Meridian Test Owner',
+        grantedScopes: MICROSOFT_STAGE_A_SCOPES,
+        status: 'connected',
+      },
+      configured: true,
+    });
+    expect(connected.consentRecords).toHaveLength(1);
+    expect(await microsoft.status(scopeB)).toMatchObject({ account: null });
+
+    const [storedTokens] = await admin.sql<
+      {
+        access_token_ciphertext: string;
+        refresh_token_ciphertext: string;
+      }[]
+    >`
+      select access_token_ciphertext, refresh_token_ciphertext
+      from integration_accounts
+      where user_id = ${scopeA.userId}
+    `;
+    expect(storedTokens?.access_token_ciphertext).toMatch(/^v1\./);
+    expect(storedTokens?.refresh_token_ciphertext).toMatch(/^v1\./);
+    expect(JSON.stringify(storedTokens)).not.toContain('initial-access-token');
+    expect(JSON.stringify(storedTokens)).not.toContain('initial-refresh-token');
+    await expect(
+      app.sql.begin(async (sql) => {
+        await sql`select set_config('meridian.user_id', ${scopeA.userId}, true)`;
+        await sql`
+          update integration_accounts
+          set granted_scopes = ARRAY['openid', 'profile', 'offline_access', 'User.Read', 'Mail.Read']::text[]
+          where user_id = ${scopeA.userId}
+        `;
+      }),
+    ).rejects.toThrow(/integration_accounts_stage_a_scopes/);
+
+    currentTime = new Date('2026-07-18T09:01:00.000Z');
+    await expect(microsoft.accessTokenFor(scopeA)).resolves.toBe(
+      'rotated-access-token',
+    );
+    expect(refreshCount).toBe(1);
+    const refreshed = await microsoft.status(scopeA);
+    expect(refreshed.account?.lastRefreshedAt).toEqual(currentTime);
+
+    await microsoft.disconnect(scopeA, 'DISCONNECT', {
+      correlationId: ids.next(),
+    });
+    const disconnected = await microsoft.status(scopeA);
+    expect(disconnected.account?.status).toBe('disconnected');
+    expect(disconnected.consentRecords.map((record) => record.action)).toEqual([
+      'disconnected',
+      'granted',
+    ]);
+    const [cleared] = await admin.sql<
+      {
+        access_token_ciphertext: string | null;
+        refresh_token_ciphertext: string | null;
+        status: string;
+      }[]
+    >`
+      select access_token_ciphertext, refresh_token_ciphertext, status
+      from integration_accounts
+      where user_id = ${scopeA.userId}
+    `;
+    expect(cleared).toEqual({
+      access_token_ciphertext: null,
+      refresh_token_ciphertext: null,
+      status: 'disconnected',
+    });
+    await expect(
+      app.sql.begin(async (sql) => {
+        await sql`select set_config('meridian.user_id', ${scopeA.userId}, true)`;
+        await sql`
+          update consent_records set action = 'granted'
+          where user_id = ${scopeA.userId}
+        `;
+      }),
+    ).rejects.toThrow(/append-only/);
+
+    currentTime = new Date('2026-07-18T09:02:00.000Z');
+    const reconnectUrl = await microsoft.beginConnection(scopeA);
+    const reconnectState = reconnectUrl.searchParams.get('state');
+    if (!reconnectState) throw new Error('Reconnect state was not generated.');
+    await microsoft.completeConnection(reconnectState, 'one-time-code');
+    consentRevoked = true;
+    currentTime = new Date('2026-07-18T09:03:00.000Z');
+    await expect(microsoft.accessTokenFor(scopeA)).rejects.toMatchObject({
+      code: 'INTEGRATION_UNAVAILABLE',
+    });
+    const reauthorization = await microsoft.status(scopeA);
+    expect(reauthorization.account?.status).toBe('reauthorization_required');
+    const [revokedTokens] = await admin.sql<
+      {
+        access_token_ciphertext: string | null;
+        refresh_token_ciphertext: string | null;
+      }[]
+    >`
+      select access_token_ciphertext, refresh_token_ciphertext
+      from integration_accounts
+      where user_id = ${scopeA.userId}
+    `;
+    expect(revokedTokens).toEqual({
+      access_token_ciphertext: null,
+      refresh_token_ciphertext: null,
+    });
+    const [events] = await admin.sql<{ count: string }[]>`
+      select count(*)::text as count
+      from domain_events
+      where user_id = ${scopeA.userId}
+        and event_type like 'integration.%'
+    `;
+    const [messages] = await admin.sql<{ count: string }[]>`
+      select count(*)::text as count
+      from outbox_messages
+      where user_id = ${scopeA.userId}
+        and topic like 'integration.%'
+    `;
+    expect(events?.count).toBe('4');
+    expect(messages?.count).toBe('4');
+  });
 });

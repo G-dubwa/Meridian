@@ -108,20 +108,22 @@ export function httpErrorResponse(error: unknown): NextResponse {
     return jsonNoStore({ error: 'VALIDATION_FAILED' }, 400);
   if (error instanceof DomainError) {
     const status =
-      error.code === 'CSRF_INVALID'
-        ? 403
-        : error.code === 'RATE_LIMITED'
-          ? 429
-          : error.code === 'VALIDATION_FAILED'
-            ? 400
-            : error.code === 'NOT_FOUND'
-              ? 404
-              : error.code === 'CONFLICT'
-                ? 409
-                : error.code === 'PROHIBITED_ACTION' ||
-                    error.code === 'PROCESSING_CLASS_VIOLATION'
-                  ? 403
-                  : 401;
+      error.code === 'INTEGRATION_UNAVAILABLE'
+        ? 503
+        : error.code === 'CSRF_INVALID'
+          ? 403
+          : error.code === 'RATE_LIMITED'
+            ? 429
+            : error.code === 'VALIDATION_FAILED'
+              ? 400
+              : error.code === 'NOT_FOUND'
+                ? 404
+                : error.code === 'CONFLICT'
+                  ? 409
+                  : error.code === 'PROHIBITED_ACTION' ||
+                      error.code === 'PROCESSING_CLASS_VIOLATION'
+                    ? 403
+                    : 401;
     const response = jsonNoStore({ error: error.code }, status);
     if (error.code === 'RATE_LIMITED' && 'retryAt' in error) {
       const retryAt = error.retryAt;

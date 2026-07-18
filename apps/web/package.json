@@ -14,6 +14,7 @@
     "@meridian/domain": "workspace:*",
     "@meridian/infrastructure-auth": "workspace:*",
     "@meridian/infrastructure-db": "workspace:*",
+    "@meridian/infrastructure-ms-graph": "workspace:*",
     "next": "16.2.10",
     "react": "19.2.7",
     "react-dom": "19.2.7",

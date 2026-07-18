@@ -96,6 +96,9 @@ export function SecurityPanel() {
         <p>
           <Link href="/settings/health">View system health</Link>
         </p>
+        <p>
+          <Link href="/settings/integrations">Manage integrations</Link>
+        </p>
         <dl>
           <div>
             <dt>Owner</dt>

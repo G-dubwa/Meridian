@@ -193,6 +193,145 @@ export const authEvents = pgTable(
   ],
 );
 
+export const oauthAuthorizationSessions = pgTable(
+  'oauth_authorization_sessions',
+  {
+    id: uuid('id').primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    provider: text('provider').notNull(),
+    stateHash: text('state_hash').notNull().unique(),
+    codeVerifierCiphertext: text('code_verifier_ciphertext').notNull(),
+    redirectUri: text('redirect_uri').notNull(),
+    requestedScopes: text('requested_scopes').array().notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    consumedAt: timestamp('consumed_at', { withTimezone: true }),
+  },
+  (table) => [
+    check(
+      'oauth_authorization_sessions_provider',
+      sql`${table.provider} = 'microsoft'`,
+    ),
+    check(
+      'oauth_authorization_sessions_state_hash',
+      sql`length(${table.stateHash}) = 64`,
+    ),
+    check(
+      'oauth_authorization_sessions_ciphertext',
+      sql`${table.codeVerifierCiphertext} like 'v1.%'`,
+    ),
+    check(
+      'oauth_authorization_sessions_expiry',
+      sql`${table.expiresAt} > ${table.createdAt}`,
+    ),
+    check(
+      'oauth_authorization_sessions_consumed',
+      sql`${table.consumedAt} is null or ${table.consumedAt} >= ${table.createdAt}`,
+    ),
+    check(
+      'oauth_authorization_sessions_stage_a_scopes',
+      sql`cardinality(${table.requestedScopes}) = 5 and ${table.requestedScopes} @> ARRAY['openid', 'profile', 'offline_access', 'User.Read', 'Calendars.Read']::text[] and ${table.requestedScopes} <@ ARRAY['openid', 'profile', 'offline_access', 'User.Read', 'Calendars.Read']::text[]`,
+    ),
+    index('oauth_authorization_sessions_expiry_idx').on(table.expiresAt),
+  ],
+);
+
+export const integrationAccounts = pgTable(
+  'integration_accounts',
+  {
+    id: uuid('id').primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    provider: text('provider').notNull(),
+    providerSubjectId: text('provider_subject_id').notNull(),
+    displayName: text('display_name').notNull(),
+    status: text('status').notNull(),
+    grantedScopes: text('granted_scopes').array().notNull(),
+    accessTokenCiphertext: text('access_token_ciphertext'),
+    refreshTokenCiphertext: text('refresh_token_ciphertext'),
+    tokenExpiresAt: timestamp('token_expires_at', { withTimezone: true }),
+    tokenKeyVersion: integer('token_key_version').notNull().default(1),
+    connectedAt: timestamp('connected_at', { withTimezone: true }).notNull(),
+    disconnectedAt: timestamp('disconnected_at', { withTimezone: true }),
+    lastRefreshedAt: timestamp('last_refreshed_at', { withTimezone: true }),
+    ...timestamps,
+  },
+  (table) => [
+    unique('integration_accounts_user_provider_unique').on(
+      table.userId,
+      table.provider,
+    ),
+    unique('integration_accounts_id_user_unique').on(table.id, table.userId),
+    check(
+      'integration_accounts_provider',
+      sql`${table.provider} = 'microsoft'`,
+    ),
+    check(
+      'integration_accounts_status',
+      sql`${table.status} in ('connected', 'disconnected', 'reauthorization_required')`,
+    ),
+    check(
+      'integration_accounts_key_version',
+      sql`${table.tokenKeyVersion} = 1`,
+    ),
+    check(
+      'integration_accounts_token_state',
+      sql`(${table.status} = 'connected' and ${table.accessTokenCiphertext} is not null and ${table.refreshTokenCiphertext} is not null and ${table.tokenExpiresAt} is not null and ${table.disconnectedAt} is null) or (${table.status} <> 'connected' and ${table.accessTokenCiphertext} is null and ${table.refreshTokenCiphertext} is null and ${table.tokenExpiresAt} is null)`,
+    ),
+    check(
+      'integration_accounts_ciphertext',
+      sql`(${table.accessTokenCiphertext} is null or ${table.accessTokenCiphertext} like 'v1.%') and (${table.refreshTokenCiphertext} is null or ${table.refreshTokenCiphertext} like 'v1.%')`,
+    ),
+    check(
+      'integration_accounts_stage_a_scopes',
+      sql`cardinality(${table.grantedScopes}) = 5 and ${table.grantedScopes} @> ARRAY['openid', 'profile', 'offline_access', 'User.Read', 'Calendars.Read']::text[] and ${table.grantedScopes} <@ ARRAY['openid', 'profile', 'offline_access', 'User.Read', 'Calendars.Read']::text[]`,
+    ),
+    index('integration_accounts_user_status_idx').on(
+      table.userId,
+      table.status,
+    ),
+  ],
+);
+
+export const consentRecords = pgTable(
+  'consent_records',
+  {
+    id: uuid('id').primaryKey(),
+    userId: uuid('user_id').notNull(),
+    integrationAccountId: uuid('integration_account_id').notNull(),
+    provider: text('provider').notNull(),
+    action: text('action').notNull(),
+    scopes: text('scopes').array().notNull(),
+    occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.integrationAccountId, table.userId],
+      foreignColumns: [integrationAccounts.id, integrationAccounts.userId],
+      name: 'consent_records_account_owner_fk',
+    }).onDelete('cascade'),
+    check('consent_records_provider', sql`${table.provider} = 'microsoft'`),
+    check(
+      'consent_records_action',
+      sql`${table.action} in ('granted', 'disconnected', 'reauthorization_required')`,
+    ),
+    check(
+      'consent_records_stage_a_scopes',
+      sql`cardinality(${table.scopes}) = 5 and ${table.scopes} @> ARRAY['openid', 'profile', 'offline_access', 'User.Read', 'Calendars.Read']::text[] and ${table.scopes} <@ ARRAY['openid', 'profile', 'offline_access', 'User.Read', 'Calendars.Read']::text[]`,
+    ),
+    index('consent_records_user_occurred_idx').on(
+      table.userId,
+      table.occurredAt,
+    ),
+  ],
+);
+
 export const schemaRegistry = pgTable(
   'schema_registry',
   {

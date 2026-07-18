@@ -43,7 +43,7 @@ async function login(
   });
 }
 
-test.describe.serial('WP-04/WP-05/WP-06 authenticated acceptance', () => {
+test.describe.serial('WP-04 through WP-07 authenticated acceptance', () => {
   test('bootstraps exactly one owner and stores only Argon2id/recovery hashes', async () => {
     const first = spawnSync(
       'pnpm',
@@ -284,6 +284,9 @@ test.describe.serial('WP-04/WP-05/WP-06 authenticated acceptance', () => {
     request,
   }) => {
     expect((await request.get('/api/system/worker-health')).status()).toBe(401);
+    expect((await request.get('/api/integrations/microsoft')).status()).toBe(
+      401,
+    );
     expect((await login(request)).status()).toBe(200);
     const standardBody = 'First standard journal evidence.';
     const revisedBody = 'Revised standard journal evidence.';
@@ -427,6 +430,35 @@ test.describe.serial('WP-04/WP-05/WP-06 authenticated acceptance', () => {
     const healthPage = await request.get('/settings/health');
     expect(healthPage.status()).toBe(200);
     expect(await healthPage.text()).toContain('System health');
+
+    const microsoftStatus = await request.get('/api/integrations/microsoft');
+    expect(microsoftStatus.status()).toBe(200);
+    expect(await microsoftStatus.json()).toMatchObject({
+      account: null,
+      configured: false,
+      consentRecords: [],
+      requestedScopes: [
+        'openid',
+        'profile',
+        'offline_access',
+        'User.Read',
+        'Calendars.Read',
+      ],
+    });
+    const connectWithoutEnvironment = await request.post(
+      '/api/integrations/microsoft',
+      {
+        data: {},
+        headers: { 'x-csrf-token': await csrfCookie(request) },
+      },
+    );
+    expect(connectWithoutEnvironment.status()).toBe(503);
+    expect(await connectWithoutEnvironment.json()).toEqual({
+      error: 'INTEGRATION_UNAVAILABLE',
+    });
+    const integrationsPage = await request.get('/settings/integrations');
+    expect(integrationsPage.status()).toBe(200);
+    expect(await integrationsPage.text()).toContain('Integrations and consent');
   });
 
   test('locks the credential after repeated failures without revealing lock state', async ({

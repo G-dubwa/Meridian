@@ -26,7 +26,11 @@ pnpm install --frozen-lockfile
 pnpm run check
 ```
 
-Copy `.env.example` to an untracked `.env`, then run `docker compose up -d postgres` and `pnpm db:migrate` for a persistent local database. The example credentials are development-only. Bootstrap the one local owner from a private terminal:
+Copy `.env.example` to an untracked repository-root `.env` for Docker Compose.
+Export that file in the private terminal before database/operator commands
+(`set -a; source .env; set +a`), then run `docker compose up -d postgres` and
+`pnpm db:migrate` for a persistent local database. The example credentials are
+development-only. Bootstrap the one local owner from the same private terminal:
 
 ```sh
 pnpm auth:bootstrap -- --identifier owner --time-zone Africa/Johannesburg --locale en-ZA
@@ -50,6 +54,35 @@ The first start installs pg-boss tables when the development `DATABASE_URL`
 owns the disposable local database. Keep it running beside the web process, then
 open <http://localhost:3000/settings/health>. Stop with SIGTERM or Ctrl-C; the
 worker stops polling and gives in-flight work up to ten seconds to settle.
+
+## Microsoft connection
+
+WP-07 is optional until a live connection is being tested. In a Microsoft Entra
+app registration, choose the Web platform, allow personal Microsoft accounts,
+and register this redirect URI exactly:
+
+```text
+http://localhost:3000/api/integrations/microsoft/callback
+```
+
+Because the filtered Next.js command runs from `apps/web`, put its runtime values
+in untracked `apps/web/.env.local` (not in `.env.example` itself). Include
+`DATABASE_URL` plus these Microsoft names:
+
+```dotenv
+DATABASE_URL=postgres://meridian:<local-postgres-password>@127.0.0.1:5432/meridian
+MICROSOFT_CLIENT_ID=<application-client-id>
+MICROSOFT_CLIENT_SECRET=<web-client-secret>
+MICROSOFT_REDIRECT_URI=http://localhost:3000/api/integrations/microsoft/callback
+MICROSOFT_TOKEN_ENCRYPTION_KEY=<32-random-bytes-as-base64>
+```
+
+Generate the encryption value locally with `openssl rand -base64 32`. Do not
+paste either secret into chat, logs, tickets, or source control. Meridian asks
+Microsoft only for `openid profile offline_access User.Read Calendars.Read`.
+After login, use <http://localhost:3000/settings/integrations> to connect and
+disconnect. The automated E2E runner deliberately clears these variables and
+never contacts Microsoft.
 
 `pnpm test:integration` uses `TEST_DATABASE_URL` when supplied. Otherwise, on
 macOS with Homebrew PostgreSQL 18 and pgvector installed, it creates and destroys

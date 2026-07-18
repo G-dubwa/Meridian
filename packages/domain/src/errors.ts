@@ -4,6 +4,7 @@ export type DomainErrorCode =
   | 'CONFLICT'
   | 'CSRF_INVALID'
   | 'INVALID_AUTHORITY'
+  | 'INTEGRATION_UNAVAILABLE'
   | 'NOT_FOUND'
   | 'PROCESSING_CLASS_VIOLATION'
   | 'PROHIBITED_ACTION'
@@ -114,5 +115,15 @@ export class DomainValidationError extends DomainError {
   ) {
     super('VALIDATION_FAILED', message, details);
     this.name = 'DomainValidationError';
+  }
+}
+
+export class IntegrationUnavailableError extends DomainError {
+  public constructor() {
+    super(
+      'INTEGRATION_UNAVAILABLE',
+      'The requested integration is not configured.',
+    );
+    this.name = 'IntegrationUnavailableError';
   }
 }

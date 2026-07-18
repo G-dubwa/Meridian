@@ -39,9 +39,12 @@ export class EventHandlingError extends Error {
   }
 }
 
-export class FoundationJournalEventConsumer implements ReliableEventConsumer {
+export class FoundationEventConsumer implements ReliableEventConsumer {
   public handle(event: DomainEventEnvelopeV1): Promise<void> {
-    if (!event.eventType.startsWith('journal.')) {
+    if (
+      !event.eventType.startsWith('journal.') &&
+      !event.eventType.startsWith('integration.')
+    ) {
       throw new EventHandlingError(
         workerErrorCodeV1Schema.parse('UNSUPPORTED_EVENT_TYPE'),
         false,

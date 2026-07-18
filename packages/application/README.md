@@ -30,6 +30,12 @@ claims, consumer idempotency identity, bounded retry classification, duplicate
 completion, and terminal recording. `OutboxHealthService` exposes scoped durable
 state. Neither imports pg-boss, SQL, logging frameworks, or worker hosting.
 
+`MicrosoftConnectionService` owns exact-scope connect/status/callback,
+encrypted-token persistence, refresh rotation, local disconnect, append-only
+consent, and content-free event/outbox orchestration. It depends only on domain
+ports; the optional runtime keeps local Meridian available when provider
+configuration is absent.
+
 Tests: dependency-cruiser proves application-to-infrastructure imports fail. The
 authentication, journal, and event services are exercised through real
 PostgreSQL, pg-boss, and live Next.js journeys. Unit tests cover schemas, the

@@ -36,3 +36,10 @@ owner-scoped persistence. Structured observations and health responses permit
 state, attempt, duration, IDs, type, and stable error code; they prohibit event
 payloads, raw exceptions, database URLs, entry bodies, and hashes. pg-boss
 administrative data is not exposed through the application API.
+
+Microsoft processing in WP-07 is limited to OAuth protocol data and Graph
+profile `id` plus `displayName`. Tokens are encrypted; the public/API status
+contains only connection state, display label, exact scopes, timestamps, and
+append-only consent actions. No journal content or calendar item is transmitted
+or retrieved. Consent/event payloads are content-free. Microsoft calendar data
+processing begins only in WP-12 after its own governed implementation.

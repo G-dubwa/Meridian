@@ -41,6 +41,15 @@ then completes four events and retries one controlled failure three times into
 matching Meridian/pg-boss dead-letter state. Playwright proves health is denied
 without a session and presents content-free owner state after journal writes.
 
+WP-07 unit tests use a synthetic HTTP adapter to prove consumers-only exact
+scopes, S256 PKCE, AES-256-GCM context binding, minimal profile reads, sanitized
+failures, environment policy, and API token non-disclosure. Live PostgreSQL
+tests prove state replay rejection/verifier erasure, ciphertext custody, RLS,
+append-only consent, refresh rotation, disconnect, reauthorization, and atomic
+events. Playwright runs with Microsoft variables explicitly absent, so automated
+acceptance cannot grant consent or contact Microsoft. A visible owner login and
+disconnect is a separate mandatory live gate.
+
 Tests may use synthetic fixture identifiers and passphrases only. Test output,
 snapshots, traces, and screenshots must not contain credentials, recovery codes,
 session cookies, journal content, or production data. A failed security journey

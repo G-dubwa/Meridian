@@ -27,7 +27,15 @@ writes are atomic. Dispatch job insertion/in-flight state is also atomic.
 Content repositories use forced RLS with transaction-local owner scope; the
 pre-authentication singleton credential boundary remains narrow and server-only.
 
+The web composition root optionally constructs the Microsoft adapter. The
+application owns connection/refresh/disconnect policy through domain ports; the
+adapter owns consumers OAuth HTTP, S256 PKCE, and AES-256-GCM envelopes. A
+one-time technical OAuth session bridges the provider callback; persistent
+integration accounts and consent history remain owner-RLS scoped. No Microsoft
+type enters the domain and no Graph request exists outside the adapter.
+
 ADR-0001/0002 govern modularity/dependencies, ADR-0003 persistence/RLS,
-ADR-0004 authentication, ADR-0005 journal revision history, and ADR-0006 reliable
-worker processing. Microsoft, models, notifications, and external effects remain
-adapters activated only by later governed packages.
+ADR-0004 authentication, ADR-0005 journal revision history, ADR-0006 reliable
+worker processing, and ADR-0007 Microsoft OAuth/token custody. Models,
+notifications, calendar data sync, and external effects remain adapters
+activated only by later governed packages.

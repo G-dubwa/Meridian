@@ -51,6 +51,14 @@ generated client parses only owner-scoped counts, timestamps, opaque IDs, event
 types, attempt counts, and stable error codes. Event/job payloads, raw exception
 messages, and pg-boss administrative state are not API fields.
 
+Microsoft status, connect, and disconnect routes require the local owner
+session; connect/disconnect also require CSRF. The authorization callback is the
+single exception to session-cookie authentication: it consumes a hashed,
+owner-bound, ten-minute state once because Strict SameSite cookies are not sent
+on the provider return. It redirects with only a generic outcome. Provider
+codes, tokens, secrets, PKCE material, and error descriptions are never API
+response fields.
+
 Clients may supply a UUID `X-Request-ID`; invalid or absent values are replaced
 server-side. Request fingerprints used for abuse controls and audit are hashed
 immediately. Raw network addresses and user-agent strings are not persisted by

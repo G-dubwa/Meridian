@@ -21,3 +21,8 @@ Public schema names carry a version suffix such as `V1`; `domainSchemaVersion`
 identifies the active package contract version. Repository ports preserve user
 scope and have no implementation here. Worker jobs carry only owner/outbox/event
 identifiers and type; durable payload lookup remains owner-scoped persistence.
+
+WP-07 adds the immutable five-scope Microsoft tuple, connection/consent states,
+OAuth/PKCE/token-cipher ports, owner-scoped integration repositories, and strict
+content-free integration event payloads. It contains no provider URL, SDK, HTTP,
+or cryptographic implementation.

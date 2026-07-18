@@ -9,9 +9,11 @@ import {
 } from '@meridian/domain';
 import { z } from 'zod';
 import { workerHealthResponseV1Schema } from './worker-health.js';
+import { microsoftConnectionStatusResponseV1Schema } from './microsoft-integration.js';
 
 export * from './journal-client.js';
 export * from './journal.js';
+export * from './microsoft-integration.js';
 export * from './worker-health.js';
 
 export const csrfResponseV1Schema = z
@@ -68,6 +70,7 @@ export const authenticationErrorResponseV1Schema = z
       'CONFLICT',
       'CSRF_INVALID',
       'INTERNAL_ERROR',
+      'INTEGRATION_UNAVAILABLE',
       'NOT_FOUND',
       'RATE_LIMITED',
       'SESSION_INVALID',
@@ -84,6 +87,7 @@ export const generatedSchemaPlaceholdersV1 = {
   csrfResponse: csrfResponseV1Schema,
   domainEventEnvelope: domainEventEnvelopeV1Schema,
   loginRequest: loginRequestV1Schema,
+  microsoftConnectionStatusResponse: microsoftConnectionStatusResponseV1Schema,
   processingClass: processingClassV1Schema,
   recoveryLoginRequest: recoveryLoginRequestV1Schema,
   revokeSessionsRequest: revokeSessionsRequestV1Schema,

@@ -6,6 +6,7 @@ import type {
 
 export * from './authentication.js';
 export * from './journal.js';
+export * from './microsoft-connection.js';
 export * from './reliable-events.js';
 
 export interface UseCase<Input, Output> {

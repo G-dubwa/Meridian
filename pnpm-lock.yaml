@@ -74,6 +74,9 @@ importers:
       '@meridian/infrastructure-db':
         specifier: workspace:*
         version: link:../../packages/infrastructure-db
+      '@meridian/infrastructure-ms-graph':
+        specifier: workspace:*
+        version: link:../../packages/infrastructure-ms-graph
       next:
         specifier: 16.2.10
         version: 16.2.10(@playwright/test@1.61.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -151,7 +154,11 @@ importers:
 
   packages/infrastructure-models: {}
 
-  packages/infrastructure-ms-graph: {}
+  packages/infrastructure-ms-graph:
+    dependencies:
+      '@meridian/domain':
+        specifier: workspace:*
+        version: link:../domain
 
   packages/infrastructure-notify: {}
 

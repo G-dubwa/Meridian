@@ -6,6 +6,10 @@ import type {
 import { sql } from 'drizzle-orm';
 import type { DatabaseClient } from './client.js';
 import {
+  DrizzleConsentRecordRepository,
+  DrizzleIntegrationAccountRepository,
+} from './integration-repositories.js';
+import {
   DrizzleDerivationLinkRepository,
   DrizzleDomainEventRepository,
   DrizzleEntryRepository,
@@ -20,10 +24,12 @@ function createTransactionPorts(
   database: DatabaseTransaction,
 ): TransactionPorts {
   return {
+    consentRecords: new DrizzleConsentRecordRepository(database),
     derivationLinks: new DrizzleDerivationLinkRepository(database),
     domainEvents: new DrizzleDomainEventRepository(database),
     entries: new DrizzleEntryRepository(database),
     entryRevisions: new DrizzleEntryRevisionRepository(database),
+    integrationAccounts: new DrizzleIntegrationAccountRepository(database),
     outbox: new DrizzleOutboxRepository(database),
     resources: new DrizzleResourceRepository(database),
     users: new DrizzleUserRepository(database),

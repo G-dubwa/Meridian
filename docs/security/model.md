@@ -61,6 +61,25 @@ authentication transaction manager. Deployment must grant the application role
 only the required table operations and must keep migration/table-owner
 credentials out of request processes. User content remains behind forced RLS.
 
+## Microsoft integration boundary
+
+Microsoft is a separately consented integration, never Meridian authentication.
+The confidential Web flow uses S256 PKCE, a random state stored only as a hash,
+atomic one-time consumption, a ten-minute expiry, and the fixed `consumers`
+authority. The exact allowed tuple is `openid profile offline_access User.Read
+Calendars.Read`; broader returned scopes fail closed.
+
+Access/refresh tokens and pending PKCE verifiers use AES-256-GCM envelopes with
+purpose-specific authenticated context. The 32-byte base64 key and client secret
+remain environment secrets. Integration accounts and consent records have
+forced owner RLS; the OAuth session store is a narrow technical callback table
+available only to server-side adapters. Consuming a session erases its encrypted
+verifier. API/UI/events/logs never contain codes, verifiers, secrets, or tokens.
+
+Refresh-token rotation is persisted atomically. Revoked consent or disconnect
+clears local tokens while append-only consent evidence remains. Local login and
+journal access continue when Microsoft is missing or unavailable.
+
 ## Current limits
 
 Local authentication does not protect a compromised application process,
@@ -75,3 +94,8 @@ pg-boss schema installation and upgrades require a migration credential.
 Ongoing worker credentials must not own Meridian/pg-boss tables, bypass RLS, or
 retain schema-creation authority. Later external-effect consumers add provider
 reconciliation and per-effect idempotency before they can use retry safely.
+
+Provider-token encryption does not protect a compromised application process or
+host holding the encryption key. Production needs secret rotation and a governed
+token re-encryption procedure. Local disconnect does not prove Microsoft-side
+consent withdrawal.

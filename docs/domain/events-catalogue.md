@@ -39,3 +39,17 @@ Two backed-off retries produce three total attempts. Exhaustion or a classified
 non-retryable error records `failed` with a stable code/time and moves pg-boss
 work to `meridian.outbox.dead.v1`. These are delivery states, not new domain
 events, so no product event vocabulary was added in WP-06.
+
+## Microsoft integration events v1
+
+| Event                                               | Emitted when                                     | Payload                                              |
+| --------------------------------------------------- | ------------------------------------------------ | ---------------------------------------------------- |
+| `integration.microsoft_connected.v1`                | Exact consent and encrypted token custody commit | integration ID, exact scopes, connected status       |
+| `integration.microsoft_disconnected.v1`             | Owner confirms local disconnect                  | integration ID, exact scopes, disconnected status    |
+| `integration.microsoft_reauthorization_required.v1` | Refresh consent is no longer valid               | integration ID, exact scopes, reauthorization status |
+
+These events and their outbox rows commit with connection/consent state. They
+never contain Microsoft subject/display name, tokens, codes, verifier, client
+secret, provider diagnostics, journal content, or calendar data. The existing
+reliable worker accepts the `integration.` type prefix and otherwise applies the
+same identifier-only delivery policy.
