@@ -270,7 +270,7 @@ export const entries = pgTable(
     check('entries_attrs_object', sql`jsonb_typeof(${table.attrs}) = 'object'`),
     check(
       'entries_status_valid',
-      sql`${table.status} in ('active', 'deleted')`,
+      sql`${table.status} in ('active', 'archived', 'deletion_requested')`,
     ),
     check(
       'entries_sensitivity_valid',
@@ -324,7 +324,16 @@ export const entryRevisions = pgTable(
       'entry_revisions_created_by_valid',
       sql`${table.createdBy} in ('user', 'system')`,
     ),
+    check(
+      'entry_revisions_content_hash_length',
+      sql`length(${table.contentHash}) = 64`,
+    ),
     index('entry_revisions_user_created_idx').on(table.userId, table.createdAt),
+    index('entry_revisions_ai_processing_idx').on(
+      table.userId,
+      table.processingClass,
+      table.createdAt,
+    ),
   ],
 );
 
@@ -415,6 +424,11 @@ export const domainEvents = pgTable(
     index('domain_events_user_occurred_idx').on(table.userId, table.occurredAt),
     index('domain_events_correlation_idx').on(
       table.userId,
+      table.correlationId,
+    ),
+    uniqueIndex('domain_events_command_idempotency_unique').on(
+      table.userId,
+      table.eventType,
       table.correlationId,
     ),
   ],

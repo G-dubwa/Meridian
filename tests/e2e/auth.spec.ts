@@ -2,6 +2,9 @@ import { spawnSync } from 'node:child_process';
 import { expect, test } from '@playwright/test';
 import type { APIRequestContext } from '@playwright/test';
 import postgres from 'postgres';
+import { userIdV1Schema } from '../../packages/domain/src/index.js';
+import { createDatabaseClient } from '../../packages/infrastructure-db/src/client.js';
+import { DrizzleTransactionManager } from '../../packages/infrastructure-db/src/transaction-manager.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) throw new Error('DATABASE_URL is required.');
@@ -40,7 +43,7 @@ async function login(
   });
 }
 
-test.describe.serial('WP-04 local owner authentication', () => {
+test.describe.serial('WP-04/WP-05 authenticated acceptance', () => {
   test('bootstraps exactly one owner and stores only Argon2id/recovery hashes', async () => {
     const first = spawnSync(
       'pnpm',
@@ -275,6 +278,140 @@ test.describe.serial('WP-04 local owner authentication', () => {
     });
     expect(revoked.status()).toBe(204);
     expect((await request.get('/api/auth/session')).status()).toBe(401);
+  });
+
+  test('creates and revises Standard evidence while keeping Private evidence outside AI queries', async ({
+    request,
+  }) => {
+    expect((await login(request)).status()).toBe(200);
+    const standardBody = 'First standard journal evidence.';
+    const revisedBody = 'Revised standard journal evidence.';
+    const privateBody = 'Private journal evidence never leaves local display.';
+
+    const standardCreated = await request.post('/api/journal/entries', {
+      data: { bodyMarkdown: standardBody, processingClass: 'standard' },
+      headers: { 'x-csrf-token': await csrfCookie(request) },
+    });
+    expect(standardCreated.status()).toBe(201);
+    const standard = (await standardCreated.json()) as {
+      entry: { id: string; version: number };
+    };
+
+    const revised = await request.post(
+      `/api/journal/entries/${standard.entry.id}/revisions`,
+      {
+        data: {
+          bodyMarkdown: revisedBody,
+          expectedVersion: standard.entry.version,
+          processingClass: 'standard',
+        },
+        headers: { 'x-csrf-token': await csrfCookie(request) },
+      },
+    );
+    expect(revised.status()).toBe(200);
+    const revisedView = (await revised.json()) as {
+      entry: { version: number };
+      revisions: { bodyMarkdown: string; revisionNumber: number }[];
+    };
+    expect(revisedView.revisions).toEqual([
+      expect.objectContaining({
+        bodyMarkdown: standardBody,
+        revisionNumber: 1,
+      }),
+      expect.objectContaining({ bodyMarkdown: revisedBody, revisionNumber: 2 }),
+    ]);
+
+    const detail = await request.get(
+      `/api/journal/entries/${standard.entry.id}`,
+    );
+    expect(detail.status()).toBe(200);
+    expect(
+      ((await detail.json()) as { revisions: unknown[] }).revisions,
+    ).toHaveLength(2);
+
+    const privateCreated = await request.post('/api/journal/entries', {
+      data: { bodyMarkdown: privateBody, processingClass: 'private' },
+      headers: { 'x-csrf-token': await csrfCookie(request) },
+    });
+    expect(privateCreated.status()).toBe(201);
+    const privateView = (await privateCreated.json()) as {
+      entry: { id: string };
+    };
+
+    const sql = postgres(databaseUrl, { prepare: false });
+    const database = createDatabaseClient(databaseUrl);
+    try {
+      const [credential] = await sql<{ user_id: string }[]>`
+        select user_id from auth_credentials where identifier = 'owner'
+      `;
+      if (!credential) throw new Error('Owner fixture is missing.');
+      const scope = { userId: userIdV1Schema.parse(credential.user_id) };
+      const eligible = await new DrizzleTransactionManager(
+        database.database,
+      ).run(scope, (ports) =>
+        ports.entryRevisions.findCurrentForAiProcessing(scope, 20),
+      );
+      expect(eligible.map((revision) => revision.entryId)).toEqual([
+        standard.entry.id,
+      ]);
+      expect(
+        eligible.some((revision) => revision.entryId === privateView.entry.id),
+      ).toBe(false);
+
+      const [audit] = await sql<
+        { body_leaks: string; events: string; messages: string }[]
+      >`
+        select
+          (select count(*)::text from domain_events where payload::text like ${`%${privateBody}%`}) as body_leaks,
+          (select count(*)::text from domain_events where event_type like 'journal.%') as events,
+          (select count(*)::text from outbox_messages where topic like 'journal.%') as messages
+      `;
+      expect(audit).toEqual({ body_leaks: '0', events: '3', messages: '3' });
+    } finally {
+      await database.sql.end();
+      await sql.end();
+    }
+
+    const journalPage = await request.get('/journal');
+    expect(journalPage.status()).toBe(200);
+    expect(await journalPage.text()).toContain('Journal');
+    const detailPage = await request.get(`/journal/${standard.entry.id}`);
+    expect(detailPage.status()).toBe(200);
+    expect(await detailPage.text()).toContain('Entry detail');
+
+    const archived = await request.post(
+      `/api/journal/entries/${standard.entry.id}/archive`,
+      {
+        data: { expectedVersion: revisedView.entry.version },
+        headers: { 'x-csrf-token': await csrfCookie(request) },
+      },
+    );
+    expect(archived.status()).toBe(200);
+    const archivedView = (await archived.json()) as {
+      entry: { status: string; version: number };
+    };
+    expect(archivedView.entry.status).toBe('archived');
+
+    const deletion = await request.post(
+      `/api/journal/entries/${standard.entry.id}/deletion-request`,
+      {
+        data: {
+          confirmHardDeletion: true,
+          expectedVersion: archivedView.entry.version,
+        },
+        headers: { 'x-csrf-token': await csrfCookie(request) },
+      },
+    );
+    expect(deletion.status()).toBe(200);
+    expect(
+      ((await deletion.json()) as { entry: { status: string } }).entry.status,
+    ).toBe('deletion_requested');
+
+    const activity = await request.get('/api/journal/activity');
+    expect(activity.status()).toBe(200);
+    expect(
+      ((await activity.json()) as { activity: unknown[] }).activity,
+    ).toHaveLength(5);
   });
 
   test('locks the credential after repeated failures without revealing lock state', async ({

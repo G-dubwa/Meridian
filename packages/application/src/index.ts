@@ -5,6 +5,7 @@ import type {
 } from '@meridian/domain';
 
 export * from './authentication.js';
+export * from './journal.js';
 
 export interface UseCase<Input, Output> {
   execute(input: Input): Promise<Output>;

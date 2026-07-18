@@ -28,6 +28,11 @@ bootstrap, successful and failed login, logout, renewal, password change,
 one-time recovery, explicit revocation, and lockout. Database rows are inspected
 to prove Argon2id password storage and hashed-only recovery/session secrets.
 
+The WP-05 journey creates/revises Standard evidence, inspects both revisions,
+creates Private evidence, invokes the real owner-scoped AI query, and proves only
+Standard returns. Integration tests prove content-free events/outbox,
+correlation retry, update-trigger rejection, privacy invalidation, and upgrade.
+
 Tests may use synthetic fixture identifiers and passphrases only. Test output,
 snapshots, traces, and screenshots must not contain credentials, recovery codes,
 session cookies, journal content, or production data. A failed security journey

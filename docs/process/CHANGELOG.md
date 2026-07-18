@@ -21,3 +21,5 @@ related-docs: release.md
 - Transaction-scoped Drizzle repositories with forced row-level security, owner-matching foreign keys, append-only controls, real two-user database tests, and generated data-dictionary drift checks.
 - WP-04 one-time owner bootstrap with Argon2id credentials, hashed-only recovery codes, persisted abuse controls, append-only authentication audit, and revocable opaque sessions.
 - Strict local-auth REST contracts, hardened cookies, double-submit/session-bound CSRF, login and Security UI, operator recovery/lockout/revocation runbooks, and seven live Playwright acceptance journeys.
+- WP-05 stable journal identities, immutable revisions, processing-class-first capture, optimistic lifecycle, content-free domain events/outbox, correlation-id retries, and SQL-enforced Standard-only AI eligibility.
+- Typed journal REST client/contracts, composer/timeline/detail/history/activity UI, forward hash/lifecycle migration, and live create-revise-Private-boundary Playwright evidence.

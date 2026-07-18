@@ -4,6 +4,8 @@ import {
   authPassphraseV1Schema,
   authorityTierV1Schema,
   domainEventEnvelopeV1Schema,
+  journalBodyMarkdownV1Schema,
+  journalRevisionEventPayloadV1Schema,
   processingClassV1Schema,
   recoveryCodeV1Schema,
   userScopeV1Schema,
@@ -61,5 +63,28 @@ describe('public domain schemas v1', () => {
     expect(authIdentifierV1Schema.safeParse('owner@example.com').success).toBe(
       false,
     );
+  });
+
+  it('validates journal bodies and content-free revision event payloads', () => {
+    expect(journalBodyMarkdownV1Schema.safeParse('   ').success).toBe(false);
+    expect(
+      journalRevisionEventPayloadV1Schema.parse({
+        changeKind: 'privacy',
+        entryId: '018f0f77-34f1-7ef2-8ca1-7a3bf7f01980',
+        processingClass: 'private',
+        revisionId: '018f0f77-34f1-7ef2-8ca1-7a3bf7f01981',
+        revisionNumber: 2,
+      }),
+    ).toMatchObject({ revisionNumber: 2, processingClass: 'private' });
+    expect(() =>
+      journalRevisionEventPayloadV1Schema.parse({
+        bodyMarkdown: 'must never enter the event payload',
+        changeKind: 'content',
+        entryId: '018f0f77-34f1-7ef2-8ca1-7a3bf7f01980',
+        processingClass: 'standard',
+        revisionId: '018f0f77-34f1-7ef2-8ca1-7a3bf7f01981',
+        revisionNumber: 1,
+      }),
+    ).toThrow();
   });
 });

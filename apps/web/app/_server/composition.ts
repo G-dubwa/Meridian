@@ -1,4 +1,8 @@
-import { AuthenticationService } from '@meridian/application';
+import {
+  AuthenticationService,
+  JournalService,
+  NoopMaterialChangeInvalidationHook,
+} from '@meridian/application';
 import {
   Argon2idPasswordHasher,
   CryptoIdGenerator,
@@ -7,11 +11,13 @@ import {
 } from '@meridian/infrastructure-auth';
 import {
   DrizzleAuthenticationTransactionManager,
+  DrizzleTransactionManager,
   createDatabaseClient,
 } from '@meridian/infrastructure-db';
 
 export interface AuthenticationRuntime {
   readonly ids: CryptoIdGenerator;
+  readonly journal: JournalService;
   readonly secrets: NodeSecretService;
   readonly service: AuthenticationService;
 }
@@ -24,6 +30,13 @@ function createRuntime(): AuthenticationRuntime {
   const secrets = new NodeSecretService();
   return {
     ids,
+    journal: new JournalService({
+      clock: new SystemClock(),
+      contentHasher: secrets,
+      ids,
+      invalidation: new NoopMaterialChangeInvalidationHook(),
+      transactions: new DrizzleTransactionManager(database.database),
+    }),
     secrets,
     service: new AuthenticationService({
       clock: new SystemClock(),

@@ -19,6 +19,8 @@ return the same public code.
 |  401 | `AUTHENTICATION_FAILED` | Supplied login or recovery proof was not accepted.          |
 |  401 | `SESSION_INVALID`       | Session is absent, expired, revoked, or otherwise invalid.  |
 |  403 | `CSRF_INVALID`          | CSRF cookie/header/session binding was absent or invalid.   |
+|  404 | `NOT_FOUND`             | Owner-scoped journal resource does not exist.               |
+|  409 | `CONFLICT`              | Expected version or lifecycle state changed.                |
 |  429 | `RATE_LIMITED`          | Abuse threshold was reached; respect `Retry-After`.         |
 |  500 | `INTERNAL_ERROR`        | Unclassified server failure; no internal detail is exposed. |
 
@@ -26,3 +28,6 @@ return the same public code.
 The server may record a more precise reason in the append-only authentication
 audit log, but error bodies never disclose account existence, lockout state,
 credentials, stack traces, SQL, or personal content.
+
+On journal `CONFLICT`, reload and let the owner decide how to apply the edit.
+The server never silently merges or overwrites evidence.

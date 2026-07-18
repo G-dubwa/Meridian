@@ -9,8 +9,9 @@ related-docs: ../../docs/architecture/module-map.md
 # Web application
 
 Responsibility: mobile-responsive UI, thin REST presentation, and explicit
-server-process composition. WP-04 includes `/login`, `/settings/security`, and
-the `/api/auth/*` routes while preserving the unauthenticated `/health` page.
+server-process composition. It includes `/login`, `/settings/security`,
+`/journal`, `/journal/[entryId]`, and the auth/journal REST routes while
+preserving `/health`.
 
 Exclusions: domain invariants, persistence policy, provider calls, and business
 orchestration. Client/presentation sources import application contracts and API
@@ -20,5 +21,7 @@ service facade.
 
 Authentication uses hardened cookie transport, no-store responses, strict
 boundary validation, double-submit/session-bound CSRF, and generic error bodies.
-Playwright covers a live Next.js server and real PostgreSQL path.
-Authoritative architecture is ADR-0002 and ADR-0004.
+Journal presentation exposes processing class before save, immutable history,
+optimistic edit/archive/deletion request, and a content-free activity ledger.
+Playwright covers live Next.js and PostgreSQL. Architecture is ADR-0002,
+ADR-0004, and ADR-0005.

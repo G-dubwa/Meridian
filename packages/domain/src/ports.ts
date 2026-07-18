@@ -6,6 +6,7 @@ import type {
   AuthIdentifier,
   RecoveryCode,
 } from './auth.js';
+import type { JournalEntryStatus } from './journal.js';
 import type {
   DerivationLinkId,
   EntryId,
@@ -42,7 +43,7 @@ export interface EntryRecord {
   readonly resourceId: ResourceId;
   readonly scope: UserScope;
   readonly currentRevisionId: EntryRevisionId | null;
-  readonly status: 'active' | 'deleted';
+  readonly status: JournalEntryStatus;
   readonly createdAt: Date;
   readonly updatedAt: Date;
   readonly version: number;
@@ -113,7 +114,9 @@ export interface ResourceRepository {
 
 export interface EntryRepository {
   findById(scope: UserScope, id: EntryId): Promise<EntryRecord | null>;
+  list(scope: UserScope): Promise<readonly EntryRecord[]>;
   save(entry: EntryRecord): Promise<void>;
+  update(entry: EntryRecord, expectedVersion: number): Promise<boolean>;
 }
 
 export interface EntryRevisionRepository {
@@ -122,10 +125,33 @@ export interface EntryRevisionRepository {
     id: EntryRevisionId,
   ): Promise<EntryRevisionRecord | null>;
   append(revision: EntryRevisionRecord): Promise<void>;
+  listForEntry(
+    scope: UserScope,
+    entryId: EntryId,
+  ): Promise<readonly EntryRevisionRecord[]>;
+  findCurrentForAiProcessing(
+    scope: UserScope,
+    limit: number,
+  ): Promise<readonly EntryRevisionRecord[]>;
 }
 
 export interface DomainEventRepository {
   append(event: DomainEventEnvelopeV1): Promise<void>;
+  acquireCommandLock(
+    scope: UserScope,
+    correlationId: Uuid,
+    eventType: string,
+  ): Promise<void>;
+  findByCorrelation(
+    scope: UserScope,
+    correlationId: Uuid,
+    eventType: string,
+  ): Promise<DomainEventEnvelopeV1 | null>;
+  listByTypePrefix(
+    scope: UserScope,
+    eventTypePrefix: string,
+    limit: number,
+  ): Promise<readonly DomainEventEnvelopeV1[]>;
 }
 
 export interface OutboxRepository {

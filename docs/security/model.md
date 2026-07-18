@@ -40,6 +40,11 @@ The application role is not a table owner, superuser, `BYPASSRLS` role, or migra
 
 Owner-matching composite foreign keys prevent cross-owner subtype, revision, event, outbox, and derivation relationships. Entry creation requires its canonical resource in the same successful transaction. Entry revisions and domain events are append-only for updates; governed hard deletion can cascade to remove evidence and links.
 
+Journal routes require a valid owner session and transaction-local RLS scope.
+Bodies never enter auth audit or domain-event/outbox payloads. The AI-intended
+adapter selects only active current Standard revisions in SQL; Private/Sensitive
+exclusion is not entrusted to presentation or model code.
+
 Authentication tables are a deliberately separate pre-authentication boundary.
 Credential lookup, rate limiting, and session-token resolution must occur before
 an owner scope exists, so those technical tables do not use owner RLS. They are

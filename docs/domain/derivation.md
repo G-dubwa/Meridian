@@ -8,4 +8,12 @@ related-docs: ../README.md
 
 # Derivation
 
-Status: WP-01 governed placeholder. Populate this document only in the work package that introduces its authoritative definitions.
+WP-05 creates no derived resources, proposals, model output, or links. It
+establishes the source invalidation boundary: content/privacy revisions supply
+previous/current revision IDs, entry ID, owner scope, and change kind to a no-op
+hook and emit reliable content-free events.
+
+Later workflows mark replaceable proposals stale and accepted derived objects
+`evidence_outdated`; they must not mutate or silently delete source revisions.
+Hard deletion follows the existing cascade graph only after a later package adds
+exact propagation acceptance evidence.

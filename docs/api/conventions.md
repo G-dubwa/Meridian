@@ -41,11 +41,14 @@ Boundary schemas are strict: unknown properties and invalid formats return a
 generic `VALIDATION_FAILED`. Authentication identifiers are normalized and
 lower-cased. Passphrases are opaque strings and are never trimmed or logged.
 
+Journal mutations use positive optimistic versions. `X-Request-ID` is also the
+command correlation identity; retry the same mutation with the same UUID.
+Generated journal methods use strict bodies/responses. Entry bodies never enter
+URLs, event payloads, or errors.
+
 Clients may supply a UUID `X-Request-ID`; invalid or absent values are replaced
 server-side. Request fingerprints used for abuse controls and audit are hashed
 immediately. Raw network addresses and user-agent strings are not persisted by
 the authentication feature.
 
-Versioned URLs, pagination, sorting, and resource concurrency controls are
-deferred until a resource API needs them. They must be added here before their
-first use.
+Versioned URLs, pagination, and sorting remain deferred until measured need.

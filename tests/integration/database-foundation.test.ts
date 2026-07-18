@@ -20,6 +20,16 @@ import postgres from 'postgres';
 import { afterAll, describe, expect, it } from 'vitest';
 import { createDatabaseClient } from '../../packages/infrastructure-db/src/client.js';
 import { DrizzleTransactionManager } from '../../packages/infrastructure-db/src/transaction-manager.js';
+import {
+  JournalService,
+  type MaterialChangeInvalidation,
+  type MaterialChangeInvalidationHook,
+} from '../../packages/application/src/journal.js';
+import {
+  CryptoIdGenerator,
+  NodeSecretService,
+  SystemClock,
+} from '../../packages/infrastructure-auth/src/index.js';
 
 const adminUrl = process.env.TEST_DATABASE_URL;
 if (!adminUrl) throw new Error('TEST_DATABASE_URL is required.');
@@ -131,6 +141,22 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
           'utf8',
         ),
       );
+      await snapshotSql.unsafe(
+        readFileSync(
+          resolve(
+            'packages/infrastructure-db/migrations/0003_wp05_walking_journal_slice.sql',
+          ),
+          'utf8',
+        ),
+      );
+      await snapshotSql.unsafe(
+        readFileSync(
+          resolve(
+            'packages/infrastructure-db/migrations/0004_wp05_command_idempotency.sql',
+          ),
+          'utf8',
+        ),
+      );
       const [seeded] = await snapshotSql<{ count: string }[]>`
         select count(*)::text as count from users
       `;
@@ -139,6 +165,13 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
         select to_regclass('public.auth_credentials')::text as name
       `;
       expect(authTable?.name).toBe('auth_credentials');
+      const [journalConstraint] = await snapshotSql<{ exists: boolean }[]>`
+        select exists (
+          select 1 from pg_constraint
+          where conname = 'entry_revisions_content_hash_length'
+        ) as exists
+      `;
+      expect(journalConstraint?.exists).toBe(true);
     } finally {
       await snapshotSql.end();
       await admin.sql.unsafe(`drop database if exists ${snapshotDatabase}`);
@@ -230,6 +263,112 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
     ).rejects.toThrow();
   });
 
+  it('keeps journal revisions immutable, current updates atomic, and Private revisions outside AI queries', async () => {
+    if (!app) throw new Error('Application database was not initialized.');
+    const transactions = new DrizzleTransactionManager(app.database);
+    const ids = new CryptoIdGenerator();
+    const secrets = new NodeSecretService();
+    const invalidations: MaterialChangeInvalidation[] = [];
+    const invalidation: MaterialChangeInvalidationHook = {
+      invalidate(change) {
+        invalidations.push(change);
+        return Promise.resolve();
+      },
+    };
+    const journal = new JournalService({
+      clock: new SystemClock(),
+      contentHasher: secrets,
+      ids,
+      invalidation,
+      transactions,
+    });
+    const standardContext = { correlationId: ids.next() };
+    const [standard, retried] = await Promise.all([
+      journal.createEntry(
+        scopeB,
+        {
+          bodyMarkdown: 'A standard source revision.',
+          processingClass: 'standard',
+        },
+        standardContext,
+      ),
+      journal.createEntry(
+        scopeB,
+        {
+          bodyMarkdown: 'Retry body is ignored for the same command identity.',
+          processingClass: 'private',
+        },
+        standardContext,
+      ),
+    ]);
+    expect(retried.entry.id).toBe(standard.entry.id);
+
+    const revised = await journal.reviseEntry(
+      scopeB,
+      standard.entry.id,
+      {
+        bodyMarkdown: 'A revised standard source revision.',
+        expectedVersion: standard.entry.version,
+        processingClass: 'standard',
+      },
+      { correlationId: ids.next() },
+    );
+    expect(revised.revisions).toHaveLength(2);
+    expect(revised.revisions[0]?.bodyMarkdown).toBe(
+      'A standard source revision.',
+    );
+    expect(revised.entry.currentRevisionId).toBe(revised.currentRevision.id);
+    expect(invalidations).toHaveLength(1);
+
+    const privateEntry = await journal.createEntry(
+      scopeB,
+      {
+        bodyMarkdown: 'This remains local display only.',
+        processingClass: 'private',
+      },
+      { correlationId: ids.next() },
+    );
+    const eligible = await transactions.run(scopeB, (ports) =>
+      ports.entryRevisions.findCurrentForAiProcessing(scopeB, 20),
+    );
+    expect(eligible.map((revision) => revision.id)).toEqual([
+      revised.currentRevision.id,
+    ]);
+    expect(
+      eligible.some((revision) => revision.entryId === privateEntry.entry.id),
+    ).toBe(false);
+
+    await journal.reviseEntry(
+      scopeB,
+      privateEntry.entry.id,
+      {
+        bodyMarkdown: privateEntry.currentRevision.bodyMarkdown,
+        expectedVersion: privateEntry.entry.version,
+        processingClass: 'sensitive',
+      },
+      { correlationId: ids.next() },
+    );
+    expect(invalidations).toHaveLength(2);
+    expect(invalidations[1]?.changeKind).toBe('privacy');
+
+    await expect(
+      app.sql.begin(async (sql) => {
+        await sql`select set_config('meridian.user_id', ${scopeB.userId}, true)`;
+        await sql`
+          update entry_revisions set body_markdown = 'mutation rejected'
+          where id = ${revised.revisions[0]?.id ?? ''}
+        `;
+      }),
+    ).rejects.toThrow(/append-only/);
+
+    const [counts] = await admin.sql<{ events: string; messages: string }[]>`
+      select
+        (select count(*)::text from domain_events where user_id = ${scopeB.userId}) as events,
+        (select count(*)::text from outbox_messages where user_id = ${scopeB.userId}) as messages
+    `;
+    expect(counts).toEqual({ events: '5', messages: '5' });
+  });
+
   it('cascades revision-derived provenance when an entry is deleted', async () => {
     if (!app) throw new Error('Application database was not initialized.');
     const transactions = new DrizzleTransactionManager(app.database);
@@ -237,7 +376,8 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
       bodyMarkdown: 'Source evidence',
       bodyRaw: null,
       changeKind: 'content',
-      contentHash: 'sha256:test-fixture',
+      contentHash:
+        'ea18d9b5b14ad08bd342d86c977d79c9c678b555f2ccc981ec9b72c02f3232f7',
       createdAt: now,
       createdBy: 'user',
       entryId,

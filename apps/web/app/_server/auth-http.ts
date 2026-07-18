@@ -43,7 +43,7 @@ function contextFor(request: NextRequest) {
   };
 }
 
-function json(body: unknown, status = 200): NextResponse {
+export function jsonNoStore(body: unknown, status = 200): NextResponse {
   return NextResponse.json(body, { headers: noStoreHeaders, status });
 }
 
@@ -103,9 +103,9 @@ function requireSessionToken(request: NextRequest): string {
   return token;
 }
 
-function errorResponse(error: unknown): NextResponse {
+export function httpErrorResponse(error: unknown): NextResponse {
   if (error instanceof ZodError)
-    return json({ error: 'VALIDATION_FAILED' }, 400);
+    return jsonNoStore({ error: 'VALIDATION_FAILED' }, 400);
   if (error instanceof DomainError) {
     const status =
       error.code === 'CSRF_INVALID'
@@ -114,8 +114,15 @@ function errorResponse(error: unknown): NextResponse {
           ? 429
           : error.code === 'VALIDATION_FAILED'
             ? 400
-            : 401;
-    const response = json({ error: error.code }, status);
+            : error.code === 'NOT_FOUND'
+              ? 404
+              : error.code === 'CONFLICT'
+                ? 409
+                : error.code === 'PROHIBITED_ACTION' ||
+                    error.code === 'PROCESSING_CLASS_VIOLATION'
+                  ? 403
+                  : 401;
+    const response = jsonNoStore({ error: error.code }, status);
     if (error.code === 'RATE_LIMITED' && 'retryAt' in error) {
       const retryAt = error.retryAt;
       if (retryAt instanceof Date)
@@ -128,12 +135,29 @@ function errorResponse(error: unknown): NextResponse {
     }
     return response;
   }
-  return json({ error: 'INTERNAL_ERROR' }, 500);
+  return jsonNoStore({ error: 'INTERNAL_ERROR' }, 500);
+}
+
+export async function requireAuthenticatedScope(
+  request: NextRequest,
+  stateChanging = false,
+) {
+  const csrfToken = stateChanging ? requireCsrf(request) : undefined;
+  const session = await authenticationRuntime().service.validateSession(
+    requireSessionToken(request),
+    csrfToken,
+  );
+  return {
+    context: { correlationId: contextFor(request).requestId },
+    scope: { userId: session.record.userId },
+  };
 }
 
 export function getCsrf(): NextResponse {
   const token = authenticationRuntime().secrets.generate(32);
-  const response = json(csrfResponseV1Schema.parse({ csrfToken: token }));
+  const response = jsonNoStore(
+    csrfResponseV1Schema.parse({ csrfToken: token }),
+  );
   response.cookies.set(csrfCookieName, token, {
     httpOnly: false,
     maxAge: 15 * 60,
@@ -153,7 +177,7 @@ export async function postLogin(request: NextRequest): Promise<NextResponse> {
       input,
       contextFor(request),
     );
-    const response = json(
+    const response = jsonNoStore(
       authenticationResponseV1Schema.parse({
         absoluteExpiresAt: grant.absoluteExpiresAt.toISOString(),
         authenticated: true,
@@ -163,7 +187,7 @@ export async function postLogin(request: NextRequest): Promise<NextResponse> {
     setGrantCookies(response, grant);
     return response;
   } catch (error) {
-    return errorResponse(error);
+    return httpErrorResponse(error);
   }
 }
 
@@ -177,7 +201,7 @@ export async function postRecovery(
       input,
       contextFor(request),
     );
-    const response = json(
+    const response = jsonNoStore(
       authenticationResponseV1Schema.parse({
         absoluteExpiresAt: grant.absoluteExpiresAt.toISOString(),
         authenticated: true,
@@ -187,7 +211,7 @@ export async function postRecovery(
     setGrantCookies(response, grant);
     return response;
   } catch (error) {
-    return errorResponse(error);
+    return httpErrorResponse(error);
   }
 }
 
@@ -196,7 +220,7 @@ export async function getSession(request: NextRequest): Promise<NextResponse> {
     const session = await authenticationRuntime().service.validateSession(
       requireSessionToken(request),
     );
-    return json(
+    return jsonNoStore(
       sessionResponseV1Schema.parse({
         absoluteExpiresAt: session.record.absoluteExpiresAt.toISOString(),
         activeSessionCount: session.activeSessionCount,
@@ -206,7 +230,7 @@ export async function getSession(request: NextRequest): Promise<NextResponse> {
       }),
     );
   } catch (error) {
-    const response = errorResponse(error);
+    const response = httpErrorResponse(error);
     clearAuthCookies(response);
     return response;
   }
@@ -219,7 +243,7 @@ export async function postRenew(request: NextRequest): Promise<NextResponse> {
       requireCsrf(request),
       contextFor(request),
     );
-    const response = json(
+    const response = jsonNoStore(
       authenticationResponseV1Schema.parse({
         absoluteExpiresAt: grant.absoluteExpiresAt.toISOString(),
         authenticated: true,
@@ -229,7 +253,7 @@ export async function postRenew(request: NextRequest): Promise<NextResponse> {
     setGrantCookies(response, grant);
     return response;
   } catch (error) {
-    return errorResponse(error);
+    return httpErrorResponse(error);
   }
 }
 
@@ -247,7 +271,7 @@ export async function postLogout(request: NextRequest): Promise<NextResponse> {
     clearAuthCookies(response);
     return response;
   } catch (error) {
-    return errorResponse(error);
+    return httpErrorResponse(error);
   }
 }
 
@@ -265,7 +289,7 @@ export async function postChangePassword(
     );
     return new NextResponse(null, { headers: noStoreHeaders, status: 204 });
   } catch (error) {
-    return errorResponse(error);
+    return httpErrorResponse(error);
   }
 }
 
@@ -287,6 +311,6 @@ export async function postRevokeSessions(
     if (result.signedOut) clearAuthCookies(response);
     return response;
   } catch (error) {
-    return errorResponse(error);
+    return httpErrorResponse(error);
   }
 }

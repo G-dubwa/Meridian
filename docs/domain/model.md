@@ -20,14 +20,23 @@ Versioned Zod schemas in `packages/domain` define boundary values and contracts.
 
 ## Ports
 
-Repository ports cover users, resources, entries, immutable entry revisions, domain events, outbox messages, and derivation links. Service ports cover clock, UUID generation, transaction management, password hashing, session storage, and event publication. WP-03 supplies PostgreSQL repository and transaction adapters only; the other services remain ports.
+Repository ports cover users, resources, entries, immutable revisions, domain
+events, outbox, and derivation links. Journal ports add owner-scoped list/history,
+optimistic updates, correlation lookup, activity, and a SQL-enforced active
+Standard-only current-revision query. Service ports cover clock, UUIDs,
+transactions, secrets, and invalidation.
 
-The domain-event envelope is schema version 1 and carries event identity/type, occurred time, owner scope, optional aggregate and causation, required correlation, and an unknown-safe payload. Concrete event types begin in the work package that introduces their behaviour.
+The event envelope is schema version 1. WP-05 registers five content-free journal
+events and writes one matching pending outbox record in the state transaction.
 
 ## Persistence invariants
 
 - A `resource` is the canonical identifier and owner anchor for every user-owned subtype. An entry uses the same identifier as its resource and must be created transactionally with it.
 - An entry points to its current revision while revision rows remain append-only. Owner-matching foreign keys prevent cross-user references.
+- Entry versions provide optimistic concurrency. Lifecycle is active, archived,
+  or deletion requested; a request does not execute hard deletion.
+- Processing class lives on every revision. Only current active Standard
+  revisions are eligible through the AI-intended repository port.
 - A derivation link records its derived resource plus source resource and/or exact source revision. Deleting source evidence cascades so a valid link cannot outlive its source.
 - Domain events are append-only and outbox messages reference an exact owner-matching event. Both tables remain unpartitioned at personal scale.
 - The schema registry versions resource and attributes contracts. pgvector is installed but no vector representation exists before WP-19.

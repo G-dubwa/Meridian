@@ -16,6 +16,13 @@ run before owner bootstrap. Its singleton constraint makes a second owner
 credential impossible even if two bootstrap attempts race; its recovery consume
 and session revocation operations remain transactional.
 
+Journal migration `0003_wp05_walking_journal_slice.sql` expands lifecycle
+states, normalises placeholder hashes with PostgreSQL SHA-256 while user triggers
+are temporarily disabled, immediately re-enables them, constrains hash length,
+and adds the processing eligibility index.
+`0004_wp05_command_idempotency.sql` adds the matching command uniqueness index;
+the repository also serialises identical command keys transaction-locally.
+
 ## Authoring
 
 1. Change the Drizzle schema.

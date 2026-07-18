@@ -3,6 +3,137 @@
   font-family: ui-sans-serif, system-ui, sans-serif;
 }
 
+.journal-shell {
+  max-width: 1180px;
+}
+
+.page-header,
+.entry-meta,
+.button-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+}
+
+.journal-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(250px, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.journal-composer textarea,
+.entry-detail-grid textarea {
+  resize: vertical;
+  min-height: 10rem;
+}
+
+.privacy-selector {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  display: grid;
+  gap: 0.65rem;
+  padding: 1rem;
+}
+
+.privacy-selector label {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  gap: 0.7rem;
+}
+
+.privacy-selector input {
+  margin-top: 0.3rem;
+}
+
+.privacy-selector span,
+.activity-ledger li {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.privacy-selector small,
+.entry-meta,
+.activity-ledger time {
+  color: var(--muted);
+}
+
+.timeline,
+.revision-history {
+  display: grid;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.timeline-entry {
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 1.1rem;
+}
+
+.timeline-entry p,
+.entry-body {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.privacy-badge {
+  border-radius: 999px;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.2rem 0.55rem;
+  text-transform: uppercase;
+}
+
+.privacy-badge.standard {
+  background: #176b55;
+}
+
+.privacy-badge.sensitive {
+  background: #9a5b08;
+}
+
+.privacy-badge.private {
+  background: #783c6b;
+}
+
+.activity-ledger {
+  position: sticky;
+  top: 1rem;
+}
+
+.activity-ledger ol {
+  display: grid;
+  gap: 0.9rem;
+  padding-left: 1.3rem;
+}
+
+.entry-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.5rem;
+}
+
+.revision-history {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 760px) {
+  .journal-layout,
+  .entry-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .activity-ledger {
+    position: static;
+  }
+}
+
 body {
   background:
     radial-gradient(

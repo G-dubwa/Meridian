@@ -9,6 +9,9 @@ import {
 } from '@meridian/domain';
 import { z } from 'zod';
 
+export * from './journal-client.js';
+export * from './journal.js';
+
 export const csrfResponseV1Schema = z
   .object({ csrfToken: z.string().min(32).max(256) })
   .strict();
@@ -60,8 +63,10 @@ export const authenticationErrorResponseV1Schema = z
   .object({
     error: z.enum([
       'AUTHENTICATION_FAILED',
+      'CONFLICT',
       'CSRF_INVALID',
       'INTERNAL_ERROR',
+      'NOT_FOUND',
       'RATE_LIMITED',
       'SESSION_INVALID',
       'VALIDATION_FAILED',

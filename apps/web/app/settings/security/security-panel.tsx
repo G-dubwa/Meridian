@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import type { SyntheticEvent } from 'react';
 import { postWithCsrf } from '../../_components/auth-client';
@@ -89,6 +90,9 @@ export function SecurityPanel() {
     <div className="security-grid">
       <section className="auth-card">
         <h2>Active session</h2>
+        <p>
+          <Link href="/journal">Open journal</Link>
+        </p>
         <dl>
           <div>
             <dt>Owner</dt>

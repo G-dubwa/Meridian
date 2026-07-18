@@ -68,3 +68,16 @@ least-privilege database grants, encrypted backups, secret rotation, monitoring,
 and restore evidence. WebAuthn, external identity, recovery-code regeneration,
 and notification of security events remain later decisions and must receive
 their own threat-model updates.
+
+## WP-05 journal extension
+
+Journal assets add bodies, processing choices, history, and deletion intent.
+Forced RLS/authenticated routes prevent cross-owner reads; append-only triggers
+and optimistic versions prevent silent evidence mutation; SQL-level Standard
+eligibility prevents Private/Sensitive disclosure to future AI callers;
+content-free events/activity prevent secondary logging leaks; and exact deletion
+confirmation records intent without claiming erasure.
+
+Residual risks include a compromised browser/session/process/administrator,
+future response-size growth, and retention after a deletion request until a
+later deletion executor is governed and tested.

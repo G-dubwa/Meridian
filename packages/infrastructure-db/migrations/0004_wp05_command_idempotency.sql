@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "domain_events_command_idempotency_unique" ON "domain_events" USING btree ("user_id","event_type","correlation_id");

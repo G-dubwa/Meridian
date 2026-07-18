@@ -25,3 +25,12 @@ Local production builds resolve internal packages from their built `dist`
 outputs. If Next.js reports a missing `@meridian/*` module, run the workspace
 build (or `pnpm check`) before starting the web package. The authentication E2E
 runner performs these prerequisite builds automatically.
+
+## Journal
+
+| Symptom                         | Safe action                                                                     |
+| ------------------------------- | ------------------------------------------------------------------------------- |
+| Edit/archive returns 409        | Reload; another command advanced the version. Never overwrite history.          |
+| Entry absent from AI query      | Expected for Private, Sensitive, archived, or deletion-requested current state. |
+| Deletion request still displays | Expected: WP-05 records the request but does not execute propagation.           |
+| Activity lacks body text        | Expected invariant; open the authenticated entry for content.                   |

@@ -20,6 +20,11 @@ and sanitized authentication-event orchestration. It receives password,
 cryptographic, clock, ID, and transactional repository ports; no raw credential
 is retained after the call.
 
+`JournalService` owns stable entry creation, immutable revision append,
+optimistic current-pointer/lifecycle changes, correlation-id idempotency,
+content-free event/outbox orchestration, and the no-op material-change
+invalidation boundary. It performs no model or provider work.
+
 Tests: dependency-cruiser proves application-to-infrastructure imports fail. The
-authentication service is exercised through a real PostgreSQL and live Next.js
-Playwright journey, while pure domain policies retain unit tests.
+authentication and journal services are exercised through real PostgreSQL and
+live Next.js journeys. Unit tests cover schemas and the no-op hook.

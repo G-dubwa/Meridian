@@ -25,9 +25,15 @@ least-privilege grants.
 
 `resources` owns canonical resource identity; an entry subtype must be inserted in the same transaction. Forced RLS and owner-matching foreign keys provide defense in depth. Database owners are reserved for migrations and operations because PostgreSQL owners can bypass RLS.
 
+Journal adapters append revisions, advance current state with an expected
+version, query ordered history/activity, and write events/outbox transactionally.
+`findCurrentForAiProcessing` filters active/current/Standard in SQL and is the
+only AI-intended WP-05 entry query.
+
 Tests: `pnpm test:integration` creates a temporary PostgreSQL 18 cluster when
 `TEST_DATABASE_URL` is absent. It covers empty and seeded migration paths,
 installed-but-unused pgvector, unpartitioned tables, two-user isolation,
-transactional resource creation, provenance deletion integrity, and the WP-04
-authentication schema. The Playwright authentication suite proves real adapter
-semantics including singleton bootstrap, consume-once recovery, and revocation.
+transactional resource creation, provenance deletion, authentication schema,
+journal migration/backfill, immutable revisions, optimistic state, event/outbox
+atomicity, retry idempotency, and Private exclusion. Playwright proves the full
+authenticated journal path.

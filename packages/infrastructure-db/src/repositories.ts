@@ -16,7 +16,7 @@ import type {
   UserScope,
 } from '@meridian/domain';
 import { domainEventEnvelopeV1Schema, userIdV1Schema } from '@meridian/domain';
-import { and, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, like, sql } from 'drizzle-orm';
 import type { DatabaseClient } from './client.js';
 import {
   derivationLinks,
@@ -115,23 +115,16 @@ export class DrizzleEntryRepository implements EntryRepository {
       .from(entries)
       .where(and(eq(entries.userId, scope.userId), eq(entries.id, id)))
       .limit(1);
-    return row
-      ? {
-          attrs: row.attrs as Readonly<Record<string, unknown>>,
-          attrsSchemaKey: row.attrsSchemaKey,
-          attrsSchemaVersion: row.attrsSchemaVersion,
-          createdAt: row.createdAt,
-          currentRevisionId:
-            row.currentRevisionId as EntryRecord['currentRevisionId'],
-          id: row.id as EntryRecord['id'],
-          resourceId: row.id as EntryRecord['resourceId'],
-          scope,
-          sensitivity: row.sensitivity as EntryRecord['sensitivity'],
-          status: row.status as EntryRecord['status'],
-          updatedAt: row.updatedAt,
-          version: row.version,
-        }
-      : null;
+    return row ? mapEntry(row, scope) : null;
+  }
+
+  public async list(scope: UserScope): Promise<readonly EntryRecord[]> {
+    const rows = await this.database
+      .select()
+      .from(entries)
+      .where(eq(entries.userId, scope.userId))
+      .orderBy(desc(entries.updatedAt));
+    return rows.map((row) => mapEntry(row, scope));
   }
 
   public async save(entry: EntryRecord): Promise<void> {
@@ -167,6 +160,54 @@ export class DrizzleEntryRepository implements EntryRepository {
         },
       });
   }
+
+  public async update(
+    entry: EntryRecord,
+    expectedVersion: number,
+  ): Promise<boolean> {
+    const rows = await this.database
+      .update(entries)
+      .set({
+        attrs: entry.attrs,
+        attrsSchemaKey: entry.attrsSchemaKey,
+        attrsSchemaVersion: entry.attrsSchemaVersion,
+        currentRevisionId: entry.currentRevisionId,
+        sensitivity: entry.sensitivity,
+        status: entry.status,
+        updatedAt: entry.updatedAt,
+        version: entry.version,
+      })
+      .where(
+        and(
+          eq(entries.id, entry.id),
+          eq(entries.userId, entry.scope.userId),
+          eq(entries.version, expectedVersion),
+        ),
+      )
+      .returning({ id: entries.id });
+    return rows.length === 1;
+  }
+}
+
+function mapEntry(
+  row: typeof entries.$inferSelect,
+  scope: UserScope,
+): EntryRecord {
+  return {
+    attrs: row.attrs as Readonly<Record<string, unknown>>,
+    attrsSchemaKey: row.attrsSchemaKey,
+    attrsSchemaVersion: row.attrsSchemaVersion,
+    createdAt: row.createdAt,
+    currentRevisionId:
+      row.currentRevisionId as EntryRecord['currentRevisionId'],
+    id: row.id as EntryRecord['id'],
+    resourceId: row.id as EntryRecord['resourceId'],
+    scope,
+    sensitivity: row.sensitivity as EntryRecord['sensitivity'],
+    status: row.status as EntryRecord['status'],
+    updatedAt: row.updatedAt,
+    version: row.version,
+  };
 }
 
 export class DrizzleEntryRevisionRepository implements EntryRevisionRepository {
@@ -183,23 +224,7 @@ export class DrizzleEntryRevisionRepository implements EntryRevisionRepository {
         and(eq(entryRevisions.userId, scope.userId), eq(entryRevisions.id, id)),
       )
       .limit(1);
-    return row
-      ? {
-          bodyMarkdown: row.bodyMarkdown,
-          bodyRaw: row.bodyRaw,
-          changeKind: row.changeKind as EntryRevisionRecord['changeKind'],
-          contentHash: row.contentHash,
-          createdAt: row.createdAt,
-          createdBy: row.createdBy as EntryRevisionRecord['createdBy'],
-          entryId: row.entryId as EntryRevisionRecord['entryId'],
-          id: row.id as EntryRevisionRecord['id'],
-          occurredAt: row.occurredAt,
-          processingClass:
-            row.processingClass as EntryRevisionRecord['processingClass'],
-          revisionNumber: row.revisionNumber,
-          scope,
-        }
-      : null;
+    return row ? mapEntryRevision(row, scope) : null;
   }
 
   public async append(revision: EntryRevisionRecord): Promise<void> {
@@ -218,6 +243,70 @@ export class DrizzleEntryRevisionRepository implements EntryRevisionRepository {
       userId: revision.scope.userId,
     });
   }
+
+  public async listForEntry(
+    scope: UserScope,
+    entryId: EntryRevisionRecord['entryId'],
+  ): Promise<readonly EntryRevisionRecord[]> {
+    const rows = await this.database
+      .select()
+      .from(entryRevisions)
+      .where(
+        and(
+          eq(entryRevisions.userId, scope.userId),
+          eq(entryRevisions.entryId, entryId),
+        ),
+      )
+      .orderBy(asc(entryRevisions.revisionNumber));
+    return rows.map((row) => mapEntryRevision(row, scope));
+  }
+
+  public async findCurrentForAiProcessing(
+    scope: UserScope,
+    limit: number,
+  ): Promise<readonly EntryRevisionRecord[]> {
+    const rows = await this.database
+      .select({ revision: entryRevisions })
+      .from(entryRevisions)
+      .innerJoin(
+        entries,
+        and(
+          eq(entries.userId, entryRevisions.userId),
+          eq(entries.currentRevisionId, entryRevisions.id),
+        ),
+      )
+      .where(
+        and(
+          eq(entryRevisions.userId, scope.userId),
+          eq(entryRevisions.processingClass, 'standard'),
+          eq(entries.status, 'active'),
+        ),
+      )
+      .orderBy(asc(entryRevisions.createdAt))
+      .limit(limit);
+    return rows.map((row) => mapEntryRevision(row.revision, scope));
+  }
+}
+
+function mapEntryRevision(
+  row: typeof entryRevisions.$inferSelect,
+  scope: UserScope,
+): EntryRevisionRecord {
+  return {
+    bodyMarkdown: row.bodyMarkdown,
+    bodyRaw: row.bodyRaw,
+    changeKind: row.changeKind as EntryRevisionRecord['changeKind'],
+    contentHash: row.contentHash,
+    createdAt: row.createdAt,
+    createdBy: row.createdBy as EntryRevisionRecord['createdBy'],
+    entryId: row.entryId as EntryRevisionRecord['entryId'],
+    id: row.id as EntryRevisionRecord['id'],
+    occurredAt: row.occurredAt,
+    processingClass:
+      row.processingClass as EntryRevisionRecord['processingClass'],
+    revisionNumber: row.revisionNumber,
+    scope,
+  };
 }
 
 export class DrizzleDomainEventRepository implements DomainEventRepository {
@@ -236,6 +325,71 @@ export class DrizzleDomainEventRepository implements DomainEventRepository {
       userId: event.scope.userId,
     });
   }
+
+  public async acquireCommandLock(
+    scope: UserScope,
+    correlationId: DomainEventEnvelopeV1['correlationId'],
+    eventType: string,
+  ): Promise<void> {
+    await this.database.execute(
+      sql`select pg_advisory_xact_lock(hashtextextended(${`${scope.userId}:${eventType}:${correlationId}`}, 0))`,
+    );
+  }
+
+  public async findByCorrelation(
+    scope: UserScope,
+    correlationId: DomainEventEnvelopeV1['correlationId'],
+    eventType: string,
+  ): Promise<DomainEventEnvelopeV1 | null> {
+    const [row] = await this.database
+      .select()
+      .from(domainEvents)
+      .where(
+        and(
+          eq(domainEvents.userId, scope.userId),
+          eq(domainEvents.correlationId, correlationId),
+          eq(domainEvents.eventType, eventType),
+        ),
+      )
+      .limit(1);
+    return row ? mapDomainEvent(row, scope) : null;
+  }
+
+  public async listByTypePrefix(
+    scope: UserScope,
+    eventTypePrefix: string,
+    limit: number,
+  ): Promise<readonly DomainEventEnvelopeV1[]> {
+    const rows = await this.database
+      .select()
+      .from(domainEvents)
+      .where(
+        and(
+          eq(domainEvents.userId, scope.userId),
+          like(domainEvents.eventType, `${eventTypePrefix}%`),
+        ),
+      )
+      .orderBy(desc(domainEvents.occurredAt))
+      .limit(limit);
+    return rows.map((row) => mapDomainEvent(row, scope));
+  }
+}
+
+function mapDomainEvent(
+  row: typeof domainEvents.$inferSelect,
+  scope: UserScope,
+): DomainEventEnvelopeV1 {
+  return domainEventEnvelopeV1Schema.parse({
+    aggregateId: row.aggregateId ?? undefined,
+    causationId: row.causationId ?? undefined,
+    correlationId: row.correlationId,
+    eventId: row.id,
+    eventType: row.eventType,
+    occurredAt: row.occurredAt.toISOString(),
+    payload: row.payload,
+    schemaVersion: row.payloadSchemaVersion,
+    scope,
+  });
 }
 
 export class DrizzleOutboxRepository implements OutboxRepository {

@@ -124,7 +124,7 @@ Indexes: `derivation_links_derived_idx`, `derivation_links_source_revision_idx`.
 Foreign keys:
 - `domain_events_user_id_users_id_fk`: (user_id) → `users` (id)
 
-Indexes: `domain_events_user_occurred_idx`, `domain_events_correlation_idx`.
+Indexes: `domain_events_user_occurred_idx`, `domain_events_correlation_idx`, `domain_events_command_idempotency_unique`.
 
 ## entries
 
@@ -170,7 +170,7 @@ Foreign keys:
 - `entry_revisions_user_id_users_id_fk`: (user_id) → `users` (id)
 - `entry_revisions_entry_owner_fk`: (entry_id, user_id) → `entries` (id, user_id)
 
-Indexes: `entry_revisions_entry_number_unique`, `entry_revisions_user_created_idx`.
+Indexes: `entry_revisions_entry_number_unique`, `entry_revisions_user_created_idx`, `entry_revisions_ai_processing_idx`.
 
 ## outbox_messages
 

@@ -16,7 +16,7 @@ Status legend: `IN PROGRESS`, `PENDING`, `GATED`, `COMPLETE`.
 | Foundation     |  02 | Domain and application boundaries               | COMPLETE                    |
 | Foundation     |  03 | Database and resource foundation                | COMPLETE                    |
 | Foundation     |  04 | Local owner authentication                      | COMPLETE                    |
-| Foundation     |  05 | Walking journal slice                           | PENDING                     |
+| Foundation     |  05 | Walking journal slice                           | COMPLETE                    |
 | Foundation     |  06 | Worker and reliable event processing            | PENDING                     |
 | Personal Alpha |  07 | Microsoft connection and consent                | PENDING                     |
 | Personal Alpha |  08 | Model bake-off and gateway                      | PENDING                     |

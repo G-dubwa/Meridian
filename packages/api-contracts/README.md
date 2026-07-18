@@ -19,7 +19,11 @@ password change, session revocation, and stable error bodies. Authentication
 responses deliberately have no field capable of carrying a password, recovery
 code, session bearer, or CSRF bearer; cookies are an HTTP presentation concern.
 
-Tests: Type checking and Playwright exercise every authentication schema against
-the live Next.js REST boundary. `docs/api/openapi.yaml` is reviewed and checked
-with the documentation set; automated OpenAPI generation/diff remains a later
-contract-tooling improvement.
+WP-05 adds strict create/revise/lifecycle/detail/list/activity schemas and the
+typed same-origin `createJournalApiClientV1` methods. Mutation clients attach
+CSRF and a UUID command correlation header; callers retrying a raw command reuse
+that UUID.
+
+Tests: Type checking and Playwright exercise authentication and journal schemas
+against the live boundary. `docs/api/openapi.yaml` is reviewed and documentation
+checked; automated OpenAPI generation/diff remains later tooling.
