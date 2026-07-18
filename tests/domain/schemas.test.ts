@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  authIdentifierV1Schema,
+  authPassphraseV1Schema,
   authorityTierV1Schema,
   domainEventEnvelopeV1Schema,
   processingClassV1Schema,
+  recoveryCodeV1Schema,
   userScopeV1Schema,
 } from '../../packages/domain/src/index.js';
 
@@ -44,5 +47,19 @@ describe('public domain schemas v1', () => {
         unexpected: true,
       });
     }).toThrow();
+  });
+
+  it('normalizes local authentication identifiers and recovery codes', () => {
+    expect(authIdentifierV1Schema.parse('  Owner.Name  ')).toBe('owner.name');
+    expect(recoveryCodeV1Schema.parse('  mrd-abcdefgh-23456789  ')).toBe(
+      'MRD-ABCDEFGH-23456789',
+    );
+  });
+
+  it('rejects weak passphrases and malformed authentication identifiers', () => {
+    expect(authPassphraseV1Schema.safeParse('too short').success).toBe(false);
+    expect(authIdentifierV1Schema.safeParse('owner@example.com').success).toBe(
+      false,
+    );
   });
 });

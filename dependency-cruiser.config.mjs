@@ -24,7 +24,7 @@ export default {
       severity: 'error',
       comment:
         'Web and worker call application services rather than adapters directly.',
-      from: { path: '(^|/)apps/(web|worker)/' },
+      from: { path: '(^|/)apps/(web|worker)/(?!app/_server/composition\\.ts)' },
       to: { path: '(^|/)packages/infrastructure-[^/]+/' },
     },
     {
@@ -44,7 +44,7 @@ export default {
   ],
   options: {
     doNotFollow: { path: 'node_modules' },
-    exclude: { path: 'node_modules' },
+    exclude: { path: '(^|/)(node_modules|\\.next|\\.types|dist)/' },
     includeOnly: '(^|/)(apps|packages)/',
     tsConfig: { fileName: 'tsconfig.json' },
     tsPreCompilationDeps: true,

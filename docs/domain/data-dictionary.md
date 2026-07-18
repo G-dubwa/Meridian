@@ -12,6 +12,74 @@ related-docs: ../ops/migrations.md
 
 All owner-scoped tables use forced PostgreSQL row-level security through the transaction-local `meridian.user_id` setting. `schema_registry` is system-owned. No table is partitioned and no vector column or vector index exists in WP-03.
 
+## auth_credentials
+
+| Column | SQL type | Null | Default | Primary |
+|---|---|---|---|---|
+| `id` | `uuid` | no | no | yes |
+| `singleton` | `boolean` | no | yes | no |
+| `user_id` | `uuid` | no | no | no |
+| `identifier` | `text` | no | no | no |
+| `password_hash` | `text` | no | no | no |
+| `failed_attempts` | `integer` | no | yes | no |
+| `locked_until` | `timestamp with time zone` | yes | no | no |
+| `password_changed_at` | `timestamp with time zone` | no | yes | no |
+| `created_at` | `timestamp with time zone` | no | yes | no |
+| `updated_at` | `timestamp with time zone` | no | yes | no |
+
+Foreign keys:
+- `auth_credentials_user_id_users_id_fk`: (user_id) → `users` (id)
+
+## auth_events
+
+| Column | SQL type | Null | Default | Primary |
+|---|---|---|---|---|
+| `id` | `uuid` | no | no | yes |
+| `user_id` | `uuid` | yes | no | no |
+| `event_type` | `text` | no | no | no |
+| `outcome` | `text` | no | no | no |
+| `reason_code` | `text` | yes | no | no |
+| `request_id` | `uuid` | no | no | no |
+| `client_fingerprint_hash` | `text` | no | no | no |
+| `occurred_at` | `timestamp with time zone` | no | no | no |
+| `created_at` | `timestamp with time zone` | no | yes | no |
+
+Foreign keys:
+- `auth_events_user_id_users_id_fk`: (user_id) → `users` (id)
+
+Indexes: `auth_events_user_occurred_idx`, `auth_events_request_idx`.
+
+## auth_rate_limits
+
+| Column | SQL type | Null | Default | Primary |
+|---|---|---|---|---|
+| `key_hash` | `text` | no | no | yes |
+| `window_started_at` | `timestamp with time zone` | no | no | no |
+| `attempts` | `integer` | no | yes | no |
+| `blocked_until` | `timestamp with time zone` | yes | no | no |
+| `updated_at` | `timestamp with time zone` | no | yes | no |
+
+Indexes: `auth_rate_limits_updated_idx`.
+
+## auth_sessions
+
+| Column | SQL type | Null | Default | Primary |
+|---|---|---|---|---|
+| `id` | `uuid` | no | no | yes |
+| `user_id` | `uuid` | no | no | no |
+| `token_hash` | `text` | no | no | no |
+| `csrf_token_hash` | `text` | no | no | no |
+| `created_at` | `timestamp with time zone` | no | yes | no |
+| `last_seen_at` | `timestamp with time zone` | no | no | no |
+| `idle_expires_at` | `timestamp with time zone` | no | no | no |
+| `absolute_expires_at` | `timestamp with time zone` | no | no | no |
+| `revoked_at` | `timestamp with time zone` | yes | no | no |
+
+Foreign keys:
+- `auth_sessions_user_id_users_id_fk`: (user_id) → `users` (id)
+
+Indexes: `auth_sessions_user_active_idx`.
+
 ## derivation_links
 
 | Column | SQL type | Null | Default | Primary |
@@ -124,6 +192,21 @@ Foreign keys:
 - `outbox_messages_event_owner_fk`: (domain_event_id, user_id) → `domain_events` (id, user_id)
 
 Indexes: `outbox_messages_event_unique`, `outbox_messages_claim_idx`, `outbox_messages_user_created_idx`.
+
+## recovery_codes
+
+| Column | SQL type | Null | Default | Primary |
+|---|---|---|---|---|
+| `id` | `uuid` | no | no | yes |
+| `user_id` | `uuid` | no | no | no |
+| `code_hash` | `text` | no | no | no |
+| `created_at` | `timestamp with time zone` | no | yes | no |
+| `used_at` | `timestamp with time zone` | yes | no | no |
+
+Foreign keys:
+- `recovery_codes_user_id_users_id_fk`: (user_id) → `users` (id)
+
+Indexes: `recovery_codes_user_active_idx`.
 
 ## resources
 

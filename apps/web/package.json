@@ -9,8 +9,14 @@
     "start": "next start"
   },
   "dependencies": {
+    "@meridian/api-contracts": "workspace:*",
+    "@meridian/application": "workspace:*",
+    "@meridian/domain": "workspace:*",
+    "@meridian/infrastructure-auth": "workspace:*",
+    "@meridian/infrastructure-db": "workspace:*",
     "next": "16.2.10",
     "react": "19.2.7",
-    "react-dom": "19.2.7"
+    "react-dom": "19.2.7",
+    "zod": "4.4.3"
   }
 }

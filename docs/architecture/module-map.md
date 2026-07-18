@@ -21,6 +21,14 @@ related-docs: ../README.md
 | `api-contracts`           | OpenAPI/schema-generation boundary                                 | application services and infrastructure      |
 | `infrastructure-*`        | adapters implementing domain ports                                 | web presentation and domain-policy invention |
 | `prompts`                 | versioned prompt definitions and output contracts                  | infrastructure provider SDKs                 |
-| `apps/web`, `apps/worker` | presentation and process composition                               | direct adapter access                        |
+| `apps/web`, `apps/worker` | presentation, hosting, and explicit process composition            | adapter access outside composition roots     |
 
-`dependency-cruiser.config.mjs` is executable authority for accepted ADR-0002 rules. Its negative fixtures prove both domain-to-infrastructure and application-to-infrastructure imports are rejected.
+`apps/web/app/_server/composition.ts` is the web process composition root and is
+the only web source allowed to construct infrastructure adapters. Route handlers
+depend on its application service facade; client components cannot import server
+or infrastructure modules.
+
+`dependency-cruiser.config.mjs` is executable authority for accepted ADR-0002
+rules. Its negative fixtures prove both domain-to-infrastructure and
+application-to-infrastructure imports are rejected, while the exact composition
+root exception remains narrow and reviewable.

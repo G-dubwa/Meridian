@@ -10,7 +10,8 @@
     }
   },
   "dependencies": {
-    "@meridian/domain": "workspace:*"
+    "@meridian/domain": "workspace:*",
+    "zod": "4.4.3"
   },
   "scripts": {
     "build": "tsc --build"

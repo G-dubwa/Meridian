@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import {
+  boolean,
   check,
   foreignKey,
   index,
@@ -32,6 +33,165 @@ export const users = pgTable('users', {
   settings: jsonb('settings').notNull().default({}),
   ...timestamps,
 });
+
+export const authCredentials = pgTable(
+  'auth_credentials',
+  {
+    id: uuid('id').primaryKey(),
+    singleton: boolean('singleton').notNull().default(true),
+    userId: uuid('user_id')
+      .notNull()
+      .unique()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    identifier: text('identifier').notNull().unique(),
+    passwordHash: text('password_hash').notNull(),
+    failedAttempts: integer('failed_attempts').notNull().default(0),
+    lockedUntil: timestamp('locked_until', { withTimezone: true }),
+    passwordChangedAt: timestamp('password_changed_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    ...timestamps,
+  },
+  (table) => [
+    unique('auth_credentials_singleton_unique').on(table.singleton),
+    check('auth_credentials_singleton_true', sql`${table.singleton} = true`),
+    check(
+      'auth_credentials_identifier_normalized',
+      sql`${table.identifier} = lower(${table.identifier})`,
+    ),
+    check(
+      'auth_credentials_argon2id_hash',
+      sql`${table.passwordHash} like '$argon2id$%'`,
+    ),
+    check(
+      'auth_credentials_failures_nonnegative',
+      sql`${table.failedAttempts} >= 0`,
+    ),
+  ],
+);
+
+export const recoveryCodes = pgTable(
+  'recovery_codes',
+  {
+    id: uuid('id').primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    codeHash: text('code_hash').notNull().unique(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    usedAt: timestamp('used_at', { withTimezone: true }),
+  },
+  (table) => [
+    check('recovery_codes_hash_length', sql`length(${table.codeHash}) = 64`),
+    index('recovery_codes_user_active_idx').on(table.userId, table.usedAt),
+  ],
+);
+
+export const authSessions = pgTable(
+  'auth_sessions',
+  {
+    id: uuid('id').primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    tokenHash: text('token_hash').notNull().unique(),
+    csrfTokenHash: text('csrf_token_hash').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull(),
+    idleExpiresAt: timestamp('idle_expires_at', {
+      withTimezone: true,
+    }).notNull(),
+    absoluteExpiresAt: timestamp('absolute_expires_at', {
+      withTimezone: true,
+    }).notNull(),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  },
+  (table) => [
+    check(
+      'auth_sessions_token_hash_length',
+      sql`length(${table.tokenHash}) = 64`,
+    ),
+    check(
+      'auth_sessions_csrf_hash_length',
+      sql`length(${table.csrfTokenHash}) = 64`,
+    ),
+    check(
+      'auth_sessions_expiry_order',
+      sql`${table.idleExpiresAt} <= ${table.absoluteExpiresAt}`,
+    ),
+    index('auth_sessions_user_active_idx').on(
+      table.userId,
+      table.revokedAt,
+      table.idleExpiresAt,
+    ),
+  ],
+);
+
+export const authRateLimits = pgTable(
+  'auth_rate_limits',
+  {
+    keyHash: text('key_hash').primaryKey(),
+    windowStartedAt: timestamp('window_started_at', {
+      withTimezone: true,
+    }).notNull(),
+    attempts: integer('attempts').notNull().default(0),
+    blockedUntil: timestamp('blocked_until', { withTimezone: true }),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check(
+      'auth_rate_limits_key_hash_length',
+      sql`length(${table.keyHash}) = 64`,
+    ),
+    check('auth_rate_limits_attempts_nonnegative', sql`${table.attempts} >= 0`),
+    index('auth_rate_limits_updated_idx').on(table.updatedAt),
+  ],
+);
+
+export const authEvents = pgTable(
+  'auth_events',
+  {
+    id: uuid('id').primaryKey(),
+    userId: uuid('user_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    eventType: text('event_type').notNull(),
+    outcome: text('outcome').notNull(),
+    reasonCode: text('reason_code'),
+    requestId: uuid('request_id').notNull(),
+    clientFingerprintHash: text('client_fingerprint_hash').notNull(),
+    occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check(
+      'auth_events_type_valid',
+      sql`${table.eventType} in ('owner_bootstrapped', 'login_succeeded', 'login_failed', 'logout', 'session_renewed', 'password_changed', 'recovery_code_used', 'sessions_revoked')`,
+    ),
+    check(
+      'auth_events_outcome_valid',
+      sql`${table.outcome} in ('succeeded', 'rejected')`,
+    ),
+    check(
+      'auth_events_reason_valid',
+      sql`${table.reasonCode} is null or ${table.reasonCode} in ('credentials_invalid', 'credential_locked', 'rate_limited', 'session_invalid', 'csrf_invalid', 'recovery_code_invalid')`,
+    ),
+    check(
+      'auth_events_fingerprint_hash_length',
+      sql`length(${table.clientFingerprintHash}) = 64`,
+    ),
+    index('auth_events_user_occurred_idx').on(table.userId, table.occurredAt),
+    index('auth_events_request_idx').on(table.requestId),
+  ],
+);
 
 export const schemaRegistry = pgTable(
   'schema_registry',
@@ -298,12 +458,17 @@ export const outboxMessages = pgTable(
 );
 
 export const schemaTables = {
+  authCredentials,
+  authEvents,
+  authRateLimits,
+  authSessions,
   derivationLinks,
   domainEvents,
   entries,
   entryRevisions,
   outboxMessages,
   resources,
+  recoveryCodes,
   schemaRegistry,
   users,
 } as const;

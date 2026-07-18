@@ -26,12 +26,22 @@ pnpm install --frozen-lockfile
 pnpm run check
 ```
 
-Copy `.env.example` to an untracked `.env`, then run `docker compose up -d postgres` and `pnpm db:migrate` for a persistent local database. The example credentials are development-only. Run the minimal health page with `pnpm --filter @meridian/web dev`, then open <http://localhost:3000/health>.
+Copy `.env.example` to an untracked `.env`, then run `docker compose up -d postgres` and `pnpm db:migrate` for a persistent local database. The example credentials are development-only. Bootstrap the one local owner from a private terminal:
+
+```sh
+pnpm auth:bootstrap -- --identifier owner --time-zone Africa/Johannesburg --locale en-ZA
+```
+
+Store the ten one-time recovery codes offline; they cannot be displayed again.
+Run the web application with `pnpm --filter @meridian/web dev`, then open
+<http://localhost:3000/login> or the unauthenticated health page at
+<http://localhost:3000/health>. See the operations runbook before automating
+bootstrap or handling lockout/recovery.
 
 `pnpm test:integration` uses `TEST_DATABASE_URL` when supplied. Otherwise, on macOS with Homebrew PostgreSQL 18 and pgvector installed, it creates and destroys an isolated temporary cluster automatically. It never uses the persistent Compose database by default.
 
 ## Individual checks
 
-Use `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm deps:check`, `pnpm db:check`, `pnpm test`, `pnpm test:integration`, `pnpm docs:check`, and `pnpm build`. `pnpm test:e2e` runs the scaffolded health journey after Playwright's Chromium browser is installed.
+Use `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm deps:check`, `pnpm db:check`, `pnpm test`, `pnpm test:integration`, `pnpm test:e2e:auth`, `pnpm docs:check`, and `pnpm build`. `pnpm test:e2e` runs the scaffolded health journey after Playwright's Chromium browser is installed. The authentication journey uses Playwright's request client and an isolated PostgreSQL cluster, so it does not require a browser download.
 
 The repository engine constraint is intentional. An unsupported local Node version may be useful for diagnosis but does not constitute clean-clone acceptance evidence.

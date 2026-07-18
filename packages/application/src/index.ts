@@ -4,6 +4,8 @@ import type {
   UserScope,
 } from '@meridian/domain';
 
+export * from './authentication.js';
+
 export interface UseCase<Input, Output> {
   execute(input: Input): Promise<Output>;
 }

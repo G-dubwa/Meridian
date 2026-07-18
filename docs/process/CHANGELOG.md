@@ -19,3 +19,5 @@ related-docs: release.md
 - Application use-case and transaction-boundary contracts, generated-schema placeholders, and negative domain/application dependency fixtures.
 - WP-03 PostgreSQL 18 and pgvector development service, Drizzle schema and forward-only migration snapshots for users, canonical resources, entries, revisions, provenance, domain events, outbox, and schema registry.
 - Transaction-scoped Drizzle repositories with forced row-level security, owner-matching foreign keys, append-only controls, real two-user database tests, and generated data-dictionary drift checks.
+- WP-04 one-time owner bootstrap with Argon2id credentials, hashed-only recovery codes, persisted abuse controls, append-only authentication audit, and revocable opaque sessions.
+- Strict local-auth REST contracts, hardened cookies, double-submit/session-bound CSRF, login and Security UI, operator recovery/lockout/revocation runbooks, and seven live Playwright acceptance journeys.

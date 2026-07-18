@@ -1,9 +1,14 @@
 export type DomainErrorCode =
+  | 'AUTHENTICATION_FAILED'
+  | 'BOOTSTRAP_COMPLETE'
   | 'CONFLICT'
+  | 'CSRF_INVALID'
   | 'INVALID_AUTHORITY'
   | 'NOT_FOUND'
   | 'PROCESSING_CLASS_VIOLATION'
   | 'PROHIBITED_ACTION'
+  | 'RATE_LIMITED'
+  | 'SESSION_INVALID'
   | 'VALIDATION_FAILED';
 
 export class DomainError extends Error {
@@ -14,6 +19,41 @@ export class DomainError extends Error {
   ) {
     super(message);
     this.name = 'DomainError';
+  }
+}
+
+export class AuthenticationFailedError extends DomainError {
+  public constructor() {
+    super('AUTHENTICATION_FAILED', 'Authentication was rejected.');
+    this.name = 'AuthenticationFailedError';
+  }
+}
+
+export class BootstrapCompleteError extends DomainError {
+  public constructor() {
+    super('BOOTSTRAP_COMPLETE', 'The owner account already exists.');
+    this.name = 'BootstrapCompleteError';
+  }
+}
+
+export class RateLimitedError extends DomainError {
+  public constructor(public readonly retryAt: Date | null) {
+    super('RATE_LIMITED', 'Authentication is temporarily rate limited.');
+    this.name = 'RateLimitedError';
+  }
+}
+
+export class SessionInvalidError extends DomainError {
+  public constructor() {
+    super('SESSION_INVALID', 'The session is invalid or expired.');
+    this.name = 'SessionInvalidError';
+  }
+}
+
+export class CsrfInvalidError extends DomainError {
+  public constructor() {
+    super('CSRF_INVALID', 'CSRF validation failed.');
+    this.name = 'CsrfInvalidError';
   }
 }
 

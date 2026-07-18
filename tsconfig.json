@@ -19,6 +19,7 @@
     { "path": "packages/domain" },
     { "path": "packages/application" },
     { "path": "packages/api-contracts" },
+    { "path": "packages/infrastructure-auth" },
     { "path": "packages/infrastructure-db" },
     { "path": "packages/infrastructure-ms-graph" },
     { "path": "packages/infrastructure-notify" },

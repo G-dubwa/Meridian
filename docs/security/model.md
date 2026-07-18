@@ -3,10 +3,34 @@ purpose: Define Meridian security boundaries and required controls.
 audience: Owner, contributors, and coding agents.
 authoritative-for: The scope described by this document once its governing work package activates it.
 update-triggers: Its related capability, schema, contract, decision, or operational process changes.
-related-docs: ../architecture/adr/ADR-0003-postgresql-resource-foundation.md
+related-docs: threat-model.md
 ---
 
 # Security model
+
+## Local owner identity
+
+Meridian currently has exactly one local owner credential and no remote identity
+provider dependency. Bootstrap is an explicit operator action, executes once,
+and stores an Argon2id password hash. Ten one-time recovery codes are displayed
+once; only SHA-256 hashes are persisted. Consuming a recovery code marks it used
+atomically and revokes every existing session. No REST response returns recovery
+material.
+
+Authentication sessions use random opaque bearer tokens. Only their SHA-256
+hashes and a session-bound CSRF hash enter PostgreSQL. Sessions expire after 30
+minutes idle or 12 hours absolute, can be renewed by rotation, and can be
+revoked individually or owner-wide. Production cookies use the `__Host-`
+prefix, `Secure`, `HttpOnly` for the bearer credential, `SameSite=Strict`, and
+`Path=/`. All state changes require double-submit CSRF verification plus the
+stored session binding.
+
+Authentication attempts are rate-limited by normalized identifier and a
+one-way request fingerprint. Five failed password attempts within 15 minutes
+lock the credential for 15 minutes; ten attempts per fingerprint/identifier
+within that window trigger the broader rate limit. Public failures remain
+generic. Append-only audit events record outcomes and reason codes without
+passwords, recovery codes, session tokens, raw addresses, or journal content.
 
 ## Database trust boundary
 
@@ -16,6 +40,20 @@ The application role is not a table owner, superuser, `BYPASSRLS` role, or migra
 
 Owner-matching composite foreign keys prevent cross-owner subtype, revision, event, outbox, and derivation relationships. Entry creation requires its canonical resource in the same successful transaction. Entry revisions and domain events are append-only for updates; governed hard deletion can cascade to remove evidence and links.
 
+Authentication tables are a deliberately separate pre-authentication boundary.
+Credential lookup, rate limiting, and session-token resolution must occur before
+an owner scope exists, so those technical tables do not use owner RLS. They are
+reachable only from server-side authentication adapters through the
+authentication transaction manager. Deployment must grant the application role
+only the required table operations and must keep migration/table-owner
+credentials out of request processes. User content remains behind forced RLS.
+
 ## Current limits
 
-WP-03 does not implement authentication, encryption-key management, production secrets, provider access, or a network API. Database encryption at rest, production backup automation, operational role provisioning, and connection TLS become deploy-time controls in their governing packages. Tests prove two-user data isolation using a real non-owner PostgreSQL role; they do not claim protection from a compromised database administrator.
+Local authentication does not protect a compromised application process,
+database administrator, host, browser profile, or owner mailbox/backup containing
+recovery codes. Encryption-key management, production secret custody,
+least-privilege production role provisioning, database encryption at rest,
+connection TLS, and backup automation become deployment controls in their
+governing packages. Tests prove owner isolation and the real local authentication
+path; they do not claim protection from a compromised administrator.

@@ -65,11 +65,16 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
       order by table_name
     `;
     expect(tables.map((row) => row.table_name)).toEqual([
+      'auth_credentials',
+      'auth_events',
+      'auth_rate_limits',
+      'auth_sessions',
       'derivation_links',
       'domain_events',
       'entries',
       'entry_revisions',
       'outbox_messages',
+      'recovery_codes',
       'resources',
       'schema_registry',
       'users',
@@ -118,10 +123,22 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
           'utf8',
         ),
       );
+      await snapshotSql.unsafe(
+        readFileSync(
+          resolve(
+            'packages/infrastructure-db/migrations/0002_wp04_local_owner_authentication.sql',
+          ),
+          'utf8',
+        ),
+      );
       const [seeded] = await snapshotSql<{ count: string }[]>`
         select count(*)::text as count from users
       `;
       expect(seeded?.count).toBe('1');
+      const [authTable] = await snapshotSql<{ name: string }[]>`
+        select to_regclass('public.auth_credentials')::text as name
+      `;
+      expect(authTable?.name).toBe('auth_credentials');
     } finally {
       await snapshotSql.end();
       await admin.sql.unsafe(`drop database if exists ${snapshotDatabase}`);

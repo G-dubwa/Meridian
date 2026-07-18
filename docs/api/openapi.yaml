@@ -1,12 +1,270 @@
 openapi: 3.1.0
 info:
   title: Meridian API
-  version: 0.0.0
-  description: WP-01 placeholder; no API endpoints are in scope.
-paths: {}
+  version: 0.4.0
+  description: Same-origin REST contract for local owner authentication.
+paths:
+  /api/auth/csrf:
+    get:
+      operationId: getAuthenticationCsrf
+      summary: Issue a short-lived pre-authentication CSRF value.
+      responses:
+        '200':
+          description: CSRF cookie and matching response value.
+          headers:
+            Cache-Control:
+              schema: { type: string, const: 'no-store, max-age=0' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CsrfResponseV1' }
+  /api/auth/login:
+    post:
+      operationId: loginLocalOwner
+      summary: Authenticate with the local owner passphrase.
+      parameters:
+        - { $ref: '#/components/parameters/CsrfHeader' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequestV1' }
+      responses:
+        '200': { $ref: '#/components/responses/Authenticated' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '401': { $ref: '#/components/responses/AuthenticationFailed' }
+        '403': { $ref: '#/components/responses/CsrfInvalid' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /api/auth/recovery:
+    post:
+      operationId: recoverLocalOwnerSession
+      summary: Consume one recovery code and revoke prior sessions.
+      parameters:
+        - { $ref: '#/components/parameters/CsrfHeader' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RecoveryLoginRequestV1' }
+      responses:
+        '200': { $ref: '#/components/responses/Authenticated' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '401': { $ref: '#/components/responses/AuthenticationFailed' }
+        '403': { $ref: '#/components/responses/CsrfInvalid' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /api/auth/session:
+    get:
+      operationId: getLocalOwnerSession
+      summary: Read active owner session metadata.
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Current session metadata.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionResponseV1' }
+        '401': { $ref: '#/components/responses/SessionInvalid' }
+  /api/auth/session/renew:
+    post:
+      operationId: renewLocalOwnerSession
+      summary: Revoke the current session and issue a replacement.
+      security:
+        - sessionCookie: []
+      parameters:
+        - { $ref: '#/components/parameters/CsrfHeader' }
+      responses:
+        '200': { $ref: '#/components/responses/Authenticated' }
+        '401': { $ref: '#/components/responses/SessionInvalid' }
+        '403': { $ref: '#/components/responses/CsrfInvalid' }
+  /api/auth/logout:
+    post:
+      operationId: logoutLocalOwner
+      summary: Revoke the current session and clear authentication cookies.
+      security:
+        - sessionCookie: []
+      parameters:
+        - { $ref: '#/components/parameters/CsrfHeader' }
+      responses:
+        '204': { description: Session revoked. }
+        '401': { $ref: '#/components/responses/SessionInvalid' }
+        '403': { $ref: '#/components/responses/CsrfInvalid' }
+  /api/auth/password:
+    post:
+      operationId: changeLocalOwnerPassword
+      summary: Verify and change the owner passphrase, revoking other sessions.
+      security:
+        - sessionCookie: []
+      parameters:
+        - { $ref: '#/components/parameters/CsrfHeader' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChangePasswordRequestV1' }
+      responses:
+        '204': { description: Password changed and other sessions revoked. }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '401': { $ref: '#/components/responses/AuthenticationFailed' }
+        '403': { $ref: '#/components/responses/CsrfInvalid' }
+  /api/auth/sessions/revoke:
+    post:
+      operationId: revokeLocalOwnerSessions
+      summary: Revoke other sessions or every session.
+      security:
+        - sessionCookie: []
+      parameters:
+        - { $ref: '#/components/parameters/CsrfHeader' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RevokeSessionsRequestV1' }
+      responses:
+        '204': { description: Requested active sessions revoked. }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '401': { $ref: '#/components/responses/SessionInvalid' }
+        '403': { $ref: '#/components/responses/CsrfInvalid' }
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: __Host-meridian-session
+      description: Production cookie name; local development omits the __Host prefix.
+  parameters:
+    CsrfHeader:
+      name: X-CSRF-Token
+      in: header
+      required: true
+      schema: { type: string, minLength: 32, maxLength: 256 }
+      description: Must match the CSRF cookie and, for active sessions, its stored binding.
+  schemas:
+    AuthIdentifierV1:
+      type: string
+      minLength: 3
+      maxLength: 64
+      pattern: '^[a-z0-9][a-z0-9._-]*$'
+    PassphraseV1:
+      type: string
+      minLength: 16
+      maxLength: 1024
+      writeOnly: true
+    RecoveryCodeV1:
+      type: string
+      pattern: '^MRD-[A-Z2-9]{8}-[A-Z2-9]{8}$'
+      writeOnly: true
+    CsrfResponseV1:
+      type: object
+      additionalProperties: false
+      required: [csrfToken]
+      properties:
+        csrfToken:
+          { type: string, minLength: 32, maxLength: 256, writeOnly: true }
+    LoginRequestV1:
+      type: object
+      additionalProperties: false
+      required: [identifier, passphrase]
+      properties:
+        identifier: { $ref: '#/components/schemas/AuthIdentifierV1' }
+        passphrase: { $ref: '#/components/schemas/PassphraseV1' }
+    RecoveryLoginRequestV1:
+      type: object
+      additionalProperties: false
+      required: [identifier, recoveryCode]
+      properties:
+        identifier: { $ref: '#/components/schemas/AuthIdentifierV1' }
+        recoveryCode: { $ref: '#/components/schemas/RecoveryCodeV1' }
+    AuthenticationResponseV1:
+      type: object
+      additionalProperties: false
+      required: [authenticated, absoluteExpiresAt, idleExpiresAt]
+      properties:
+        authenticated: { type: boolean, const: true }
+        absoluteExpiresAt: { type: string, format: date-time }
+        idleExpiresAt: { type: string, format: date-time }
+    SessionResponseV1:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          authenticated,
+          identifier,
+          activeSessionCount,
+          absoluteExpiresAt,
+          idleExpiresAt,
+        ]
+      properties:
+        authenticated: { type: boolean, const: true }
+        identifier: { $ref: '#/components/schemas/AuthIdentifierV1' }
+        activeSessionCount: { type: integer, minimum: 0 }
+        absoluteExpiresAt: { type: string, format: date-time }
+        idleExpiresAt: { type: string, format: date-time }
+    ChangePasswordRequestV1:
+      type: object
+      additionalProperties: false
+      required: [currentPassphrase, newPassphrase]
+      properties:
+        currentPassphrase: { $ref: '#/components/schemas/PassphraseV1' }
+        newPassphrase: { $ref: '#/components/schemas/PassphraseV1' }
+    RevokeSessionsRequestV1:
+      type: object
+      additionalProperties: false
+      required: [includeCurrent]
+      properties:
+        includeCurrent: { type: boolean }
+    ErrorResponseV1:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          type: string
+          enum:
+            [
+              AUTHENTICATION_FAILED,
+              CSRF_INVALID,
+              INTERNAL_ERROR,
+              RATE_LIMITED,
+              SESSION_INVALID,
+              VALIDATION_FAILED,
+            ]
+  responses:
+    Authenticated:
+      description: Authenticated; hardened session and CSRF cookies are set.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/AuthenticationResponseV1' }
+    AuthenticationFailed:
+      description: Generic credential or recovery failure.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponseV1' }
+    SessionInvalid:
+      description: Missing, expired, revoked, or invalid session.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponseV1' }
+    CsrfInvalid:
+      description: Missing or invalid CSRF proof.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponseV1' }
+    ValidationFailed:
+      description: Request failed strict boundary validation.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponseV1' }
+    RateLimited:
+      description: Authentication attempt rate limit reached.
+      headers:
+        Retry-After:
+          schema: { type: integer, minimum: 1 }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponseV1' }
 x-document-metadata:
-  purpose: Canonical generated application API contract placeholder.
+  purpose: Canonical local-owner authentication REST contract.
   audience: Contributors, clients, and coding agents.
-  authoritative-for: Application HTTP request and response contracts once generated.
-  update-triggers: Versioned API boundary schemas change.
+  authoritative-for: WP-04 application HTTP request and response shapes.
+  update-triggers: Versioned API boundary schemas or authentication routes change.
   related-docs: conventions.md

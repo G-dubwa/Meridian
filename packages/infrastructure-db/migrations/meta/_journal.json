@@ -15,6 +15,13 @@
       "when": 1784361713662,
       "tag": "0001_wp03_security_registry",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1784363909301,
+      "tag": "0002_wp04_local_owner_authentication",
+      "breakpoints": true
     }
   ]
 }

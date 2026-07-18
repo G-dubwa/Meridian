@@ -13,6 +13,9 @@
     "paths": {
       "@meridian/application": ["./packages/application/src/index.ts"],
       "@meridian/domain": ["./packages/domain/src/index.ts"],
+      "@meridian/infrastructure-auth": [
+        "./packages/infrastructure-auth/src/index.ts"
+      ],
       "@meridian/infrastructure-db": [
         "./packages/infrastructure-db/src/index.ts"
       ]

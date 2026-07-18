@@ -9,8 +9,9 @@
     "pnpm": ">=11.14.0 <12"
   },
   "scripts": {
+    "auth:bootstrap": "tsx scripts/bootstrap-owner.ts",
     "build": "pnpm --recursive --if-present run build",
-    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm deps:check && pnpm db:check && pnpm test && pnpm test:integration && pnpm docs:check && pnpm build",
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm deps:check && pnpm db:check && pnpm test && pnpm test:integration && pnpm test:e2e:auth && pnpm docs:check && pnpm build",
     "db:check": "drizzle-kit check --config packages/infrastructure-db/drizzle.config.ts",
     "db:generate": "drizzle-kit generate --config packages/infrastructure-db/drizzle.config.ts",
     "db:migrate": "tsx packages/infrastructure-db/src/migrate.ts",
@@ -22,6 +23,7 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "test:e2e:auth": "node scripts/run-auth-e2e.mjs",
     "test:integration": "node scripts/run-postgres-integration.mjs",
     "typecheck": "tsc --build --pretty false"
   },

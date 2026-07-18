@@ -10,6 +10,12 @@ related-docs: ../architecture/adr/ADR-0003-postgresql-resource-foundation.md
 
 Drizzle table definitions live in `packages/infrastructure-db/src/schema.ts`. Committed SQL and snapshots live in `packages/infrastructure-db/migrations`; deployed migrations are immutable and forward-only.
 
+Authentication migration `0002_wp04_local_owner_authentication.sql` adds only
+technical identity, recovery, session, abuse-control, and audit tables. It must
+run before owner bootstrap. Its singleton constraint makes a second owner
+credential impossible even if two bootstrap attempts race; its recovery consume
+and session revocation operations remain transactional.
+
 ## Authoring
 
 1. Change the Drizzle schema.

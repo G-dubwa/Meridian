@@ -1,0 +1,19 @@
+{
+  "name": "@meridian/infrastructure-auth",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "dependencies": {
+    "@meridian/domain": "workspace:*",
+    "argon2": "0.44.0"
+  },
+  "scripts": {
+    "build": "tsc --build"
+  }
+}
