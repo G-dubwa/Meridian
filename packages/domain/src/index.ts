@@ -5,6 +5,7 @@ export * from './events.js';
 export * from './ids.js';
 export * from './integration.js';
 export * from './journal.js';
+export * from './model.js';
 export type * from './ports.js';
 export * from './processing-class.js';
 export * from './scope.js';

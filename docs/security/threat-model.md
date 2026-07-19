@@ -117,3 +117,21 @@ key, weak local secret custody, app-registration takeover, provider-side consent
 remaining after local disconnect, and absence of a production key-rotation
 procedure. WP-07 reads only profile ID/display name; calendar item risks remain
 for WP-12.
+
+## WP-08 model gateway extension
+
+| Threat                            | Controls                                                                                                                                  |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Private/Sensitive disclosure      | Processing assertion precedes adapter call; tests prove zero calls for Private and unconsented Sensitive.                                 |
+| Prompt injection/over-extraction  | Diary text is delimited as untrusted; exact source quotes, zero-normal extraction, synthetic attack fixture, and deterministic penalties. |
+| Malformed/provider-swapped output | Strict result and output schemas plus provider/model equality; invalid output fails closed.                                               |
+| Secret/content leakage            | Local ignored keys/reports, content-free observations, sanitized errors, and no provider response-body logging.                           |
+| Unapproved spend                  | Fixed 33-call family matrix, explicit paid flag, preflight worst-case estimate, one local key, and hard USD ceiling.                      |
+| Tier misuse or escalation loop    | Exact Alpha allowlist, conjunctive validation, no automatic tier fallback, and final manual review/no action.                             |
+| Silent provider drift/fallback    | Date-stamped registry, direct adapter, dormant external providers, no automatic fallback, and re-evaluation on semantic changes.          |
+
+Residual risks include provider retention/policy changes, billing variance,
+model nondeterminism, provider API drift, and a compromised host or process.
+Synthetic task-matrix evidence does not establish durable production fitness on
+real diary content; Alpha activation is proposal-only, provisional, bounded, and
+reversible. Safety-sensitive output cannot authorize autonomous action.

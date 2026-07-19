@@ -30,3 +30,8 @@ related-docs: release.md
   token custody, refresh rotation, disconnect, append-only consent history, and
   owner Settings UI. Live owner acceptance confirmed the exact five-scope grant
   and disconnect without additional permission.
+- WP-08 provider-neutral gateway with deterministic bypass, task-aware GPT-5.6
+  evaluation, a versioned synthetic task matrix, content-free observations, and
+  an OpenAI-only explicit paid cost gate. Restricted provisional Alpha routing
+  activates only Sol/`none` proposal-only bounded extraction and Terra/`none`
+  bounded classification; all other model task classes remain inactive.

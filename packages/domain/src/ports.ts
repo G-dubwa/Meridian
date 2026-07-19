@@ -31,6 +31,11 @@ import type {
   WorkerErrorCode,
   WorkerObservationV1,
 } from './worker.js';
+import type {
+  ModelInvocationRequest,
+  ModelInvocationResult,
+  ModelInvocationObservationV1,
+} from './model.js';
 
 export interface UserRecord {
   readonly id: UserId;
@@ -380,6 +385,14 @@ export interface AuthenticationTransactionManager {
 
 export interface EventPublisher {
   publish(event: DomainEventEnvelopeV1): Promise<void>;
+}
+
+export interface ModelInferencePort {
+  invoke(request: ModelInvocationRequest): Promise<ModelInvocationResult>;
+}
+
+export interface ModelObservationSink {
+  observe(observation: ModelInvocationObservationV1): void;
 }
 
 export interface IntegrationAccountRecord {

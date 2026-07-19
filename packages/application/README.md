@@ -36,7 +36,15 @@ consent, and content-free event/outbox orchestration. It depends only on domain
 ports; the optional runtime keeps local Meridian available when provider
 configuration is absent.
 
-Tests: dependency-cruiser proves application-to-infrastructure imports fail. The
-authentication, journal, and event services are exercised through real
-PostgreSQL, pg-boss, and live Next.js journeys. Unit tests cover schemas, the
-no-op hook, retry/terminal transitions, and content-safe observations.
+`ModelGatewayService` enforces processing consent before model I/O and emits
+content-free observations. The task router keeps deterministic work in code,
+permits only Sol/`none` bounded extraction proposals and Terra/`none` bounded
+classification/proposal output, and marks all other model task classes inactive.
+Schema, deterministic validation, provenance, explicit uncertainty, abstention,
+and confidence fail closed together without automatic tier escalation. It
+imports no adapter.
+
+Tests: dependency-cruiser proves application-to-infrastructure imports fail.
+Authentication, journal, and event services use live PostgreSQL/pg-boss/Next.js
+journeys; model gateway and routing use isolated mock adapters. Unit tests cover
+schemas, policy, retry/terminal transitions, and content-safe observations.

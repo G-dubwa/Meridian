@@ -29,6 +29,10 @@ related-docs: ../README.md
 | Microsoft callback shows failed        | Retry once from Settings. If it repeats, inspect sanitized server reason codes; never log the code, verifier, client secret, or token.         |
 | Connection needs reauthorization       | Microsoft rejected refresh consent. Connect again deliberately; Meridian has already cleared the locally stored provider tokens.               |
 | Disconnect still appears at Microsoft  | Expected: Meridian removes local tokens only. Withdraw consent separately in the Microsoft account if provider-side removal is wanted.         |
+| Model evaluation refuses before calls  | Expected unless explicit paid confirmation, a sufficient positive USD ceiling, and local `OPENAI_API_KEY` exist.                               |
+| Model provider returns invalid output  | Preserve the aggregate failure only; do not log or commit the raw body. Re-verify model/API facts before changing schema or prompt.            |
+| Bake-off reaches its cost ceiling      | Stop. Do not raise or retry without fresh owner approval; partial evidence cannot activate a model.                                            |
+| Active GPT-5.6 route fails its gate    | Fail closed to manual Triage/no action; never retry or automatically switch model/provider.                                                    |
 
 Local production builds resolve internal packages from their built `dist`
 outputs. If Next.js reports a missing `@meridian/*` module, run the workspace

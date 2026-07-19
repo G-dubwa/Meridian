@@ -50,6 +50,14 @@ events. Playwright runs with Microsoft variables explicitly absent, so automated
 acceptance cannot grant consent or contact Microsoft. A visible owner login and
 disconnect is a separate mandatory live gate.
 
+WP-08 unit tests prove deterministic bypass, task-to-tier mapping, bounded
+escalation, privacy rejection before I/O, content-free observations, provider
+request semantics, sanitized failures, strict prompt/output contracts, family
+cost calculation, abstention, and over-extraction scoring. The live matrix is
+outside `pnpm check`: it needs only local `OPENAI_API_KEY`, explicit paid
+confirmation, and a hard owner-approved ceiling, and it writes only an ignored
+aggregate report.
+
 Tests may use synthetic fixture identifiers and passphrases only. Test output,
 snapshots, traces, and screenshots must not contain credentials, recovery codes,
 session cookies, journal content, or production data. A failed security journey

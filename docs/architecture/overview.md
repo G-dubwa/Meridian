@@ -34,8 +34,17 @@ one-time technical OAuth session bridges the provider callback; persistent
 integration accounts and consent history remain owner-RLS scoped. No Microsoft
 type enters the domain and no Graph request exists outside the adapter.
 
+WP-08 adds a provider-neutral model invocation port. Application policy rejects
+Private and unconsented Sensitive processing before adapter invocation.
+`infrastructure-models` contains direct HTTP adapters while
+`prompts` owns versioned instructions/output contracts. No runtime composition
+root invokes diary content yet; WP-09 owns that workflow. Application policy now
+activates only deterministic code, Sol/`none` bounded extraction to an
+owner-confirmed Triage proposal, and Terra/`none` bounded classification without
+direct mutation. Ambiguous and later task classes fail closed as inactive.
+
 ADR-0001/0002 govern modularity/dependencies, ADR-0003 persistence/RLS,
 ADR-0004 authentication, ADR-0005 journal revision history, ADR-0006 reliable
-worker processing, and ADR-0007 Microsoft OAuth/token custody. Models,
-notifications, calendar data sync, and external effects remain adapters
-activated only by later governed packages.
+worker processing, ADR-0007 Microsoft OAuth/token custody, and ADR-0008 the
+model gateway/evidence gate. Notifications, calendar data sync, and external
+effects remain inactive until later governed packages.

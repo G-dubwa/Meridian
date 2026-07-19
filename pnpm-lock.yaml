@@ -152,7 +152,11 @@ importers:
         specifier: 3.4.9
         version: 3.4.9
 
-  packages/infrastructure-models: {}
+  packages/infrastructure-models:
+    dependencies:
+      '@meridian/domain':
+        specifier: workspace:*
+        version: link:../domain
 
   packages/infrastructure-ms-graph:
     dependencies:
@@ -164,7 +168,14 @@ importers:
 
   packages/knowledge: {}
 
-  packages/prompts: {}
+  packages/prompts:
+    dependencies:
+      '@meridian/domain':
+        specifier: workspace:*
+        version: link:../domain
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
 
   packages/retrieval: {}
 

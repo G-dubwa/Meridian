@@ -95,3 +95,21 @@ the persistent Compose database by default.
 Use `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm deps:check`, `pnpm db:check`, `pnpm test`, `pnpm test:integration`, `pnpm test:e2e:auth`, `pnpm docs:check`, and `pnpm build`. `pnpm test:e2e` runs the scaffolded health journey after Playwright's Chromium browser is installed. The authentication journey uses Playwright's request client and an isolated PostgreSQL cluster, so it does not require a browser download.
 
 The repository engine constraint is intentional. An unsupported local Node version may be useful for diagnosis but does not constitute clean-clone acceptance evidence.
+
+## GPT-5.6 task-routing evaluation
+
+WP-08 model configuration is optional until WP-09 composes the restricted Alpha
+workflow. Put the one
+owner-approved key in an untracked root `.env` or export it in a private
+terminal:
+
+```dotenv
+OPENAI_API_KEY=<local-openai-project-key>
+```
+
+Never put this value in `apps/web/.env.local`, logs, tickets, reports, or source
+control: the WP-08 runner is a root command and no web runtime consumes it.
+After owner approval, source the root environment privately and run the exact
+command in `docs/ai/bakeoff.md`. The runner always evaluates Luna, Terra, and
+Sol, and refuses paid calls without `--confirm-paid-evaluation` and a sufficient
+`--max-cost-usd`. No redirect URI is involved.

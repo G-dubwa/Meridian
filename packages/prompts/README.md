@@ -14,4 +14,9 @@ Exclusions: Provider SDKs and domain policy.
 
 Allowed imports: May import domain schemas; domain never imports prompts.
 
-Tests: WP-01 supplies only the repository-wide placeholder and architecture fixture; behaviour tests arrive with the package's first scoped capability.
+WP-08 registers `task-routing-evaluation` 1.0.0 with a strict output schema,
+explicit abstention, and synthetic task-class contract. It is evaluation-only
+and has no authority to execute proposals or write domain state.
+
+Tests: Schema strictness, proposal bounds, versioned exports, and deterministic
+evaluation scoring are covered without provider traffic.

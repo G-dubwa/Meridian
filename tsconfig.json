@@ -9,6 +9,7 @@
   "include": [
     "*.ts",
     "apps/web/next.config.ts",
+    "evals/**/*.ts",
     "packages/infrastructure-db/drizzle.config.ts",
     "scripts/**/*.ts",
     "tests/**/*.ts"

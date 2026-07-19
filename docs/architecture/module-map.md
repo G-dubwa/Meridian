@@ -35,6 +35,13 @@ absent. `packages/infrastructure-db` implements owner-scoped integration/consent
 repositories plus the narrow one-time callback-session store. The application
 service depends on those domain ports and never imports either adapter.
 
+`packages/infrastructure-models` implements the domain model-inference port and
+owns provider HTTP translation only. It must not decide processing eligibility,
+retain prompt/output content, or activate a provider. `packages/prompts` owns
+the immutable prompt version and output schema without importing adapters.
+Application owns deterministic bypass, task-to-tier policy, and escalation.
+Evaluation composition occurs only in the explicitly paid local runner.
+
 `dependency-cruiser.config.mjs` is executable authority for accepted ADR-0002
 rules. Its negative fixtures prove both domain-to-infrastructure and
 application-to-infrastructure imports are rejected, while the exact composition

@@ -18,6 +18,7 @@
     "deps:check": "depcruise apps packages --config dependency-cruiser.config.mjs && node scripts/check-dependency-fixture.mjs",
     "docs:check": "node scripts/check-docs.mjs && tsx scripts/generate-data-dictionary.ts --check",
     "docs:data:generate": "tsx scripts/generate-data-dictionary.ts",
+    "eval:model": "node --import tsx scripts/run-model-routing-evaluation.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint .",

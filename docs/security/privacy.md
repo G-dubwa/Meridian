@@ -43,3 +43,15 @@ contains only connection state, display label, exact scopes, timestamps, and
 append-only consent actions. No journal content or calendar item is transmitted
 or retrieved. Consent/event payloads are content-free. Microsoft calendar data
 processing begins only in WP-12 after its own governed implementation.
+
+WP-08 introduces an external-model route with a policy check before every
+adapter call. Private remains local-only with no override. Sensitive requires
+explicit per-invocation external-LLM consent; Standard is allowed. Deterministic
+operations remain code and never cross the gateway. The paid task-routing matrix
+uses synthetic fixtures and one local OpenAI key only. Raw outputs stay local;
+observations/reports omit prompts and outputs; requests set `store: false`.
+Dormant external-provider adapters are not activated. Provisional model routes
+can create only owner-confirmed Triage proposals or classification output and
+never direct mutation. Missing provenance, deterministic validation failure,
+explicit uncertainty, invalid schema, or abstention fails closed. Provider
+retention facts are date-stamped in the registry and must be re-verified.

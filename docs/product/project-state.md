@@ -8,11 +8,16 @@ related-docs: roadmap.md
 
 # Project state
 
-Last updated: 18 July 2026
+Last updated: 19 July 2026
 
 ## Current work package
 
-- WP-08 — Model bake-off and gateway is next; it has not started.
+- WP-08 — Model bake-off and gateway is complete on
+  `wp-08-model-bakeoff-gateway`. The owner approved a restricted provisional
+  Alpha policy: deterministic code, Sol/`none` bounded extraction to
+  owner-confirmed Triage proposals, and Terra/`none` bounded classification
+  without direct mutation. WP-09 is next after the package commit and main
+  integration.
 
 ## Completed packages
 
@@ -23,9 +28,10 @@ Last updated: 18 July 2026
 - WP-05 — Walking journal slice. Commit `e7d9d4c2f0fe631f2768b970559a48c5364fc1af`.
 - WP-06 — Worker and reliable event processing. Commit
   `2aa1d357fe6767788d7233932a84386f72e0762c`.
-- WP-07 — Microsoft connection and consent. Commit title
-  `WP-07: Microsoft connection and consent`; exact hash is reported after the
-  commit because a commit cannot contain its own hash.
+- WP-07 — Microsoft connection and consent. Commit
+  `a4255b680a9c374afa8dd7303e8126cc1b4d82c3`.
+- WP-08 — Model bake-off and gateway. Completion commit is the current WP-08
+  package commit and will be recorded by hash when WP-09 starts.
 
 ## Active branches or worktrees
 
@@ -36,9 +42,11 @@ Last updated: 18 July 2026
 - `wp-05-walking-journal-slice` — WP-05 complete.
 - `wp-06-worker-reliable-event-processing` — WP-06 complete and ready for
   integration.
-- `wp-07-microsoft-connection-consent` — WP-07 complete and ready for
-  integration.
-- Integration branch: `main` through verified WP-06 after fast-forward.
+- `wp-07-microsoft-connection-consent` — WP-07 complete, pushed, and remotely
+  verified at `a4255b680a9c374afa8dd7303e8126cc1b4d82c3`.
+- `wp-08-model-bakeoff-gateway` — active WP-08 branch.
+- Integration branch: remote `main` includes WP-07 at
+  `a4255b680a9c374afa8dd7303e8126cc1b4d82c3` after verified fast-forward.
 
 ## Test status
 
@@ -60,7 +68,19 @@ Last updated: 18 July 2026
   acceptance also passed: the consent ledger recorded a grant at 22:21:08 SAST
   and disconnect at 22:22:55 SAST on 18 July 2026, both with exactly `openid
 profile offline_access User.Read Calendars.Read` and no additional permission.
-- Gitleaks is configured in CI; local binary was not present. CI is not yet observable because the branch has not been pushed.
+- WP-08 redesigned pre-paid gate is green: formatting, lint, strict typecheck,
+  92 modules/164 dependencies and negative fixture, migration consistency, 12
+  unit files/57 tests, 1 live PostgreSQL file/8 tests, all 8 live
+  Next.js/PostgreSQL journeys, 95 governed documents/current dictionary, and
+  every workspace production build. The OpenAI-only runner proves
+  no-confirmation, insufficient-ceiling, and missing-key refusal before network
+  I/O.
+- WP-08 paid synthetic evidence is complete: 33/33 fresh matrix calls, every
+  model/task aggregate at schema adherence 1.00, USD 0.134956 locally estimated
+  matrix cost, and USD 0.135877 cumulative with the separate smoke. Seventeen
+  of 27 aggregates failed at least one activation threshold. The owner approved
+  only the restricted provisional Alpha routes, with no automatic fallback.
+- Gitleaks is configured in CI; local binary is not required by the local gate.
 
 ## Known risks
 
@@ -70,9 +90,10 @@ profile offline_access User.Read Calendars.Read` and no additional permission.
 
 ## Open decisions
 
-- No new product decision. ADR-0007 records consumers-only confidential Web
-  OAuth, S256 PKCE, exact delegated scopes, and external-key AES-256-GCM token
-  custody. Deliberately open later decisions remain in Specification §35.3.
+- ADR-0008 records the provider-neutral, privacy-first gateway and restricted
+  provisional Alpha routing. Model confidence is never sufficient alone;
+  deterministic validation, provenance, explicit uncertainty, and fail-closed
+  behaviour govern the two active bounded routes.
 
 ## Human gates
 
@@ -80,18 +101,29 @@ profile offline_access User.Read Calendars.Read` and no additional permission.
   approved envelope remains exactly `openid profile offline_access User.Read
 Calendars.Read`; no write, To Do, mail, shared-calendar, or application
   permission is approved for later packages by implication.
-- Later gates include production secrets, materially tied model selection,
-  real-device delivery testing, and production deployment expenditure.
+- WP-08's paid and routing gates are satisfied. The gate was approved and
+  attempted on 19 July 2026. A retry stopped with
+  HTTP 429 while model metadata access remained HTTP 200. The owner confirmed
+  the cause was zero API credit and added prepaid credit. A separately approved
+  Luna smoke test succeeded with HTTP 200 for USD 0.000921 locally estimated
+  usage. Its single bounded-classification fixture passed schema and abstention
+  checks but scored 0.667 quality, below the 0.90 activation threshold. A fresh
+  33-call matrix then completed under the approved cumulative ceiling. The owner
+  approved only deterministic code, Sol/`none` bounded proposal extraction, and
+  Terra/`none` bounded classification/proposals as provisional Alpha routes.
+- Later gates include production secrets, real-device delivery testing, and
+  production deployment expenditure.
 
 ## Deferred work
 
 - Provider identity, WebAuthn, password-reset email, recovery-code regeneration,
-  models, Triage, embeddings, reminders/tasks, calendar data sync/writes,
+  broader model routes, external-provider model evaluation, Triage,
+  embeddings, reminders/tasks, calendar data sync/writes,
   voice/offline capture, vector search, downstream product consumers, and broader
   product UI remain deferred.
 
 ## Next package
 
-- Commit and integrate WP-07, then start WP-08 — Model bake-off and gateway on a
-  fresh bounded branch. WP-08 does not broaden Microsoft permission or perform
-  calendar reads.
+- Begin WP-09 interpretation, explicit-command routing, and Triage using only
+  the restricted WP-08 Alpha model policy. WP-09 does not broaden Microsoft
+  permission or activate later model task classes.

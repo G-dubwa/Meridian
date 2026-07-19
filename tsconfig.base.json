@@ -18,7 +18,11 @@
       ],
       "@meridian/infrastructure-db": [
         "./packages/infrastructure-db/src/index.ts"
-      ]
+      ],
+      "@meridian/infrastructure-models": [
+        "./packages/infrastructure-models/src/index.ts"
+      ],
+      "@meridian/prompts": ["./packages/prompts/src/index.ts"]
     },
     "noFallthroughCasesInSwitch": true,
     "noImplicitAny": true,
