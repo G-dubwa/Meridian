@@ -15,6 +15,7 @@ import {
   DrizzleEntryRepository,
   DrizzleEntryRevisionRepository,
   DrizzleOutboxRepository,
+  DrizzleProposalRepository,
   DrizzleResourceRepository,
   DrizzleUserRepository,
   type DatabaseTransaction,
@@ -31,6 +32,7 @@ function createTransactionPorts(
     entryRevisions: new DrizzleEntryRevisionRepository(database),
     integrationAccounts: new DrizzleIntegrationAccountRepository(database),
     outbox: new DrizzleOutboxRepository(database),
+    proposals: new DrizzleProposalRepository(database),
     resources: new DrizzleResourceRepository(database),
     users: new DrizzleUserRepository(database),
   };

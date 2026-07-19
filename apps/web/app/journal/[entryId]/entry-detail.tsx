@@ -100,6 +100,48 @@ export function EntryDetail({ entryId }: { readonly entryId: string }) {
     }
   }
 
+  async function proposeTriageItems() {
+    const revision = view?.revisions.at(-1);
+    const csrfToken = readCsrfCookie();
+    if (!view || !revision || !csrfToken) return;
+    if (
+      !window.confirm(
+        'Send this Standard revision to the configured OpenAI route to create review-only Triage proposals? No task, reminder, memory, or external action will be created.',
+      )
+    )
+      return;
+    try {
+      const response = await fetch(
+        `/api/journal/revisions/${revision.id}/triage-proposals`,
+        {
+          body: JSON.stringify({ ownerConfirmedExternalProcessing: true }),
+          credentials: 'same-origin',
+          headers: {
+            'content-type': 'application/json',
+            'x-csrf-token': csrfToken,
+          },
+          method: 'POST',
+        },
+      );
+      if (!response.ok) throw new Error('Interpretation failed.');
+      const result = (await response.json()) as {
+        outcome: 'proposals' | 'clarification' | 'no_action';
+        clarificationQuestion: string | null;
+      };
+      setMessage(
+        result.outcome === 'proposals'
+          ? 'Review-only proposals are ready in Triage.'
+          : result.outcome === 'clarification'
+            ? (result.clarificationQuestion ?? 'Clarification is required.')
+            : 'No supported proposal was found.',
+      );
+    } catch {
+      setMessage(
+        'Triage extraction is unavailable or rejected. No proposal was created.',
+      );
+    }
+  }
+
   if (!view)
     return (
       <section className="auth-card">
@@ -121,6 +163,15 @@ export function EntryDetail({ entryId }: { readonly entryId: string }) {
         <p className="entry-body">{view.entry.bodyMarkdown}</p>
         {view.entry.status === 'active' ? (
           <div className="button-row">
+            {view.entry.processingClass === 'standard' ? (
+              <button
+                className="button-secondary"
+                type="button"
+                onClick={() => void proposeTriageItems()}
+              >
+                Propose Triage items
+              </button>
+            ) : null}
             <button type="button" onClick={() => void transition('archive')}>
               Archive
             </button>

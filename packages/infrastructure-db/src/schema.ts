@@ -476,6 +476,97 @@ export const entryRevisions = pgTable(
   ],
 );
 
+export const proposals = pgTable(
+  'proposals',
+  {
+    id: uuid('id').primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    sourceRevisionId: uuid('source_revision_id').notNull(),
+    sourceSpanStart: integer('source_span_start').notNull(),
+    sourceSpanEnd: integer('source_span_end').notNull(),
+    proposalType: text('proposal_type').notNull(),
+    payload: jsonb('payload').notNull(),
+    authorityClass: text('authority_class').notNull(),
+    assertionClass: text('assertion_class').notNull(),
+    confidence: numeric('confidence', { precision: 6, scale: 5 }).notNull(),
+    uncertaintyIndicators: jsonb('uncertainty_indicators')
+      .notNull()
+      .default([]),
+    dedupeKey: text('dedupe_key').notNull(),
+    status: text('status').notNull().default('pending'),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    suppressionUntil: timestamp('suppression_until', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    version: integer('version').notNull().default(1),
+  },
+  (table) => [
+    unique('proposals_id_user_unique').on(table.id, table.userId),
+    foreignKey({
+      columns: [table.id, table.userId],
+      foreignColumns: [resources.id, resources.userId],
+      name: 'proposals_resource_owner_fk',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [table.sourceRevisionId, table.userId],
+      foreignColumns: [entryRevisions.id, entryRevisions.userId],
+      name: 'proposals_source_revision_owner_fk',
+    }).onDelete('cascade'),
+    check(
+      'proposals_type_valid',
+      sql`${table.proposalType} in ('task', 'reminder', 'commitment', 'goal', 'memory')`,
+    ),
+    check(
+      'proposals_authority_valid',
+      sql`${table.authorityClass} in ('ambiguous_command', 'inferred_structure', 'durable_claim', 'external_action_preview')`,
+    ),
+    check(
+      'proposals_assertion_valid',
+      sql`${table.assertionClass} in ('explicit_statement', 'strong_interpretation', 'weak_inference', 'hypothesis')`,
+    ),
+    check(
+      'proposals_status_valid',
+      sql`${table.status} in ('pending', 'accepted', 'edited_accepted', 'dismissed', 'stale', 'expired')`,
+    ),
+    check(
+      'proposals_span_valid',
+      sql`${table.sourceSpanEnd} > ${table.sourceSpanStart}`,
+    ),
+    check(
+      'proposals_span_start_nonnegative',
+      sql`${table.sourceSpanStart} >= 0`,
+    ),
+    check(
+      'proposals_confidence_valid',
+      sql`${table.confidence} between 0 and 1`,
+    ),
+    check('proposals_dedupe_length', sql`length(${table.dedupeKey}) = 64`),
+    check('proposals_version_positive', sql`${table.version} > 0`),
+    check(
+      'proposals_payload_object',
+      sql`jsonb_typeof(${table.payload}) = 'object'`,
+    ),
+    check(
+      'proposals_uncertainty_array',
+      sql`jsonb_typeof(${table.uncertaintyIndicators}) = 'array'`,
+    ),
+    index('proposals_user_pending_idx').on(
+      table.userId,
+      table.status,
+      table.expiresAt,
+    ),
+    index('proposals_user_dedupe_idx').on(
+      table.userId,
+      table.dedupeKey,
+      table.createdAt,
+    ),
+  ],
+);
+
 export const derivationLinks = pgTable(
   'derivation_links',
   {
@@ -631,6 +722,7 @@ export const schemaTables = {
   entries,
   entryRevisions,
   outboxMessages,
+  proposals,
   resources,
   recoveryCodes,
   schemaRegistry,

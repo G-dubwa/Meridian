@@ -46,3 +46,14 @@ OAuth authorization sessions are `pending → consumed` or expire. Consumption
 atomically matches the SHA-256 state hash, returns the encrypted verifier to the
 server process once, and overwrites its stored ciphertext with `v1.consumed`.
 Consent records have no mutable state; each transition appends a new row.
+
+## Proposal
+
+`pending → accepted | edited_accepted | dismissed | stale | expired`.
+Only pending, unexpired proposals accept an owner-confirmed optimistic decision.
+Accepted and edited-accepted record review only until a governing downstream
+package can atomically create the target. A hypothesis can be dismissed, made
+stale, or expire but cannot be accepted as durable structure. Dismissal records
+a 90-day dedupe suppression; active proposals expire after 30 days. A material
+source revision change makes every pending proposal from the prior revision
+stale in the same journal transaction.

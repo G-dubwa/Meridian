@@ -4,8 +4,10 @@ import type {
   DerivationLinkRecord,
   EntryRecord,
   EntryRevisionRecord,
+  InterpretationOutputV1,
   ResourceRecord,
   MicrosoftOAuthGateway,
+  ModelInvocationRequest,
   UserRecord,
   UserScope,
 } from '../../packages/domain/src/index.js';
@@ -16,6 +18,7 @@ import {
   entryIdV1Schema,
   entryRevisionIdV1Schema,
   resourceIdV1Schema,
+  proposalIdV1Schema,
   userIdV1Schema,
   workerErrorCodeV1Schema,
 } from '../../packages/domain/src/index.js';
@@ -34,6 +37,12 @@ import {
   type MaterialChangeInvalidation,
   type MaterialChangeInvalidationHook,
 } from '../../packages/application/src/journal.js';
+import {
+  ProposalMaterialChangeInvalidationHook,
+  TriageService,
+} from '../../packages/application/src/triage.js';
+import { InterpretationService } from '../../packages/application/src/interpretation.js';
+import { ModelGatewayService } from '../../packages/application/src/model-gateway.js';
 import {
   EventHandlingError,
   OUTBOX_QUEUE_V1,
@@ -54,6 +63,14 @@ import {
   Aes256GcmTokenCipher,
   NodePkceGenerator,
 } from '../../packages/infrastructure-ms-graph/src/index.js';
+import {
+  TRIAGE_EXTRACTION_PROMPT_ID,
+  TRIAGE_EXTRACTION_PROMPT_VERSION,
+  renderTriageExtractionPromptV1,
+  triageExtractionOutputJsonSchemaV1,
+  triageExtractionOutputV1Schema,
+  triageExtractionSystemInstructionV1,
+} from '../../packages/prompts/src/index.js';
 
 const adminUrl = process.env.TEST_DATABASE_URL;
 if (!adminUrl) throw new Error('TEST_DATABASE_URL is required.');
@@ -111,6 +128,7 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
       'integration_accounts',
       'oauth_authorization_sessions',
       'outbox_messages',
+      'proposals',
       'recovery_codes',
       'resources',
       'schema_registry',
@@ -200,6 +218,14 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
           'utf8',
         ),
       );
+      await snapshotSql.unsafe(
+        readFileSync(
+          resolve(
+            'packages/infrastructure-db/migrations/0007_wp09_interpretation_triage.sql',
+          ),
+          'utf8',
+        ),
+      );
       const [seeded] = await snapshotSql<{ count: string }[]>`
         select count(*)::text as count from users
       `;
@@ -227,6 +253,10 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
         select to_regclass('public.integration_accounts')::text as name
       `;
       expect(integrationTable?.name).toBe('integration_accounts');
+      const [proposalTable] = await snapshotSql<{ name: string }[]>`
+        select to_regclass('public.proposals')::text as name
+      `;
+      expect(proposalTable?.name).toBe('proposals');
     } finally {
       await snapshotSql.end();
       await admin.sql.unsafe(`drop database if exists ${snapshotDatabase}`);
@@ -241,7 +271,7 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
     await admin.sql.unsafe(`grant usage on schema public to ${appRole}`);
     await admin.sql.unsafe(`grant select on schema_registry to ${appRole}`);
     await admin.sql.unsafe(
-      `grant select, insert, update, delete on users, resources, entries, entry_revisions, derivation_links, domain_events, outbox_messages, integration_accounts, consent_records, oauth_authorization_sessions to ${appRole}`,
+      `grant select, insert, update, delete on users, resources, entries, entry_revisions, derivation_links, domain_events, outbox_messages, proposals, integration_accounts, consent_records, oauth_authorization_sessions to ${appRole}`,
     );
 
     app = createDatabaseClient(appUrl.toString());
@@ -324,10 +354,13 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
     const ids = new CryptoIdGenerator();
     const secrets = new NodeSecretService();
     const invalidations: MaterialChangeInvalidation[] = [];
+    const proposalInvalidation = new ProposalMaterialChangeInvalidationHook(
+      new SystemClock(),
+    );
     const invalidation: MaterialChangeInvalidationHook = {
-      invalidate(change) {
+      invalidate(change, ports) {
         invalidations.push(change);
-        return Promise.resolve();
+        return proposalInvalidation.invalidate(change, ports);
       },
     };
     const journal = new JournalService({
@@ -393,6 +426,266 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
       eligible.some((revision) => revision.entryId === privateEntry.entry.id),
     ).toBe(false);
 
+    const triage = new TriageService({
+      clock: new SystemClock(),
+      ids,
+      transactions,
+    });
+    const modelRequests: ModelInvocationRequest[] = [];
+    const interpretationService = new InterpretationService({
+      gateway: new ModelGatewayService({
+        adapter: {
+          invoke(request) {
+            modelRequests.push(request);
+            return Promise.resolve({
+              latencyMilliseconds: 12,
+              modelId: request.modelId,
+              output: {
+                clarificationQuestion: null,
+                outcome: 'proposals',
+                proposals: [
+                  {
+                    assertionClass: 'strong_interpretation',
+                    authorityClass: 'inferred_structure',
+                    confidence: 0.95,
+                    detail: null,
+                    kind: 'task',
+                    sourceSpanEnd: 9,
+                    sourceSpanStart: 0,
+                    sourceText: 'A revised',
+                    temporalPhrase: null,
+                    title: 'Review the revised notes',
+                    uncertaintyIndicators: [],
+                  },
+                  {
+                    assertionClass: 'explicit_statement',
+                    authorityClass: 'inferred_structure',
+                    confidence: 0.96,
+                    detail: null,
+                    kind: 'reminder',
+                    sourceSpanEnd: 18,
+                    sourceSpanStart: 10,
+                    sourceText: 'standard',
+                    temporalPhrase: null,
+                    title: 'Revisit the standard note',
+                    uncertaintyIndicators: [],
+                  },
+                  {
+                    assertionClass: 'weak_inference',
+                    authorityClass: 'inferred_structure',
+                    confidence: 0.94,
+                    detail: null,
+                    kind: 'commitment',
+                    sourceSpanEnd: 25,
+                    sourceSpanStart: 19,
+                    sourceText: 'source',
+                    temporalPhrase: null,
+                    title: 'Follow up on the source',
+                    uncertaintyIndicators: [],
+                  },
+                ],
+                schemaVersion: 1,
+                uncertaintyIndicators: [],
+              },
+              provider: 'openai',
+              providerRequestId: 'synthetic-request',
+              providerStatusCode: 200,
+              usage: {
+                cachedInputTokens: 0,
+                inputTokens: 100,
+                outputTokens: 40,
+              },
+            });
+          },
+        },
+        consent: {
+          sensitiveExternalEmbedding: false,
+          sensitiveExternalLlm: false,
+          sensitiveProactiveSurfacing: false,
+          standardProactiveEvidenceEligible: false,
+        },
+        observations: { observe: () => undefined },
+      }),
+      hasher: secrets,
+      prompt: {
+        id: TRIAGE_EXTRACTION_PROMPT_ID,
+        outputSchema: triageExtractionOutputJsonSchemaV1,
+        parse: (output) => triageExtractionOutputV1Schema.parse(output),
+        render: renderTriageExtractionPromptV1,
+        systemInstruction: triageExtractionSystemInstructionV1,
+        version: TRIAGE_EXTRACTION_PROMPT_VERSION,
+      },
+      transactions,
+      triage,
+    });
+    const interpretation = await interpretationService.proposeForRevision(
+      scopeB,
+      revised.currentRevision.id,
+      true,
+      { correlationId: ids.next() },
+    );
+    expect(modelRequests).toHaveLength(1);
+    expect(modelRequests[0]).toMatchObject({
+      modelId: 'gpt-5.6-sol',
+      outputAuthority: 'triage_proposal_only',
+      purpose: 'production',
+      reasoningEffort: 'none',
+      taskClass: 'bounded_extraction',
+    });
+    await expect(
+      interpretationService.proposeForRevision(
+        scopeB,
+        privateEntry.currentRevision.id,
+        true,
+        { correlationId: ids.next() },
+      ),
+    ).rejects.toMatchObject({ code: 'INVALID_AUTHORITY' });
+    expect(modelRequests).toHaveLength(1);
+    expect(interpretation.outcome).toBe('proposals');
+    const proposal = interpretation.proposals[0];
+    if (!proposal) throw new Error('Expected a proposal fixture.');
+    const editableProposal = interpretation.proposals[1];
+    const dismissibleProposal = interpretation.proposals[2];
+    if (!editableProposal || !dismissibleProposal) {
+      throw new Error('Expected edit and dismissal proposal fixtures.');
+    }
+    expect(proposalIdV1Schema.parse(proposal.id)).toBe(proposal.id);
+    await expect(triage.list(scopeA)).resolves.not.toContainEqual(
+      expect.objectContaining({ id: proposal.id }),
+    );
+    const accepted = await triage.decide(
+      scopeB,
+      proposal.id,
+      {
+        decision: 'accept',
+        expectedVersion: proposal.version,
+        ownerConfirmed: true,
+      },
+      { correlationId: ids.next() },
+    );
+    expect(accepted.status).toBe('accepted');
+    const edited = await triage.decide(
+      scopeB,
+      editableProposal.id,
+      {
+        decision: 'edit_accept',
+        editedPayload: {
+          ...editableProposal.payload,
+          title: 'Revisit this note tomorrow',
+        },
+        expectedVersion: editableProposal.version,
+        ownerConfirmed: true,
+      },
+      { correlationId: ids.next() },
+    );
+    expect(edited).toMatchObject({
+      payload: { title: 'Revisit this note tomorrow' },
+      status: 'edited_accepted',
+    });
+    const dismissed = await triage.decide(
+      scopeB,
+      dismissibleProposal.id,
+      {
+        decision: 'dismiss',
+        expectedVersion: dismissibleProposal.version,
+        ownerConfirmed: true,
+      },
+      { correlationId: ids.next() },
+    );
+    expect(dismissed.status).toBe('dismissed');
+    expect(dismissed.suppressionUntil).not.toBeNull();
+    const suppressed = await triage.recordInterpretation(
+      scopeB,
+      revised.currentRevision.id,
+      {
+        clarificationQuestion: null,
+        outcome: 'proposals',
+        proposals: [
+          {
+            assertionClass: dismissed.assertionClass,
+            authorityClass: dismissed.authorityClass,
+            confidence: dismissed.confidence,
+            dedupeKey: dismissed.dedupeKey,
+            payload: dismissed.payload,
+            sourceRevisionId: dismissed.sourceRevisionId,
+            sourceSpanEnd: dismissed.sourceSpanEnd,
+            sourceSpanStart: dismissed.sourceSpanStart,
+            uncertaintyIndicators: [],
+          },
+        ],
+        schemaVersion: 1,
+        uncertaintyIndicators: [],
+      },
+      { correlationId: ids.next() },
+    );
+    expect(suppressed.outcome).toBe('no_action');
+    await expect(triage.list(scopeB)).resolves.not.toContainEqual(
+      expect.objectContaining({ id: proposal.id }),
+    );
+    const [proposalDerivation] = await admin.sql<{ count: string }[]>`
+      select count(*)::text as count from derivation_links
+      where derived_resource_id = ${proposal.resourceId}
+        and source_revision_id = ${revised.currentRevision.id}
+    `;
+    expect(proposalDerivation?.count).toBe('1');
+
+    const staleOutput: InterpretationOutputV1 = {
+      clarificationQuestion: null,
+      outcome: 'proposals',
+      proposals: [
+        {
+          assertionClass: 'weak_inference',
+          authorityClass: 'inferred_structure',
+          confidence: 0.94,
+          dedupeKey: 'c'.repeat(64),
+          payload: {
+            kind: 'commitment',
+            schemaVersion: 1,
+            title: 'Follow up on the notes',
+          },
+          sourceRevisionId: revised.currentRevision.id,
+          sourceSpanEnd: 9,
+          sourceSpanStart: 0,
+          uncertaintyIndicators: [],
+        },
+      ],
+      schemaVersion: 1,
+      uncertaintyIndicators: [],
+    };
+    const staleCandidates = await Promise.all([
+      triage.recordInterpretation(
+        scopeB,
+        revised.currentRevision.id,
+        staleOutput,
+        { correlationId: ids.next() },
+      ),
+      triage.recordInterpretation(
+        scopeB,
+        revised.currentRevision.id,
+        staleOutput,
+        { correlationId: ids.next() },
+      ),
+    ]);
+    expect(staleCandidates.flatMap(({ proposals }) => proposals)).toHaveLength(
+      1,
+    );
+    const pending = staleCandidates.flatMap(({ proposals }) => proposals)[0];
+    if (!pending) throw new Error('Expected a pending proposal fixture.');
+    await journal.reviseEntry(
+      scopeB,
+      revised.entry.id,
+      {
+        bodyMarkdown: 'A newer Standard source revision.',
+        expectedVersion: revised.entry.version,
+        processingClass: 'standard',
+      },
+      { correlationId: ids.next() },
+    );
+    const stale = await transactions.run(scopeB, (ports) =>
+      ports.proposals.findById(scopeB, pending.id),
+    );
+    expect(stale?.status).toBe('stale');
+
     await journal.reviseEntry(
       scopeB,
       privateEntry.entry.id,
@@ -403,8 +696,8 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
       },
       { correlationId: ids.next() },
     );
-    expect(invalidations).toHaveLength(2);
-    expect(invalidations[1]?.changeKind).toBe('privacy');
+    expect(invalidations).toHaveLength(3);
+    expect(invalidations[2]?.changeKind).toBe('privacy');
 
     await expect(
       app.sql.begin(async (sql) => {
@@ -421,7 +714,7 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
         (select count(*)::text from domain_events where user_id = ${scopeB.userId}) as events,
         (select count(*)::text from outbox_messages where user_id = ${scopeB.userId}) as messages
     `;
-    expect(counts).toEqual({ events: '5', messages: '5' });
+    expect(counts).toEqual({ events: '11', messages: '11' });
   });
 
   it('cascades revision-derived provenance when an entry is deleted', async () => {
@@ -506,11 +799,11 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
         dispatcher.dispatchAvailable(scopeB, new Date(), 20),
       ]);
       const jobs = batches.flat();
-      expect(jobs).toHaveLength(5);
-      expect(new Set(jobs.map((job) => job.outboxMessageId)).size).toBe(5);
+      expect(jobs).toHaveLength(11);
+      expect(new Set(jobs.map((job) => job.outboxMessageId)).size).toBe(11);
       expect(
         await installer.findJobs(OUTBOX_QUEUE_V1, { queued: true }),
-      ).toHaveLength(5);
+      ).toHaveLength(11);
     } finally {
       await installer.stop();
     }
@@ -572,7 +865,7 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
         failed: 1,
         inFlight: 0,
         pending: 0,
-        succeeded: 4,
+        succeeded: 10,
         uncertain: 0,
       });
       expect(health.deadLetters[0]).toMatchObject({

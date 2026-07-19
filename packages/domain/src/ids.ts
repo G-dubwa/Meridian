@@ -17,6 +17,8 @@ export const outboxMessageIdV1Schema = z.uuid().brand<'OutboxMessageId'>();
 export type OutboxMessageId = z.infer<typeof outboxMessageIdV1Schema>;
 export const derivationLinkIdV1Schema = z.uuid().brand<'DerivationLinkId'>();
 export type DerivationLinkId = z.infer<typeof derivationLinkIdV1Schema>;
+export const proposalIdV1Schema = z.uuid().brand<'ProposalId'>();
+export type ProposalId = z.infer<typeof proposalIdV1Schema>;
 export const sessionIdV1Schema = z.uuid().brand<'SessionId'>();
 export type SessionId = z.infer<typeof sessionIdV1Schema>;
 
@@ -26,6 +28,7 @@ export const idSchemasV1 = {
   entryId: entryIdV1Schema,
   entryRevisionId: entryRevisionIdV1Schema,
   outboxMessageId: outboxMessageIdV1Schema,
+  proposalId: proposalIdV1Schema,
   resourceId: resourceIdV1Schema,
   sessionId: sessionIdV1Schema,
   userId: userIdV1Schema,

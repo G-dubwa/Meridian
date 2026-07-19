@@ -12,7 +12,10 @@ export default function JournalPage() {
             Source first. Every edit remains visible as an immutable revision.
           </p>
         </div>
-        <Link href="/settings/security">Security</Link>
+        <nav className="button-row" aria-label="Journal navigation">
+          <Link href="/triage">Triage</Link>
+          <Link href="/settings/security">Security</Link>
+        </nav>
       </header>
       <JournalApp />
     </main>

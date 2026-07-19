@@ -55,3 +55,17 @@ can create only owner-confirmed Triage proposals or classification output and
 never direct mutation. Missing provenance, deterministic validation failure,
 explicit uncertainty, invalid schema, or abstention fails closed. Provider
 retention facts are date-stamped in the registry and must be re-verified.
+
+WP-09 stores proposal payloads but does not duplicate source text. Each proposal
+references an owner-matching immutable revision and integer source span through
+both the proposal row and authoritative derivation link. Only current Standard
+revisions pass the application boundary. Pending proposals become stale when
+their source is revised. Proposal events/outbox payloads are limited to ID,
+type, and status; list/decision responses are authenticated, no-store, and
+owner-RLS scoped. Triage decisions cannot create downstream resources or
+external effects in this package. The optional OpenAI request occurs only after
+the owner selects the journal action and confirms the transfer; it uses the
+current Standard revision, `store: false`, Sol/`none`, strict bounded output,
+transient exact-span text validation, and sanitized content-free observations.
+The returned span text is discarded before persistence. Automated tests substitute a local
+adapter and send no owner content to a provider.

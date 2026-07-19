@@ -120,7 +120,8 @@ export function httpErrorResponse(error: unknown): NextResponse {
                 ? 404
                 : error.code === 'CONFLICT'
                   ? 409
-                  : error.code === 'PROHIBITED_ACTION' ||
+                  : error.code === 'INVALID_AUTHORITY' ||
+                      error.code === 'PROHIBITED_ACTION' ||
                       error.code === 'PROCESSING_CLASS_VIOLATION'
                     ? 403
                     : 401;

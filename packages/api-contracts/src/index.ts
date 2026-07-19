@@ -71,7 +71,10 @@ export const authenticationErrorResponseV1Schema = z
       'CSRF_INVALID',
       'INTERNAL_ERROR',
       'INTEGRATION_UNAVAILABLE',
+      'INVALID_AUTHORITY',
       'NOT_FOUND',
+      'PROCESSING_CLASS_VIOLATION',
+      'PROHIBITED_ACTION',
       'RATE_LIMITED',
       'SESSION_INVALID',
       'VALIDATION_FAILED',
@@ -97,3 +100,4 @@ export const generatedSchemaPlaceholdersV1 = {
 } as const;
 
 export const apiContractSchemaVersion = 1 as const;
+export * from './triage.js';

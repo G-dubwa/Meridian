@@ -20,3 +20,8 @@ and has no authority to execute proposals or write domain state.
 
 Tests: Schema strictness, proposal bounds, versioned exports, and deterministic
 evaluation scoring are covered without provider traffic.
+
+WP-09 registers `triage-extraction` 1.0.0 for explicit owner-initiated
+Sol/`none` extraction from current Standard revisions. Its strict contract
+permits only review proposals or clarification/no action and excludes inactive
+goal, memory, planning, safety, and external-action classes.

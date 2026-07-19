@@ -18,12 +18,20 @@ import type {
   EntryId,
   EntryRevisionId,
   OutboxMessageId,
+  ProposalId,
   ResourceId,
   SessionId,
   UserId,
   Uuid,
 } from './ids.js';
 import type { ProcessingClass } from './processing-class.js';
+import type {
+  AssertionClass,
+  ProposalAuthorityClass,
+  ProposalPayloadV1,
+  ProposalStatus,
+  ProposalType,
+} from './proposal.js';
 import type { UserScope } from './scope.js';
 import type {
   OutboxHealthSnapshot,
@@ -105,6 +113,28 @@ export interface DerivationLinkRecord {
   readonly createdAt: Date;
   readonly invalidatedAt: Date | null;
   readonly invalidationReason: string | null;
+}
+
+export interface ProposalRecord {
+  readonly id: ProposalId;
+  readonly resourceId: ResourceId;
+  readonly scope: UserScope;
+  readonly sourceRevisionId: EntryRevisionId;
+  readonly sourceSpanStart: number;
+  readonly sourceSpanEnd: number;
+  readonly proposalType: ProposalType;
+  readonly payload: ProposalPayloadV1;
+  readonly authorityClass: ProposalAuthorityClass;
+  readonly assertionClass: AssertionClass;
+  readonly confidence: number;
+  readonly uncertaintyIndicators: readonly string[];
+  readonly dedupeKey: string;
+  readonly status: ProposalStatus;
+  readonly expiresAt: Date;
+  readonly suppressionUntil: Date | null;
+  readonly createdAt: Date;
+  readonly decidedAt: Date | null;
+  readonly version: number;
 }
 
 export interface OutboxMessageRecord {
@@ -233,6 +263,23 @@ export interface DerivationLinkRepository {
   ): Promise<readonly DerivationLinkRecord[]>;
 }
 
+export interface ProposalRepository {
+  acquireDedupeLock(scope: UserScope, dedupeKey: string): Promise<void>;
+  findById(scope: UserScope, id: ProposalId): Promise<ProposalRecord | null>;
+  findByDedupeKey(
+    scope: UserScope,
+    dedupeKey: string,
+  ): Promise<ProposalRecord | null>;
+  listPending(scope: UserScope, at: Date): Promise<readonly ProposalRecord[]>;
+  save(proposal: ProposalRecord): Promise<void>;
+  stalePendingForRevision(
+    scope: UserScope,
+    revisionId: EntryRevisionId,
+    decidedAt: Date,
+  ): Promise<readonly ProposalRecord[]>;
+  update(proposal: ProposalRecord, expectedVersion: number): Promise<boolean>;
+}
+
 export interface TransactionPorts {
   readonly users: UserRepository;
   readonly resources: ResourceRepository;
@@ -240,6 +287,7 @@ export interface TransactionPorts {
   readonly entryRevisions: EntryRevisionRepository;
   readonly domainEvents: DomainEventRepository;
   readonly outbox: OutboxRepository;
+  readonly proposals: ProposalRepository;
   readonly derivationLinks: DerivationLinkRepository;
   readonly integrationAccounts: IntegrationAccountRepository;
   readonly consentRecords: ConsentRecordRepository;

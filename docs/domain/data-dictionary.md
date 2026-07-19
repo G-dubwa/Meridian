@@ -196,6 +196,36 @@ Foreign keys:
 
 Indexes: `outbox_messages_event_unique`, `outbox_messages_claim_idx`, `outbox_messages_user_created_idx`.
 
+## proposals
+
+| Column | SQL type | Null | Default | Primary |
+|---|---|---|---|---|
+| `id` | `uuid` | no | no | yes |
+| `user_id` | `uuid` | no | no | no |
+| `source_revision_id` | `uuid` | no | no | no |
+| `source_span_start` | `integer` | no | no | no |
+| `source_span_end` | `integer` | no | no | no |
+| `proposal_type` | `text` | no | no | no |
+| `payload` | `jsonb` | no | no | no |
+| `authority_class` | `text` | no | no | no |
+| `assertion_class` | `text` | no | no | no |
+| `confidence` | `numeric(6, 5)` | no | no | no |
+| `uncertainty_indicators` | `jsonb` | no | yes | no |
+| `dedupe_key` | `text` | no | no | no |
+| `status` | `text` | no | yes | no |
+| `expires_at` | `timestamp with time zone` | no | no | no |
+| `suppression_until` | `timestamp with time zone` | yes | no | no |
+| `created_at` | `timestamp with time zone` | no | yes | no |
+| `decided_at` | `timestamp with time zone` | yes | no | no |
+| `version` | `integer` | no | yes | no |
+
+Foreign keys:
+- `proposals_user_id_users_id_fk`: (user_id) → `users` (id)
+- `proposals_resource_owner_fk`: (id, user_id) → `resources` (id, user_id)
+- `proposals_source_revision_owner_fk`: (source_revision_id, user_id) → `entry_revisions` (id, user_id)
+
+Indexes: `proposals_user_pending_idx`, `proposals_user_dedupe_idx`.
+
 ## recovery_codes
 
 | Column | SQL type | Null | Default | Primary |

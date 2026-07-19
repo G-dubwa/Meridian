@@ -10,6 +10,8 @@ import type {
   OutboxHealthSnapshot,
   OutboxMessageRecord,
   OutboxRepository,
+  ProposalRecord,
+  ProposalRepository,
   ResourceRecord,
   ResourceRepository,
   UserRecord,
@@ -18,10 +20,11 @@ import type {
 } from '@meridian/domain';
 import {
   domainEventEnvelopeV1Schema,
+  proposalPayloadV1Schema,
   userIdV1Schema,
   workerErrorCodeV1Schema,
 } from '@meridian/domain';
-import { and, asc, desc, eq, like, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, like, sql } from 'drizzle-orm';
 import type { DatabaseClient } from './client.js';
 import {
   derivationLinks,
@@ -29,6 +32,7 @@ import {
   entries,
   entryRevisions,
   outboxMessages,
+  proposals,
   resources,
   users,
 } from './schema.js';
@@ -566,4 +570,166 @@ export class DrizzleDerivationLinkRepository implements DerivationLinkRepository
       sourceSpanStart: row.sourceSpanStart,
     }));
   }
+}
+
+export class DrizzleProposalRepository implements ProposalRepository {
+  public constructor(private readonly database: DatabaseExecutor) {}
+
+  public async acquireDedupeLock(
+    scope: UserScope,
+    dedupeKey: string,
+  ): Promise<void> {
+    await this.database.execute(
+      sql`select pg_advisory_xact_lock(hashtextextended(${`${scope.userId}:proposal:${dedupeKey}`}, 0))`,
+    );
+  }
+
+  public async findById(
+    scope: UserScope,
+    id: ProposalRecord['id'],
+  ): Promise<ProposalRecord | null> {
+    const [row] = await this.database
+      .select()
+      .from(proposals)
+      .where(and(eq(proposals.userId, scope.userId), eq(proposals.id, id)))
+      .limit(1);
+    return row ? mapProposal(row, scope) : null;
+  }
+
+  public async findByDedupeKey(
+    scope: UserScope,
+    dedupeKey: string,
+  ): Promise<ProposalRecord | null> {
+    const [row] = await this.database
+      .select()
+      .from(proposals)
+      .where(
+        and(
+          eq(proposals.userId, scope.userId),
+          eq(proposals.dedupeKey, dedupeKey),
+        ),
+      )
+      .orderBy(desc(proposals.createdAt))
+      .limit(1);
+    return row ? mapProposal(row, scope) : null;
+  }
+
+  public async listPending(
+    scope: UserScope,
+    at: Date,
+  ): Promise<readonly ProposalRecord[]> {
+    const rows = await this.database
+      .select()
+      .from(proposals)
+      .where(
+        and(
+          eq(proposals.userId, scope.userId),
+          eq(proposals.status, 'pending'),
+          gt(proposals.expiresAt, at),
+        ),
+      )
+      .orderBy(asc(proposals.expiresAt));
+    return rows.map((row) => mapProposal(row, scope));
+  }
+
+  public async save(proposal: ProposalRecord): Promise<void> {
+    if (String(proposal.id) !== String(proposal.resourceId)) {
+      throw new Error('Proposal id must equal its canonical resource id.');
+    }
+    await this.database.insert(proposals).values({
+      assertionClass: proposal.assertionClass,
+      authorityClass: proposal.authorityClass,
+      confidence: proposal.confidence.toString(),
+      createdAt: proposal.createdAt,
+      decidedAt: proposal.decidedAt,
+      dedupeKey: proposal.dedupeKey,
+      expiresAt: proposal.expiresAt,
+      id: proposal.id,
+      payload: proposal.payload,
+      proposalType: proposal.proposalType,
+      sourceRevisionId: proposal.sourceRevisionId,
+      sourceSpanEnd: proposal.sourceSpanEnd,
+      sourceSpanStart: proposal.sourceSpanStart,
+      status: proposal.status,
+      suppressionUntil: proposal.suppressionUntil,
+      uncertaintyIndicators: proposal.uncertaintyIndicators,
+      userId: proposal.scope.userId,
+      version: proposal.version,
+    });
+  }
+
+  public async stalePendingForRevision(
+    scope: UserScope,
+    revisionId: ProposalRecord['sourceRevisionId'],
+    decidedAt: Date,
+  ): Promise<readonly ProposalRecord[]> {
+    const rows = await this.database
+      .update(proposals)
+      .set({
+        decidedAt,
+        status: 'stale',
+        version: sql`${proposals.version} + 1`,
+      })
+      .where(
+        and(
+          eq(proposals.userId, scope.userId),
+          eq(proposals.sourceRevisionId, revisionId),
+          eq(proposals.status, 'pending'),
+        ),
+      )
+      .returning();
+    return rows.map((row) => mapProposal(row, scope));
+  }
+
+  public async update(
+    proposal: ProposalRecord,
+    expectedVersion: number,
+  ): Promise<boolean> {
+    const rows = await this.database
+      .update(proposals)
+      .set({
+        decidedAt: proposal.decidedAt,
+        payload: proposal.payload,
+        status: proposal.status,
+        suppressionUntil: proposal.suppressionUntil,
+        version: proposal.version,
+      })
+      .where(
+        and(
+          eq(proposals.id, proposal.id),
+          eq(proposals.userId, proposal.scope.userId),
+          eq(proposals.version, expectedVersion),
+        ),
+      )
+      .returning({ id: proposals.id });
+    return rows.length === 1;
+  }
+}
+
+function mapProposal(
+  row: typeof proposals.$inferSelect,
+  scope: UserScope,
+): ProposalRecord {
+  return {
+    assertionClass: row.assertionClass as ProposalRecord['assertionClass'],
+    authorityClass: row.authorityClass as ProposalRecord['authorityClass'],
+    confidence: Number(row.confidence),
+    createdAt: row.createdAt,
+    decidedAt: row.decidedAt,
+    dedupeKey: row.dedupeKey,
+    expiresAt: row.expiresAt,
+    id: row.id as ProposalRecord['id'],
+    payload: proposalPayloadV1Schema.parse(row.payload),
+    proposalType: row.proposalType as ProposalRecord['proposalType'],
+    resourceId: row.id as ProposalRecord['resourceId'],
+    scope,
+    sourceRevisionId:
+      row.sourceRevisionId as ProposalRecord['sourceRevisionId'],
+    sourceSpanEnd: row.sourceSpanEnd,
+    sourceSpanStart: row.sourceSpanStart,
+    status: row.status as ProposalRecord['status'],
+    suppressionUntil: row.suppressionUntil,
+    uncertaintyIndicators: row.uncertaintyIndicators as readonly string[],
+    version: row.version,
+  };
 }

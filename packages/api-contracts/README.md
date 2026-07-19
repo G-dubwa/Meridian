@@ -34,6 +34,11 @@ state, and consent timestamps only. There is no response field for access or
 refresh tokens, authorization codes, PKCE values, client secrets, or provider
 diagnostics.
 
+WP-09 adds strict Triage list/decision and explicitly confirmed
+Standard-revision extraction request/response schemas. Proposal decisions expose
+review state and provenance only; no contract can carry a downstream mutation
+or external-action approval.
+
 Tests: Type checking and Playwright exercise authentication, journal, health,
 and Microsoft schemas
 against the live boundary. `docs/api/openapi.yaml` is reviewed and documentation

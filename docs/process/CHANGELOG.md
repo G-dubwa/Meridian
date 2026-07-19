@@ -35,3 +35,6 @@ related-docs: release.md
   an OpenAI-only explicit paid cost gate. Restricted provisional Alpha routing
   activates only Sol/`none` proposal-only bounded extraction and Terra/`none`
   bounded classification; all other model task classes remain inactive.
+- WP-09 deterministic authority routing and owner-only Triage with strict
+  source-bound proposals, dedupe/suppression, accept/edit/dismiss decisions,
+  stale-source invalidation, content-free events, and no downstream mutation.

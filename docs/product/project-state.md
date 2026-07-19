@@ -12,12 +12,11 @@ Last updated: 19 July 2026
 
 ## Current work package
 
-- WP-08 — Model bake-off and gateway is complete on
-  `wp-08-model-bakeoff-gateway`. The owner approved a restricted provisional
-  Alpha policy: deterministic code, Sol/`none` bounded extraction to
-  owner-confirmed Triage proposals, and Terra/`none` bounded classification
-  without direct mutation. WP-09 is next after the package commit and main
-  integration.
+- WP-09 — Interpretation, commands, and Triage is complete on
+  `wp-09-interpretation-commands-triage`, based exactly on the locally
+  integrated WP-08 commit. It implements deterministic authority routing and
+  owner-reviewed source-bound proposals without downstream or external
+  mutation. WP-10 is next after the package commit and local integration.
 
 ## Completed packages
 
@@ -30,8 +29,10 @@ Last updated: 19 July 2026
   `2aa1d357fe6767788d7233932a84386f72e0762c`.
 - WP-07 — Microsoft connection and consent. Commit
   `a4255b680a9c374afa8dd7303e8126cc1b4d82c3`.
-- WP-08 — Model bake-off and gateway. Completion commit is the current WP-08
-  package commit and will be recorded by hash when WP-09 starts.
+- WP-08 — Model bake-off and gateway. Commit
+  `907c8a239dfe87185b510e136df855fa2e16dca0`.
+- WP-09 — Interpretation, commands, and Triage. Completion commit is the
+  package-sized WP-09 commit recorded in project history.
 
 ## Active branches or worktrees
 
@@ -44,7 +45,9 @@ Last updated: 19 July 2026
   integration.
 - `wp-07-microsoft-connection-consent` — WP-07 complete, pushed, and remotely
   verified at `a4255b680a9c374afa8dd7303e8126cc1b4d82c3`.
-- `wp-08-model-bakeoff-gateway` — active WP-08 branch.
+- `wp-08-model-bakeoff-gateway` — complete at
+  `907c8a239dfe87185b510e136df855fa2e16dca0`.
+- `wp-09-interpretation-commands-triage` — complete and awaiting local integration.
 - Integration branch: remote `main` includes WP-07 at
   `a4255b680a9c374afa8dd7303e8126cc1b4d82c3` after verified fast-forward.
 
@@ -80,6 +83,12 @@ profile offline_access User.Read Calendars.Read` and no additional permission.
   matrix cost, and USD 0.135877 cumulative with the separate smoke. Seventeen
   of 27 aggregates failed at least one activation threshold. The owner approved
   only the restricted provisional Alpha routes, with no automatic fallback.
+- WP-09 repository gate is green: formatting, lint, strict typecheck, 103
+  modules/191 dependencies and negative fixture, migration consistency, 14
+  unit files/71 tests, one live PostgreSQL file/8 tests, all 8 live-server
+  journeys, 96 governed documents/current dictionary, and every workspace
+  build. Verification used synthetic fixtures and a local model adapter only;
+  no provider request or cost occurred.
 - Gitleaks is configured in CI; local binary is not required by the local gate.
 
 ## Known risks
@@ -117,13 +126,14 @@ Calendars.Read`; no write, To Do, mail, shared-calendar, or application
 ## Deferred work
 
 - Provider identity, WebAuthn, password-reset email, recovery-code regeneration,
-  broader model routes, external-provider model evaluation, Triage,
-  embeddings, reminders/tasks, calendar data sync/writes,
-  voice/offline capture, vector search, downstream product consumers, and broader
-  product UI remain deferred.
+  broader model routes, external-provider model evaluation, automatic model
+  invocation, embeddings, reminders/tasks, calendar data sync/writes,
+  voice/offline capture, vector search, downstream product consumers, and
+  broader product UI remain deferred. WP-10 specifically owns atomic target
+  creation plus direct-command receipt/Edit/Undo; WP-09 records no target.
 
 ## Next package
 
-- Begin WP-09 interpretation, explicit-command routing, and Triage using only
-  the restricted WP-08 Alpha model policy. WP-09 does not broaden Microsoft
-  permission or activate later model task classes.
+- Complete WP-09 verification and its package-sized commit. WP-10 is next and
+  must bind accepted task/reminder proposals and explicit commands to canonical
+  target creation, receipts, Edit, and Undo without broadening authority.

@@ -15,6 +15,8 @@
     "@meridian/infrastructure-auth": "workspace:*",
     "@meridian/infrastructure-db": "workspace:*",
     "@meridian/infrastructure-ms-graph": "workspace:*",
+    "@meridian/infrastructure-models": "workspace:*",
+    "@meridian/prompts": "workspace:*",
     "next": "16.2.10",
     "react": "19.2.7",
     "react-dom": "19.2.7",

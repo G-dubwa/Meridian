@@ -53,3 +53,17 @@ never contain Microsoft subject/display name, tokens, codes, verifier, client
 secret, provider diagnostics, journal content, or calendar data. The existing
 reliable worker accepts the `integration.` type prefix and otherwise applies the
 same identifier-only delivery policy.
+
+## Proposal events v1
+
+| Event                         | Emitted when                           | Payload                 |
+| ----------------------------- | -------------------------------------- | ----------------------- |
+| `proposal.batch_created.v1`   | One validated proposal batch commits   | proposal IDs and count  |
+| `proposal.accepted.v1`        | Owner accepts without editing          | proposal ID/type/status |
+| `proposal.edited_accepted.v1` | Owner edits then accepts               | proposal ID/type/status |
+| `proposal.dismissed.v1`       | Owner dismisses and starts suppression | proposal ID/type/status |
+
+Payloads omit source text, proposal title/detail, uncertainty, confidence, and
+provider output. Source provenance stays in the owner-scoped proposal and
+derivation rows. Staleness is caused by the already-audited journal revision;
+WP-09 does not emit a second stale event.

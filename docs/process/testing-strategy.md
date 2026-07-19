@@ -58,6 +58,15 @@ outside `pnpm check`: it needs only local `OPENAI_API_KEY`, explicit paid
 confirmation, and a hard owner-approved ceiling, and it writes only an ignored
 aggregate report.
 
+WP-09 synthetic tests exercise authority precedence and reject
+clarification-with-proposals over-extraction without provider I/O. Domain tests
+cover strict source provenance, dedupe and hypothesis rules. Live PostgreSQL
+tests apply the proposal migration, prove forced owner isolation, persist the
+proposal and derivation atomically, record owner acceptance, and carry the two
+new content-free events through the existing concurrent dispatch/dead-letter
+path. Playwright proves unauthenticated Triage rejection and the authenticated
+empty Triage API/UI through the live server.
+
 Tests may use synthetic fixture identifiers and passphrases only. Test output,
 snapshots, traces, and screenshots must not contain credentials, recovery codes,
 session cookies, journal content, or production data. A failed security journey

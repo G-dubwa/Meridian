@@ -21,7 +21,11 @@
       ],
       "@meridian/infrastructure-ms-graph": [
         "../../packages/infrastructure-ms-graph/dist/index"
-      ]
+      ],
+      "@meridian/infrastructure-models": [
+        "../../packages/infrastructure-models/dist/index"
+      ],
+      "@meridian/prompts": ["../../packages/prompts/dist/index"]
     }
   },
   "include": [
@@ -37,6 +41,8 @@
     { "path": "../../packages/api-contracts" },
     { "path": "../../packages/infrastructure-auth" },
     { "path": "../../packages/infrastructure-db" },
-    { "path": "../../packages/infrastructure-ms-graph" }
+    { "path": "../../packages/infrastructure-ms-graph" },
+    { "path": "../../packages/infrastructure-models" },
+    { "path": "../../packages/prompts" }
   ]
 }

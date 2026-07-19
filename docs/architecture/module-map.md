@@ -42,6 +42,12 @@ the immutable prompt version and output schema without importing adapters.
 Application owns deterministic bypass, task-to-tier policy, and escalation.
 Evaluation composition occurs only in the explicitly paid local runner.
 
+WP-09 keeps interpretation persistence in `application`: strict model-shaped
+output is validated into domain proposals, while `infrastructure-db` supplies
+owner-scoped proposal and dedupe repositories. The web route imports only the
+Triage application service. No presentation module can persist a proposal or
+invoke a provider directly.
+
 `dependency-cruiser.config.mjs` is executable authority for accepted ADR-0002
 rules. Its negative fixtures prove both domain-to-infrastructure and
 application-to-infrastructure imports are rejected, while the exact composition

@@ -20,7 +20,7 @@ Status legend: `IN PROGRESS`, `PENDING`, `GATED`, `COMPLETE`.
 | Foundation     |  06 | Worker and reliable event processing            | COMPLETE                    |
 | Personal Alpha |  07 | Microsoft connection and consent                | COMPLETE                    |
 | Personal Alpha |  08 | Model bake-off and gateway                      | COMPLETE                    |
-| Personal Alpha |  09 | Interpretation, commands, and Triage            | PENDING                     |
+| Personal Alpha |  09 | Interpretation, commands, and Triage            | COMPLETE                    |
 | Personal Alpha |  10 | Tasks and canonical reminders                   | PENDING                     |
 | Personal Alpha |  11 | Microsoft To Do delivery spike                  | GATED: real-device evidence |
 | Personal Alpha |  12 | Outlook fixed-window read sync                  | PENDING                     |

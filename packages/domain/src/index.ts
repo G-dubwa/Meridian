@@ -8,6 +8,7 @@ export * from './journal.js';
 export * from './model.js';
 export type * from './ports.js';
 export * from './processing-class.js';
+export * from './proposal.js';
 export * from './scope.js';
 export * from './worker.js';
 

@@ -61,12 +61,19 @@ export interface MaterialChangeInvalidation {
 }
 
 export interface MaterialChangeInvalidationHook {
-  invalidate(change: MaterialChangeInvalidation): Promise<void>;
+  invalidate(
+    change: MaterialChangeInvalidation,
+    ports?: Pick<TransactionPorts, 'proposals'>,
+  ): Promise<void>;
 }
 
 export class NoopMaterialChangeInvalidationHook implements MaterialChangeInvalidationHook {
-  public invalidate(change: MaterialChangeInvalidation): Promise<void> {
+  public invalidate(
+    change: MaterialChangeInvalidation,
+    ports?: Pick<TransactionPorts, 'proposals'>,
+  ): Promise<void> {
     void change;
+    void ports;
     return Promise.resolve();
   }
 }
@@ -374,13 +381,16 @@ export class JournalService {
           now,
         );
       }
-      await this.dependencies.invalidation.invalidate({
-        changeKind,
-        currentRevisionId: revisionId,
-        entryId: parsedEntryId,
-        previousRevisionId: currentView.currentRevision.id,
-        scope,
-      });
+      await this.dependencies.invalidation.invalidate(
+        {
+          changeKind,
+          currentRevisionId: revisionId,
+          entryId: parsedEntryId,
+          previousRevisionId: currentView.currentRevision.id,
+          scope,
+        },
+        ports,
+      );
       return {
         currentRevision: revision,
         entry,

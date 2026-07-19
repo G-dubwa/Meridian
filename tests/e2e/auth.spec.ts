@@ -287,6 +287,7 @@ test.describe.serial('WP-04 through WP-07 authenticated acceptance', () => {
     expect((await request.get('/api/integrations/microsoft')).status()).toBe(
       401,
     );
+    expect((await request.get('/api/triage/proposals')).status()).toBe(401);
     expect((await login(request)).status()).toBe(200);
     const standardBody = 'First standard journal evidence.';
     const revisedBody = 'Revised standard journal evidence.';
@@ -315,7 +316,7 @@ test.describe.serial('WP-04 through WP-07 authenticated acceptance', () => {
     expect(revised.status()).toBe(200);
     const revisedView = (await revised.json()) as {
       entry: { version: number };
-      revisions: { bodyMarkdown: string; revisionNumber: number }[];
+      revisions: { bodyMarkdown: string; id: string; revisionNumber: number }[];
     };
     expect(revisedView.revisions).toEqual([
       expect.objectContaining({
@@ -332,6 +333,18 @@ test.describe.serial('WP-04 through WP-07 authenticated acceptance', () => {
     expect(
       ((await detail.json()) as { revisions: unknown[] }).revisions,
     ).toHaveLength(2);
+
+    const configuredExtraction = await request.post(
+      `/api/journal/revisions/${revisedView.revisions[1]?.id ?? ''}/triage-proposals`,
+      {
+        data: { ownerConfirmedExternalProcessing: true },
+        headers: { 'x-csrf-token': await csrfCookie(request) },
+      },
+    );
+    expect(configuredExtraction.status()).toBe(503);
+    expect(await configuredExtraction.json()).toEqual({
+      error: 'INTEGRATION_UNAVAILABLE',
+    });
 
     const privateCreated = await request.post('/api/journal/entries', {
       data: { bodyMarkdown: privateBody, processingClass: 'private' },
@@ -379,6 +392,12 @@ test.describe.serial('WP-04 through WP-07 authenticated acceptance', () => {
     const journalPage = await request.get('/journal');
     expect(journalPage.status()).toBe(200);
     expect(await journalPage.text()).toContain('Journal');
+    const triageApi = await request.get('/api/triage/proposals');
+    expect(triageApi.status()).toBe(200);
+    expect(await triageApi.json()).toEqual({ proposals: [] });
+    const triagePage = await request.get('/triage');
+    expect(triagePage.status()).toBe(200);
+    expect(await triagePage.text()).toContain('Triage');
     const detailPage = await request.get(`/journal/${standard.entry.id}`);
     expect(detailPage.status()).toBe(200);
     expect(await detailPage.text()).toContain('Entry detail');

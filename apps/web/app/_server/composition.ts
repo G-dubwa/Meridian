@@ -1,9 +1,12 @@
 import {
   AuthenticationService,
+  InterpretationService,
   JournalService,
   MicrosoftConnectionService,
-  NoopMaterialChangeInvalidationHook,
+  ModelGatewayService,
+  ProposalMaterialChangeInvalidationHook,
   OutboxHealthService,
+  TriageService,
 } from '@meridian/application';
 import {
   Argon2idPasswordHasher,
@@ -18,11 +21,22 @@ import {
   createDatabaseClient,
 } from '@meridian/infrastructure-db';
 import { createMicrosoftInfrastructure } from '@meridian/infrastructure-ms-graph';
+import { OpenAiResponsesAdapter } from '@meridian/infrastructure-models';
+import {
+  TRIAGE_EXTRACTION_PROMPT_ID,
+  TRIAGE_EXTRACTION_PROMPT_VERSION,
+  renderTriageExtractionPromptV1,
+  triageExtractionOutputJsonSchemaV1,
+  triageExtractionOutputV1Schema,
+  triageExtractionSystemInstructionV1,
+} from '@meridian/prompts';
 
 export interface AuthenticationRuntime {
   readonly ids: CryptoIdGenerator;
+  readonly interpretation?: InterpretationService;
   readonly journal: JournalService;
   readonly microsoft: MicrosoftConnectionService;
+  readonly triage: TriageService;
   readonly secrets: NodeSecretService;
   readonly service: AuthenticationService;
   readonly workerHealth: OutboxHealthService;
@@ -41,13 +55,47 @@ function createRuntime(): AuthenticationRuntime {
     redirectUri: process.env.MICROSOFT_REDIRECT_URI,
     tokenEncryptionKey: process.env.MICROSOFT_TOKEN_ENCRYPTION_KEY,
   });
+  const triage = new TriageService({
+    clock: new SystemClock(),
+    ids,
+    transactions,
+  });
+  const openAiKey = process.env.OPENAI_API_KEY;
+  const interpretation = openAiKey
+    ? new InterpretationService({
+        gateway: new ModelGatewayService({
+          adapter: new OpenAiResponsesAdapter(openAiKey),
+          consent: {
+            standardProactiveEvidenceEligible: false,
+            sensitiveExternalEmbedding: false,
+            sensitiveExternalLlm: false,
+            sensitiveProactiveSurfacing: false,
+          },
+          observations: { observe: () => undefined },
+        }),
+        hasher: secrets,
+        prompt: {
+          id: TRIAGE_EXTRACTION_PROMPT_ID,
+          outputSchema: triageExtractionOutputJsonSchemaV1,
+          parse: (output) => triageExtractionOutputV1Schema.parse(output),
+          render: renderTriageExtractionPromptV1,
+          systemInstruction: triageExtractionSystemInstructionV1,
+          version: TRIAGE_EXTRACTION_PROMPT_VERSION,
+        },
+        transactions,
+        triage,
+      })
+    : undefined;
   return {
     ids,
+    ...(interpretation === undefined ? {} : { interpretation }),
     journal: new JournalService({
       clock: new SystemClock(),
       contentHasher: secrets,
       ids,
-      invalidation: new NoopMaterialChangeInvalidationHook(),
+      invalidation: new ProposalMaterialChangeInvalidationHook(
+        new SystemClock(),
+      ),
       transactions,
     }),
     microsoft: new MicrosoftConnectionService({
@@ -72,6 +120,7 @@ function createRuntime(): AuthenticationRuntime {
         database.database,
       ),
     }),
+    triage,
     workerHealth: new OutboxHealthService(transactions),
   };
 }

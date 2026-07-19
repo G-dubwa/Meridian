@@ -37,11 +37,22 @@ type enters the domain and no Graph request exists outside the adapter.
 WP-08 adds a provider-neutral model invocation port. Application policy rejects
 Private and unconsented Sensitive processing before adapter invocation.
 `infrastructure-models` contains direct HTTP adapters while
-`prompts` owns versioned instructions/output contracts. No runtime composition
-root invokes diary content yet; WP-09 owns that workflow. Application policy now
+`prompts` owns versioned instructions/output contracts. WP-09 optionally
+composes the OpenAI adapter when `OPENAI_API_KEY` is present and exposes only an
+owner-confirmed, CSRF-protected bounded-extraction action for the current
+Standard revision. There is no automatic invocation. Application policy
 activates only deterministic code, Sol/`none` bounded extraction to an
 owner-confirmed Triage proposal, and Terra/`none` bounded classification without
 direct mutation. Ambiguous and later task classes fail closed as inactive.
+
+WP-09 adds canonical proposal resources tied to an exact current Standard
+revision and source span. Application validation caps extraction at seven,
+rejects invalid provenance and prohibited authority classes, applies
+transaction-scoped dedupe locks, and persists proposal/resource/derivation plus
+content-free event/outbox atomically. The owner-only Triage API records
+accept/edit/dismiss decisions; these are review records, not downstream domain
+mutation. Revising the source marks pending proposals stale in the journal
+transaction.
 
 ADR-0001/0002 govern modularity/dependencies, ADR-0003 persistence/RLS,
 ADR-0004 authentication, ADR-0005 journal revision history, ADR-0006 reliable

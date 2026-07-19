@@ -98,8 +98,7 @@ The repository engine constraint is intentional. An unsupported local Node versi
 
 ## GPT-5.6 task-routing evaluation
 
-WP-08 model configuration is optional until WP-09 composes the restricted Alpha
-workflow. Put the one
+WP-09 optionally composes the restricted Alpha extraction workflow. Put the one
 owner-approved key in an untracked root `.env` or export it in a private
 terminal:
 
@@ -107,9 +106,16 @@ terminal:
 OPENAI_API_KEY=<local-openai-project-key>
 ```
 
-Never put this value in `apps/web/.env.local`, logs, tickets, reports, or source
-control: the WP-08 runner is a root command and no web runtime consumes it.
+Never put this value in logs, tickets, reports, or source control. The web
+runtime reads only the inherited process environment; source the ignored root
+environment privately before starting Next.js. Do not copy or print the value.
 After owner approval, source the root environment privately and run the exact
 command in `docs/ai/bakeoff.md`. The runner always evaluates Luna, Terra, and
 Sol, and refuses paid calls without `--confirm-paid-evaluation` and a sufficient
 `--max-cost-usd`. No redirect URI is involved.
+
+In the journal entry view, `Propose Triage items` is available only for a
+current Standard revision. It displays an explicit transfer confirmation, then
+uses Sol/`none`, `store: false`, and strict bounded output. A missing key returns
+a sanitized unavailable response and creates nothing. Automated tests never
+invoke the provider.
