@@ -15,15 +15,29 @@ import type {
 } from './integration.js';
 import type {
   DerivationLinkId,
+  CommandReceiptId,
   EntryId,
   EntryRevisionId,
   OutboxMessageId,
   ProposalId,
+  ReminderId,
+  ReminderOccurrenceId,
   ResourceId,
   SessionId,
+  TaskId,
   UserId,
   Uuid,
 } from './ids.js';
+import type {
+  CommandReceiptStatus,
+  CreationAuthority,
+  RecurrenceRuleV1,
+  ReminderOccurrenceState,
+  ReminderPriority,
+  ReminderState,
+  TaskKind,
+  TaskState,
+} from './action.js';
 import type { ProcessingClass } from './processing-class.js';
 import type {
   AssertionClass,
@@ -134,6 +148,68 @@ export interface ProposalRecord {
   readonly suppressionUntil: Date | null;
   readonly createdAt: Date;
   readonly decidedAt: Date | null;
+  readonly version: number;
+}
+
+export interface TaskRecord {
+  readonly id: TaskId;
+  readonly resourceId: ResourceId;
+  readonly scope: UserScope;
+  readonly goalResourceId: ResourceId | null;
+  readonly kind: TaskKind;
+  readonly title: string;
+  readonly notes: string;
+  readonly estimateMinutes: number | null;
+  readonly dueAt: Date | null;
+  readonly state: TaskState;
+  readonly creationAuthority: CreationAuthority;
+  readonly sourceProposalId: ProposalId | null;
+  readonly createdAt: Date;
+  readonly updatedAt: Date;
+  readonly version: number;
+}
+
+export interface ReminderRecord {
+  readonly id: ReminderId;
+  readonly resourceId: ResourceId;
+  readonly scope: UserScope;
+  readonly relatedResourceId: ResourceId | null;
+  readonly purpose: string;
+  readonly triggerAt: Date;
+  readonly timeZone: string;
+  readonly recurrence: RecurrenceRuleV1 | null;
+  readonly deliveryPolicy: 'undecided';
+  readonly priority: ReminderPriority;
+  readonly quietHoursBehavior: 'defer';
+  readonly expiresAt: Date | null;
+  readonly state: ReminderState;
+  readonly creationAuthority: CreationAuthority;
+  readonly sourceProposalId: ProposalId | null;
+  readonly ownerFeedback: string | null;
+  readonly createdAt: Date;
+  readonly updatedAt: Date;
+  readonly version: number;
+}
+
+export interface ReminderOccurrenceRecord {
+  readonly id: ReminderOccurrenceId;
+  readonly scope: UserScope;
+  readonly reminderId: ReminderId;
+  readonly scheduledFor: Date;
+  readonly state: ReminderOccurrenceState;
+  readonly createdAt: Date;
+  readonly updatedAt: Date;
+}
+
+export interface CommandReceiptRecord {
+  readonly id: CommandReceiptId;
+  readonly scope: UserScope;
+  readonly targetResourceId: ResourceId;
+  readonly targetType: 'task' | 'reminder';
+  readonly status: CommandReceiptStatus;
+  readonly createdAt: Date;
+  readonly updatedAt: Date;
+  readonly undoneAt: Date | null;
   readonly version: number;
 }
 
@@ -280,6 +356,41 @@ export interface ProposalRepository {
   update(proposal: ProposalRecord, expectedVersion: number): Promise<boolean>;
 }
 
+export interface TaskRepository {
+  findById(scope: UserScope, id: TaskId): Promise<TaskRecord | null>;
+  list(scope: UserScope): Promise<readonly TaskRecord[]>;
+  save(task: TaskRecord): Promise<void>;
+  update(task: TaskRecord, expectedVersion: number): Promise<boolean>;
+}
+
+export interface ReminderRepository {
+  findById(scope: UserScope, id: ReminderId): Promise<ReminderRecord | null>;
+  list(scope: UserScope): Promise<readonly ReminderRecord[]>;
+  save(reminder: ReminderRecord): Promise<void>;
+  update(reminder: ReminderRecord, expectedVersion: number): Promise<boolean>;
+}
+
+export interface ReminderOccurrenceRepository {
+  save(occurrence: ReminderOccurrenceRecord): Promise<void>;
+  cancelPending(
+    scope: UserScope,
+    reminderId: ReminderId,
+    at: Date,
+  ): Promise<void>;
+}
+
+export interface CommandReceiptRepository {
+  findById(
+    scope: UserScope,
+    id: CommandReceiptId,
+  ): Promise<CommandReceiptRecord | null>;
+  save(receipt: CommandReceiptRecord): Promise<void>;
+  update(
+    receipt: CommandReceiptRecord,
+    expectedVersion: number,
+  ): Promise<boolean>;
+}
+
 export interface TransactionPorts {
   readonly users: UserRepository;
   readonly resources: ResourceRepository;
@@ -289,6 +400,10 @@ export interface TransactionPorts {
   readonly outbox: OutboxRepository;
   readonly proposals: ProposalRepository;
   readonly derivationLinks: DerivationLinkRepository;
+  readonly tasks: TaskRepository;
+  readonly reminders: ReminderRepository;
+  readonly reminderOccurrences: ReminderOccurrenceRepository;
+  readonly commandReceipts: CommandReceiptRepository;
   readonly integrationAccounts: IntegrationAccountRepository;
   readonly consentRecords: ConsentRecordRepository;
 }

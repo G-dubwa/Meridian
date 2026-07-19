@@ -2,7 +2,7 @@
 
 import {
   proposalListResponseV1Schema,
-  proposalResponseV1Schema,
+  proposalDecisionResponseV1Schema,
 } from '@meridian/api-contracts';
 import type { ProposalListResponseV1 } from '@meridian/api-contracts';
 import { useEffect, useState } from 'react';
@@ -35,6 +35,13 @@ export function TriageApp() {
     proposal: ProposalListResponseV1['proposals'][number],
     decision: 'accept' | 'edit_accept' | 'dismiss',
     editedTitle?: string,
+    acceptedReminder?: {
+      expiresAt: null;
+      priority: 'normal';
+      recurrence: null;
+      timeZone: string;
+      triggerAt: string;
+    },
   ) {
     const csrfToken = readCsrfCookie();
     if (!csrfToken) {
@@ -55,6 +62,7 @@ export function TriageApp() {
               },
             }
           : {}),
+        ...(acceptedReminder === undefined ? {} : { acceptedReminder }),
       };
       const response = await fetch(
         `/api/triage/proposals/${proposal.id}/decision`,
@@ -69,11 +77,13 @@ export function TriageApp() {
         },
       );
       if (!response.ok) throw new Error('Decision was rejected.');
-      proposalResponseV1Schema.parse(await response.json());
+      const result = proposalDecisionResponseV1Schema.parse(
+        await response.json(),
+      );
       setMessage(
         decision === 'dismiss'
           ? 'Proposal dismissed.'
-          : 'Owner decision recorded. Downstream mutation remains inactive.',
+          : `Created ${result.action?.receipt.targetType ?? 'target'} with receipt ${result.action?.receipt.id ?? 'unavailable'}.`,
       );
       await refresh();
     } catch {
@@ -127,7 +137,31 @@ export function TriageApp() {
               event.preventDefault();
               const title = new FormData(event.currentTarget).get('title');
               if (typeof title === 'string' && title.trim()) {
-                void decide(proposal, 'edit_accept', title.trim());
+                const triggerAt = event.currentTarget.dataset.reminderInstant;
+                const acceptedReminder =
+                  proposal.proposalType === 'reminder' && triggerAt
+                    ? {
+                        expiresAt: null,
+                        priority: 'normal' as const,
+                        recurrence: null,
+                        timeZone:
+                          Intl.DateTimeFormat().resolvedOptions().timeZone,
+                        triggerAt,
+                      }
+                    : undefined;
+                if (
+                  proposal.proposalType === 'reminder' &&
+                  acceptedReminder === undefined
+                ) {
+                  setMessage('Choose and confirm a reminder instant.');
+                  return;
+                }
+                void decide(
+                  proposal,
+                  'edit_accept',
+                  title.trim(),
+                  acceptedReminder,
+                );
               }
             }}
           >
@@ -143,13 +177,15 @@ export function TriageApp() {
               <button disabled={busyId === proposal.id} type="submit">
                 Edit and accept
               </button>
-              <button
-                disabled={busyId === proposal.id}
-                onClick={() => void decide(proposal, 'accept')}
-                type="button"
-              >
-                Accept as proposed
-              </button>
+              {proposal.proposalType !== 'reminder' ? (
+                <button
+                  disabled={busyId === proposal.id}
+                  onClick={() => void decide(proposal, 'accept')}
+                  type="button"
+                >
+                  Accept as proposed
+                </button>
+              ) : null}
               <button
                 className="button-danger"
                 disabled={busyId === proposal.id}
@@ -159,6 +195,46 @@ export function TriageApp() {
                 Dismiss
               </button>
             </div>
+            {proposal.proposalType === 'reminder' ? (
+              <label>
+                Confirm reminder instant
+                <input
+                  name="reminder-time"
+                  type="datetime-local"
+                  required
+                  onChange={(event) => {
+                    const value = event.currentTarget.value;
+                    if (!value) return;
+                    event.currentTarget.form?.setAttribute(
+                      'data-reminder-instant',
+                      new Date(value).toISOString(),
+                    );
+                  }}
+                />
+                <button
+                  disabled={busyId === proposal.id}
+                  onClick={(event) => {
+                    const form = event.currentTarget.form;
+                    const triggerAt = form?.dataset.reminderInstant;
+                    if (!triggerAt) {
+                      setMessage('Choose and confirm a reminder instant.');
+                      return;
+                    }
+                    void decide(proposal, 'accept', undefined, {
+                      expiresAt: null,
+                      priority: 'normal',
+                      recurrence: null,
+                      timeZone:
+                        Intl.DateTimeFormat().resolvedOptions().timeZone,
+                      triggerAt,
+                    });
+                  }}
+                  type="button"
+                >
+                  Accept reminder
+                </button>
+              </label>
+            ) : null}
           </form>
         </article>
       ))}

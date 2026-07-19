@@ -2,6 +2,7 @@ import {
   interpretationDispositionResponseV1Schema,
   interpretRevisionRequestV1Schema,
   proposalDecisionRequestV1Schema,
+  proposalDecisionResponseV1Schema,
   proposalListResponseV1Schema,
   proposalResponseV1Schema,
 } from '@meridian/api-contracts';
@@ -18,6 +19,7 @@ import {
   requireAuthenticatedScope,
 } from './auth-http';
 import { authenticationRuntime } from './composition';
+import { actionReceiptResponse } from './action-http';
 
 function responseFor(proposal: ProposalRecord) {
   return proposalResponseV1Schema.parse({
@@ -61,20 +63,46 @@ export async function postTriageDecision(
   try {
     const { context, scope } = await requireAuthenticatedScope(request, true);
     const input = proposalDecisionRequestV1Schema.parse(await request.json());
-    const proposal = await authenticationRuntime().triage.decide(
+    if (input.decision === 'dismiss') {
+      const proposal = await authenticationRuntime().triage.decide(
+        scope,
+        proposalIdV1Schema.parse(proposalId),
+        {
+          decision: input.decision,
+          expectedVersion: input.expectedVersion,
+          ownerConfirmed: input.ownerConfirmed,
+        },
+        context,
+      );
+      return jsonNoStore(
+        proposalDecisionResponseV1Schema.parse({
+          action: null,
+          proposal: responseFor(proposal),
+        }),
+      );
+    }
+    const result = await authenticationRuntime().actions.acceptProposal(
       scope,
       proposalIdV1Schema.parse(proposalId),
       {
+        ...(input.acceptedReminder === undefined
+          ? {}
+          : { acceptedReminder: input.acceptedReminder }),
         decision: input.decision,
-        expectedVersion: input.expectedVersion,
-        ownerConfirmed: input.ownerConfirmed,
         ...(input.editedPayload === undefined
           ? {}
           : { editedPayload: input.editedPayload }),
+        expectedVersion: input.expectedVersion,
+        ownerConfirmed: input.ownerConfirmed,
       },
       context,
     );
-    return jsonNoStore(responseFor(proposal));
+    return jsonNoStore(
+      proposalDecisionResponseV1Schema.parse({
+        action: actionReceiptResponse(result),
+        proposal: responseFor(result.proposal),
+      }),
+    );
   } catch (error) {
     return httpErrorResponse(error);
   }

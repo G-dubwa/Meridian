@@ -147,7 +147,8 @@
 
 @media (max-width: 760px) {
   .journal-layout,
-  .entry-detail-grid {
+  .entry-detail-grid,
+  .action-layout {
     grid-template-columns: 1fr;
   }
 
@@ -233,6 +234,59 @@ input {
   color: inherit;
   font: inherit;
   padding: 0.8rem;
+}
+
+select,
+textarea {
+  background: #0d1411;
+  border: 1px solid #496356;
+  border-radius: 0.55rem;
+  color: inherit;
+  font: inherit;
+  padding: 0.8rem;
+}
+
+textarea {
+  min-height: 6rem;
+  resize: vertical;
+}
+
+.action-layout {
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.action-layout .auth-card,
+.receipt-card,
+.action-ledger {
+  max-width: none;
+}
+
+.receipt-card,
+.action-ledger,
+.quick-command-card,
+.action-layout .status-message {
+  grid-column: 1 / -1;
+}
+
+.inline-choice {
+  align-items: center;
+  display: flex;
+}
+
+.action-ledger {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.action-card {
+  margin-top: 0;
+}
+
+.action-card h3,
+.action-card p {
+  margin: 0;
 }
 
 button {

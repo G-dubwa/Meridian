@@ -48,6 +48,13 @@ owner-scoped proposal and dedupe repositories. The web route imports only the
 Triage application service. No presentation module can persist a proposal or
 invoke a provider directly.
 
+WP-10 keeps task/reminder authority and lifecycle in `domain`, atomic
+orchestration in `application`, owner-scoped repositories in
+`infrastructure-db`, strict wire schemas in `api-contracts`, and the action UI
+in `apps/web`. The parser is domain-level deterministic code. No delivery
+adapter is composed, and no application or presentation module imports a
+Microsoft To Do client.
+
 `dependency-cruiser.config.mjs` is executable authority for accepted ADR-0002
 rules. Its negative fixtures prove both domain-to-infrastructure and
 application-to-infrastructure imports are rejected, while the exact composition

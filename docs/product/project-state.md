@@ -12,11 +12,12 @@ Last updated: 19 July 2026
 
 ## Current work package
 
-- WP-09 — Interpretation, commands, and Triage is complete on
-  `wp-09-interpretation-commands-triage`, based exactly on the locally
-  integrated WP-08 commit. It implements deterministic authority routing and
-  owner-reviewed source-bound proposals without downstream or external
-  mutation. WP-10 is next after the package commit and local integration.
+- WP-10 — Tasks and canonical reminders is complete on
+  `wp-10-tasks-canonical-reminders`, based exactly on WP-09. Internal canonical
+  tasks/reminders, deterministic time resolution, atomic accepted-proposal
+  targets/provenance, receipts, Edit/Undo, occurrence history, REST/UI, and
+  content-free audit passed the full gate. Work is stopped at the WP-11
+  Microsoft To Do permission and real-device gate.
 
 ## Completed packages
 
@@ -32,7 +33,9 @@ Last updated: 19 July 2026
 - WP-08 — Model bake-off and gateway. Commit
   `907c8a239dfe87185b510e136df855fa2e16dca0`.
 - WP-09 — Interpretation, commands, and Triage. Completion commit is the
-  package-sized WP-09 commit recorded in project history.
+  package-sized commit `930a4b567004589ec32a2268994ce0097b5316ff`.
+- WP-10 — Tasks and canonical reminders. Completion commit is the package-sized
+  WP-10 commit recorded in project history.
 
 ## Active branches or worktrees
 
@@ -47,9 +50,12 @@ Last updated: 19 July 2026
   verified at `a4255b680a9c374afa8dd7303e8126cc1b4d82c3`.
 - `wp-08-model-bakeoff-gateway` — complete at
   `907c8a239dfe87185b510e136df855fa2e16dca0`.
-- `wp-09-interpretation-commands-triage` — complete and awaiting local integration.
-- Integration branch: remote `main` includes WP-07 at
-  `a4255b680a9c374afa8dd7303e8126cc1b4d82c3` after verified fast-forward.
+- `wp-09-interpretation-commands-triage` — complete and remotely verified at
+  `930a4b567004589ec32a2268994ce0097b5316ff`.
+- `wp-10-tasks-canonical-reminders` — complete and ready for local integration.
+- Integration branch: remote `main` ends at
+  `930a4b567004589ec32a2268994ce0097b5316ff` after exact verification; remote
+  WP-08 and WP-09 branches retain their package commits.
 
 ## Test status
 
@@ -89,6 +95,13 @@ profile offline_access User.Read Calendars.Read` and no additional permission.
   journeys, 96 governed documents/current dictionary, and every workspace
   build. Verification used synthetic fixtures and a local model adapter only;
   no provider request or cost occurred.
+- WP-10 repository gate is green: formatting, lint, strict typecheck, 117
+  modules/220 dependencies and negative fixture, Drizzle consistency, 15 unit
+  files/76 tests, one live PostgreSQL file/9 tests, 9 live-server owner
+  journeys, 97 governed documents/current dictionary, and every workspace
+  build. Tests prove deterministic DST-fail-closed resolution, forced RLS,
+  atomic proposal target/provenance, command idempotency, Edit/Undo, occurrence
+  cancellation, content-free events, and no external delivery/provider call.
 - Gitleaks is configured in CI; local binary is not required by the local gate.
 
 ## Known risks
@@ -122,18 +135,22 @@ Calendars.Read`; no write, To Do, mail, shared-calendar, or application
   Terra/`none` bounded classification/proposals as provisional Alpha routes.
 - Later gates include production secrets, real-device delivery testing, and
   production deployment expenditure.
+- WP-11 is the next mandatory human gate. Microsoft To Do permission, a
+  dedicated list, provider mutations, device tests, and any delivery decision
+  require a separately reviewed scope request and explicit approval. WP-10 does
+  not pre-authorize them.
 
 ## Deferred work
 
 - Provider identity, WebAuthn, password-reset email, recovery-code regeneration,
   broader model routes, external-provider model evaluation, automatic model
-  invocation, embeddings, reminders/tasks, calendar data sync/writes,
+  invocation, embeddings, external reminder delivery, calendar data sync/writes,
   voice/offline capture, vector search, downstream product consumers, and
-  broader product UI remain deferred. WP-10 specifically owns atomic target
-  creation plus direct-command receipt/Edit/Undo; WP-09 records no target.
+  broader product UI remain deferred. WP-10 adds only internal canonical tasks
+  and reminder intent.
 
 ## Next package
 
-- Complete WP-09 verification and its package-sized commit. WP-10 is next and
-  must bind accepted task/reminder proposals and explicit commands to canonical
-  target creation, receipts, Edit, and Undo without broadening authority.
+- WP-10 is complete. Stop at the WP-11 Microsoft To Do permission and
+  real-device acceptance gate until the owner approves the exact delegated
+  scope and paid/device test plan.

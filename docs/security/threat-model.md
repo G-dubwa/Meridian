@@ -135,3 +135,21 @@ model nondeterminism, provider API drift, and a compromised host or process.
 Synthetic task-matrix evidence does not establish durable production fitness on
 real diary content; Alpha activation is proposal-only, provisional, bounded, and
 reversible. Safety-sensitive output cannot authorize autonomous action.
+
+## WP-10 task and reminder extension
+
+| Threat                                | Controls                                                                                                          |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Inference creates state silently      | T2 owner confirmation and target/proposal transition in one transaction; inactive types fail closed.              |
+| Ambiguous time creates wrong reminder | Bounded grammar, exact instant/IANA zone, future check, DST gap/overlap rejection; no LLM time arithmetic.        |
+| Intent is mistaken for delivery       | Database-constrained `undecided` policy, internal-only receipt/UI, no delivery adapter, scope, or provider event. |
+| Cross-owner target/provenance access  | Forced RLS plus owner-matching target, proposal, related-resource, revision, receipt, and occurrence keys.        |
+| Duplicate occurrence or command       | Unique reminder/instant identity, command correlation lock, optimistic versions, atomic outbox.                   |
+| Content leaks through audit           | Strict event payload permits only target ID/type/state and receipt ID; integration tests inspect serialized rows. |
+| Edit/Undo races or hides history      | Receipt and target versions, terminal state rules, occurrence cancellation, append-only events and provenance.    |
+
+Residual risks include a compromised owner session/process/database
+administrator, wall-clock or time-zone database drift, travel semantics not yet
+implemented, and an owner assuming a scheduled internal reminder will notify a
+device. WP-11 must receive explicit permission approval and real-device
+evidence before any Microsoft To Do or alternate delivery adapter activates.

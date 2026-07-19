@@ -69,3 +69,12 @@ current Standard revision, `store: false`, Sol/`none`, strict bounded output,
 transient exact-span text validation, and sanitized content-free observations.
 The returned span text is discarded before persistence. Automated tests substitute a local
 adapter and send no owner content to a provider.
+
+WP-10 stores task titles/notes and reminder purpose/time/recurrence only in
+forced-RLS canonical rows and authenticated no-store responses. Command
+receipts contain opaque target identity and lifecycle, not a content snapshot.
+Action event/outbox payloads contain only target ID/type/state and receipt ID.
+The bounded reminder parser is deterministic local code, so it sends no content
+to a model or delivery provider. Accepted proposals retain owner-scoped source
+proposal and exact revision/span provenance. Microsoft processing and scopes do
+not change; reminder delivery remains `undecided` behind WP-11.

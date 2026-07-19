@@ -1,0 +1,4 @@
+import { postTask } from '../../../_server/action-http';
+
+export const dynamic = 'force-dynamic';
+export const POST = postTask;

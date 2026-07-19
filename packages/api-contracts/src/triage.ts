@@ -7,6 +7,10 @@ import {
   proposalStatusV1Schema,
   proposalTypeV1Schema,
 } from '@meridian/domain';
+import {
+  acceptedReminderDetailsV1Schema,
+  actionReceiptResponseV1Schema,
+} from './actions.js';
 import { z } from 'zod';
 
 export const proposalResponseV1Schema = z
@@ -38,6 +42,7 @@ export const proposalDecisionRequestV1Schema = z
     expectedVersion: z.number().int().positive(),
     ownerConfirmed: z.literal(true),
     editedPayload: proposalPayloadV1Schema.optional(),
+    acceptedReminder: acceptedReminderDetailsV1Schema.optional(),
   })
   .strict()
   .superRefine((input, context) => {
@@ -55,10 +60,24 @@ export const proposalDecisionRequestV1Schema = z
         path: ['editedPayload'],
       });
     }
+    if (input.acceptedReminder !== undefined && input.decision === 'dismiss') {
+      context.addIssue({
+        code: 'custom',
+        message: 'Dismissal cannot create a reminder target.',
+        path: ['acceptedReminder'],
+      });
+    }
   });
 
 export const interpretRevisionRequestV1Schema = z
   .object({ ownerConfirmedExternalProcessing: z.literal(true) })
+  .strict();
+
+export const proposalDecisionResponseV1Schema = z
+  .object({
+    action: actionReceiptResponseV1Schema.nullable(),
+    proposal: proposalResponseV1Schema,
+  })
   .strict();
 
 export const interpretationDispositionResponseV1Schema = z

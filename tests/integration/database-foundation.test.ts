@@ -37,6 +37,7 @@ import {
   type MaterialChangeInvalidation,
   type MaterialChangeInvalidationHook,
 } from '../../packages/application/src/journal.js';
+import { ActionService } from '../../packages/application/src/actions.js';
 import {
   ProposalMaterialChangeInvalidationHook,
   TriageService,
@@ -120,6 +121,7 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
       'auth_events',
       'auth_rate_limits',
       'auth_sessions',
+      'command_receipts',
       'consent_records',
       'derivation_links',
       'domain_events',
@@ -130,8 +132,11 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
       'outbox_messages',
       'proposals',
       'recovery_codes',
+      'reminder_occurrences',
+      'reminders',
       'resources',
       'schema_registry',
+      'tasks',
       'users',
     ]);
     const [vector] = await admin.sql<{ extversion: string }[]>`
@@ -226,6 +231,14 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
           'utf8',
         ),
       );
+      await snapshotSql.unsafe(
+        readFileSync(
+          resolve(
+            'packages/infrastructure-db/migrations/0008_wp10_tasks_canonical_reminders.sql',
+          ),
+          'utf8',
+        ),
+      );
       const [seeded] = await snapshotSql<{ count: string }[]>`
         select count(*)::text as count from users
       `;
@@ -257,6 +270,10 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
         select to_regclass('public.proposals')::text as name
       `;
       expect(proposalTable?.name).toBe('proposals');
+      const [reminderTable] = await snapshotSql<{ name: string }[]>`
+        select to_regclass('public.reminders')::text as name
+      `;
+      expect(reminderTable?.name).toBe('reminders');
     } finally {
       await snapshotSql.end();
       await admin.sql.unsafe(`drop database if exists ${snapshotDatabase}`);
@@ -271,7 +288,7 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
     await admin.sql.unsafe(`grant usage on schema public to ${appRole}`);
     await admin.sql.unsafe(`grant select on schema_registry to ${appRole}`);
     await admin.sql.unsafe(
-      `grant select, insert, update, delete on users, resources, entries, entry_revisions, derivation_links, domain_events, outbox_messages, proposals, integration_accounts, consent_records, oauth_authorization_sessions to ${appRole}`,
+      `grant select, insert, update, delete on users, resources, entries, entry_revisions, derivation_links, domain_events, outbox_messages, proposals, tasks, reminders, reminder_occurrences, command_receipts, integration_accounts, consent_records, oauth_authorization_sessions to ${appRole}`,
     );
 
     app = createDatabaseClient(appUrl.toString());
@@ -431,6 +448,11 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
       ids,
       transactions,
     });
+    const actions = new ActionService({
+      clock: new SystemClock(),
+      ids,
+      transactions,
+    });
     const modelRequests: ModelInvocationRequest[] = [];
     const interpretationService = new InterpretationService({
       gateway: new ModelGatewayService({
@@ -553,7 +575,7 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
     await expect(triage.list(scopeA)).resolves.not.toContainEqual(
       expect.objectContaining({ id: proposal.id }),
     );
-    const accepted = await triage.decide(
+    const accepted = await actions.acceptProposal(
       scopeB,
       proposal.id,
       {
@@ -563,11 +585,22 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
       },
       { correlationId: ids.next() },
     );
-    expect(accepted.status).toBe('accepted');
-    const edited = await triage.decide(
+    expect(accepted.proposal.status).toBe('accepted');
+    expect(accepted.target).toMatchObject({
+      creationAuthority: 'accepted_proposal',
+      sourceProposalId: proposal.id,
+    });
+    const edited = await actions.acceptProposal(
       scopeB,
       editableProposal.id,
       {
+        acceptedReminder: {
+          expiresAt: null,
+          priority: 'normal',
+          recurrence: null,
+          timeZone: 'Africa/Johannesburg',
+          triggerAt: '2026-07-20T13:00:00.000Z',
+        },
         decision: 'edit_accept',
         editedPayload: {
           ...editableProposal.payload,
@@ -578,9 +611,14 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
       },
       { correlationId: ids.next() },
     );
-    expect(edited).toMatchObject({
+    expect(edited.proposal).toMatchObject({
       payload: { title: 'Revisit this note tomorrow' },
       status: 'edited_accepted',
+    });
+    expect(edited.target).toMatchObject({
+      creationAuthority: 'accepted_proposal',
+      deliveryPolicy: 'undecided',
+      sourceProposalId: editableProposal.id,
     });
     const dismissed = await triage.decide(
       scopeB,
@@ -714,7 +752,146 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
         (select count(*)::text from domain_events where user_id = ${scopeB.userId}) as events,
         (select count(*)::text from outbox_messages where user_id = ${scopeB.userId}) as messages
     `;
-    expect(counts).toEqual({ events: '11', messages: '11' });
+    expect(counts).toEqual({ events: '13', messages: '13' });
+  });
+
+  it('creates, edits, and undoes owner-scoped internal tasks and reminder intent', async () => {
+    if (!app) throw new Error('Application database was not initialized.');
+    const transactions = new DrizzleTransactionManager(app.database);
+    const ids = new CryptoIdGenerator();
+    const clock = { now: () => new Date('2026-07-19T08:00:00.000Z') };
+    const actions = new ActionService({ clock, ids, transactions });
+    const taskContext = { correlationId: ids.next() };
+    const taskInput = {
+      authority: {
+        ambiguous: false,
+        deterministic: true,
+        explicit: true,
+        externalEffect: false,
+        ownerConfirmed: true,
+      },
+      dueAt: null,
+      estimateMinutes: 30,
+      goalResourceId: null,
+      kind: 'task',
+      notes: 'Owner entered detail',
+      title: 'Owner entered task',
+    } as const;
+    const taskResult = await actions.createTask(scopeA, taskInput, taskContext);
+    await expect(
+      actions.createTask(scopeA, taskInput, taskContext),
+    ).resolves.toMatchObject({
+      receipt: { id: taskResult.receipt.id },
+      target: { id: taskResult.target.id },
+    });
+    const otherOwnerActions = await actions.list(scopeB);
+    expect(
+      otherOwnerActions.tasks.some((task) => task.id === taskResult.target.id),
+    ).toBe(false);
+    await expect(
+      actions.undo(
+        scopeB,
+        taskResult.receipt.id,
+        taskResult.receipt.version,
+        true,
+        { correlationId: ids.next() },
+      ),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    const editedTask = await actions.editTask(
+      scopeA,
+      taskResult.receipt.id,
+      {
+        dueAt: '2026-07-20T10:00:00.000Z',
+        estimateMinutes: 45,
+        expectedReceiptVersion: taskResult.receipt.version,
+        expectedTargetVersion: taskResult.target.version,
+        kind: 'commitment',
+        notes: 'Owner entered detail',
+        ownerConfirmed: true,
+        title: 'Edited owner task',
+      },
+      { correlationId: ids.next() },
+    );
+    expect(editedTask.target).toMatchObject({
+      kind: 'commitment',
+      state: 'scheduled',
+      version: 2,
+    });
+    const undoneTask = await actions.undo(
+      scopeA,
+      taskResult.receipt.id,
+      taskResult.receipt.version,
+      true,
+      { correlationId: ids.next() },
+    );
+    expect(undoneTask).toMatchObject({
+      receipt: { status: 'undone', version: 2 },
+      target: { state: 'dropped' },
+    });
+
+    const reminderResult = await actions.createReminderCommand(
+      scopeA,
+      {
+        command: 'Remind me tomorrow at 15:00 to run a synthetic check',
+        ownerConfirmed: true,
+        timeZone: 'Africa/Johannesburg',
+      },
+      { correlationId: ids.next() },
+    );
+    expect(reminderResult.target).toMatchObject({
+      deliveryPolicy: 'undecided',
+      purpose: 'run a synthetic check',
+      triggerAt: new Date('2026-07-20T13:00:00.000Z'),
+    });
+    const editedReminder = await actions.editReminder(
+      scopeA,
+      reminderResult.receipt.id,
+      {
+        expiresAt: null,
+        expectedReceiptVersion: reminderResult.receipt.version,
+        expectedTargetVersion: reminderResult.target.version,
+        ownerConfirmed: true,
+        priority: 'high',
+        purpose: 'run the edited synthetic check',
+        recurrence: {
+          frequency: 'daily',
+          interval: 1,
+          schemaVersion: 1,
+          until: null,
+          weekDays: [],
+        },
+        timeZone: 'Africa/Johannesburg',
+        triggerAt: '2026-07-21T13:00:00.000Z',
+      },
+      { correlationId: ids.next() },
+    );
+    expect(editedReminder.target).toMatchObject({
+      priority: 'high',
+      version: 2,
+    });
+    await actions.undo(
+      scopeA,
+      reminderResult.receipt.id,
+      reminderResult.receipt.version,
+      true,
+      { correlationId: ids.next() },
+    );
+    const [occurrences] = await admin.sql<
+      { cancelled: string; pending: string }[]
+    >`
+      select
+        count(*) filter (where state = 'cancelled')::text as cancelled,
+        count(*) filter (where state = 'pending')::text as pending
+      from reminder_occurrences
+      where reminder_id = ${reminderResult.target.id}
+    `;
+    expect(occurrences).toEqual({ cancelled: '2', pending: '0' });
+    const actionEvents = await transactions.run(scopeA, (ports) =>
+      ports.domainEvents.listByTypePrefix(scopeA, 'action.', 20),
+    );
+    expect(actionEvents).toHaveLength(6);
+    expect(JSON.stringify(actionEvents)).not.toContain('Owner entered');
+    expect(JSON.stringify(actionEvents)).not.toContain('synthetic check');
   });
 
   it('cascades revision-derived provenance when an entry is deleted', async () => {
@@ -799,11 +976,11 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
         dispatcher.dispatchAvailable(scopeB, new Date(), 20),
       ]);
       const jobs = batches.flat();
-      expect(jobs).toHaveLength(11);
-      expect(new Set(jobs.map((job) => job.outboxMessageId)).size).toBe(11);
+      expect(jobs).toHaveLength(13);
+      expect(new Set(jobs.map((job) => job.outboxMessageId)).size).toBe(13);
       expect(
         await installer.findJobs(OUTBOX_QUEUE_V1, { queued: true }),
-      ).toHaveLength(11);
+      ).toHaveLength(13);
     } finally {
       await installer.stop();
     }
@@ -865,7 +1042,7 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
         failed: 1,
         inFlight: 0,
         pending: 0,
-        succeeded: 10,
+        succeeded: 12,
         uncertain: 0,
       });
       expect(health.deadLetters[0]).toMatchObject({

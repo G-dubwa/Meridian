@@ -631,6 +631,240 @@ export const derivationLinks = pgTable(
   ],
 );
 
+export const tasks = pgTable(
+  'tasks',
+  {
+    id: uuid('id').primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    goalResourceId: uuid('goal_resource_id'),
+    kind: text('kind').notNull(),
+    title: text('title').notNull(),
+    notes: text('notes').notNull().default(''),
+    estimateMinutes: integer('estimate_minutes'),
+    dueAt: timestamp('due_at', { withTimezone: true }),
+    state: text('state').notNull().default('open'),
+    creationAuthority: text('creation_authority').notNull(),
+    sourceProposalId: uuid('source_proposal_id'),
+    ...timestamps,
+    version: integer('version').notNull().default(1),
+  },
+  (table) => [
+    unique('tasks_id_user_unique').on(table.id, table.userId),
+    foreignKey({
+      columns: [table.id, table.userId],
+      foreignColumns: [resources.id, resources.userId],
+      name: 'tasks_resource_owner_fk',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [table.goalResourceId, table.userId],
+      foreignColumns: [resources.id, resources.userId],
+      name: 'tasks_goal_owner_fk',
+    }),
+    foreignKey({
+      columns: [table.sourceProposalId, table.userId],
+      foreignColumns: [proposals.id, proposals.userId],
+      name: 'tasks_proposal_owner_fk',
+    }),
+    check(
+      'tasks_kind_valid',
+      sql`${table.kind} in ('task', 'commitment', 'routine', 'milestone')`,
+    ),
+    check(
+      'tasks_state_valid',
+      sql`${table.state} in ('open', 'scheduled', 'done', 'dropped', 'superseded')`,
+    ),
+    check(
+      'tasks_creation_authority_valid',
+      sql`${table.creationAuthority} in ('manual', 'explicit_command', 'accepted_proposal')`,
+    ),
+    check(
+      'tasks_estimate_valid',
+      sql`${table.estimateMinutes} is null or (${table.estimateMinutes} between 1 and 10080)`,
+    ),
+    check(
+      'tasks_title_valid',
+      sql`length(btrim(${table.title})) between 1 and 240`,
+    ),
+    check('tasks_notes_valid', sql`length(${table.notes}) <= 2000`),
+    check('tasks_version_positive', sql`${table.version} > 0`),
+    index('tasks_user_state_due_idx').on(
+      table.userId,
+      table.state,
+      table.dueAt,
+    ),
+  ],
+);
+
+export const reminders = pgTable(
+  'reminders',
+  {
+    id: uuid('id').primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    relatedResourceId: uuid('related_resource_id'),
+    purpose: text('purpose').notNull(),
+    triggerAt: timestamp('trigger_at', { withTimezone: true }).notNull(),
+    timeZone: text('time_zone').notNull(),
+    recurrence: jsonb('recurrence'),
+    deliveryPolicy: text('delivery_policy').notNull().default('undecided'),
+    priority: text('priority').notNull().default('normal'),
+    quietHoursBehavior: text('quiet_hours_behavior').notNull().default('defer'),
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+    state: text('state').notNull().default('scheduled'),
+    creationAuthority: text('creation_authority').notNull(),
+    sourceProposalId: uuid('source_proposal_id'),
+    ownerFeedback: text('owner_feedback'),
+    ...timestamps,
+    version: integer('version').notNull().default(1),
+  },
+  (table) => [
+    unique('reminders_id_user_unique').on(table.id, table.userId),
+    foreignKey({
+      columns: [table.id, table.userId],
+      foreignColumns: [resources.id, resources.userId],
+      name: 'reminders_resource_owner_fk',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [table.relatedResourceId, table.userId],
+      foreignColumns: [resources.id, resources.userId],
+      name: 'reminders_related_owner_fk',
+    }),
+    foreignKey({
+      columns: [table.sourceProposalId, table.userId],
+      foreignColumns: [proposals.id, proposals.userId],
+      name: 'reminders_proposal_owner_fk',
+    }),
+    check(
+      'reminders_purpose_valid',
+      sql`length(btrim(${table.purpose})) between 1 and 500`,
+    ),
+    check(
+      'reminders_time_zone_valid',
+      sql`length(${table.timeZone}) between 1 and 100`,
+    ),
+    check(
+      'reminders_recurrence_object',
+      sql`${table.recurrence} is null or jsonb_typeof(${table.recurrence}) = 'object'`,
+    ),
+    check(
+      'reminders_delivery_policy_valid',
+      sql`${table.deliveryPolicy} = 'undecided'`,
+    ),
+    check(
+      'reminders_priority_valid',
+      sql`${table.priority} in ('low', 'normal', 'high')`,
+    ),
+    check(
+      'reminders_quiet_hours_valid',
+      sql`${table.quietHoursBehavior} = 'defer'`,
+    ),
+    check(
+      'reminders_expiry_valid',
+      sql`${table.expiresAt} is null or ${table.expiresAt} > ${table.triggerAt}`,
+    ),
+    check(
+      'reminders_state_valid',
+      sql`${table.state} in ('scheduled', 'due', 'delivered', 'completed', 'dismissed', 'snoozed', 'paused', 'expired')`,
+    ),
+    check(
+      'reminders_creation_authority_valid',
+      sql`${table.creationAuthority} in ('manual', 'explicit_command', 'accepted_proposal')`,
+    ),
+    check(
+      'reminders_feedback_valid',
+      sql`${table.ownerFeedback} is null or length(${table.ownerFeedback}) <= 1000`,
+    ),
+    check('reminders_version_positive', sql`${table.version} > 0`),
+    index('reminders_user_state_trigger_idx').on(
+      table.userId,
+      table.state,
+      table.triggerAt,
+    ),
+  ],
+);
+
+export const reminderOccurrences = pgTable(
+  'reminder_occurrences',
+  {
+    id: uuid('id').primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    reminderId: uuid('reminder_id').notNull(),
+    scheduledFor: timestamp('scheduled_for', { withTimezone: true }).notNull(),
+    state: text('state').notNull().default('pending'),
+    ...timestamps,
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.reminderId, table.userId],
+      foreignColumns: [reminders.id, reminders.userId],
+      name: 'reminder_occurrences_reminder_owner_fk',
+    }).onDelete('cascade'),
+    unique('reminder_occurrences_schedule_unique').on(
+      table.reminderId,
+      table.scheduledFor,
+    ),
+    check(
+      'reminder_occurrences_state_valid',
+      sql`${table.state} in ('pending', 'due', 'acknowledged', 'dismissed', 'cancelled')`,
+    ),
+    index('reminder_occurrences_user_due_idx').on(
+      table.userId,
+      table.state,
+      table.scheduledFor,
+    ),
+  ],
+);
+
+export const commandReceipts = pgTable(
+  'command_receipts',
+  {
+    id: uuid('id').primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    targetResourceId: uuid('target_resource_id').notNull(),
+    targetType: text('target_type').notNull(),
+    status: text('status').notNull().default('active'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    undoneAt: timestamp('undone_at', { withTimezone: true }),
+    version: integer('version').notNull().default(1),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.targetResourceId, table.userId],
+      foreignColumns: [resources.id, resources.userId],
+      name: 'command_receipts_target_owner_fk',
+    }).onDelete('cascade'),
+    check(
+      'command_receipts_target_valid',
+      sql`${table.targetType} in ('task', 'reminder')`,
+    ),
+    check(
+      'command_receipts_status_valid',
+      sql`${table.status} in ('active', 'undone')`,
+    ),
+    check(
+      'command_receipts_undone_valid',
+      sql`(${table.status} = 'active' and ${table.undoneAt} is null) or (${table.status} = 'undone' and ${table.undoneAt} is not null)`,
+    ),
+    check('command_receipts_version_positive', sql`${table.version} > 0`),
+    index('command_receipts_user_created_idx').on(
+      table.userId,
+      table.createdAt,
+    ),
+  ],
+);
+
 export const domainEvents = pgTable(
   'domain_events',
   {
@@ -717,14 +951,18 @@ export const schemaTables = {
   authEvents,
   authRateLimits,
   authSessions,
+  commandReceipts,
   derivationLinks,
   domainEvents,
   entries,
   entryRevisions,
   outboxMessages,
   proposals,
+  reminderOccurrences,
+  reminders,
   resources,
   recoveryCodes,
   schemaRegistry,
+  tasks,
   users,
 } as const;

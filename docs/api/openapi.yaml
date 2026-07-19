@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: Meridian API
-  version: 0.7.0
-  description: Same-origin REST contract for owner authentication, journal evidence, worker health, and Microsoft consent.
+  version: 0.10.0
+  description: Same-origin REST contract for owner authentication, journal evidence, Triage, internal tasks/reminders, worker health, and Microsoft consent.
 paths:
   /api/auth/csrf:
     get:
@@ -309,12 +309,141 @@ paths:
             schema: { $ref: '#/components/schemas/ProposalDecisionRequestV1' }
       responses:
         '200':
-          description: The recorded proposal decision; no target mutation occurs.
+          description: Dismissal, or atomic owner-confirmed internal task/reminder target and receipt.
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/ProposalResponseV1' }
+              schema:
+                { $ref: '#/components/schemas/ProposalDecisionResponseV1' }
         '400': { $ref: '#/components/responses/ValidationFailed' }
         '401': { $ref: '#/components/responses/SessionInvalid' }
+        '403': { $ref: '#/components/responses/CsrfInvalid' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/actions:
+    get:
+      operationId: listInternalActions
+      summary: List owner-scoped canonical tasks and reminder intent.
+      security: [{ sessionCookie: [] }]
+      responses:
+        '200':
+          description: Internal canonical action records; reminder delivery may be undecided.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ActionListResponseV1' }
+        '401': { $ref: '#/components/responses/SessionInvalid' }
+  /api/actions/tasks:
+    post:
+      operationId: createInternalTask
+      summary: Execute one explicit deterministic internal task command.
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/CsrfHeader' }
+        - { $ref: '#/components/parameters/RequestIdHeader' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateTaskRequestV1' }
+      responses:
+        '201': { $ref: '#/components/responses/ActionReceipt' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '401': { $ref: '#/components/responses/SessionInvalid' }
+        '403': { $ref: '#/components/responses/CsrfInvalid' }
+  /api/actions/reminders:
+    post:
+      operationId: createInternalReminder
+      summary: Execute one explicit reminder with an exact instant and recurrence meaning.
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/CsrfHeader' }
+        - { $ref: '#/components/parameters/RequestIdHeader' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateReminderRequestV1' }
+      responses:
+        '201': { $ref: '#/components/responses/ActionReceipt' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '401': { $ref: '#/components/responses/SessionInvalid' }
+        '403': { $ref: '#/components/responses/CsrfInvalid' }
+  /api/actions/commands/reminder:
+    post:
+      operationId: createInternalReminderFromBoundedCommand
+      summary: Deterministically resolve the bounded explicit reminder grammar.
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/CsrfHeader' }
+        - { $ref: '#/components/parameters/RequestIdHeader' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              { $ref: '#/components/schemas/ExplicitReminderCommandRequestV1' }
+      responses:
+        '201': { $ref: '#/components/responses/ActionReceipt' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '401': { $ref: '#/components/responses/SessionInvalid' }
+        '403': { $ref: '#/components/responses/CsrfInvalid' }
+  /api/actions/receipts/{receiptId}/task:
+    post:
+      operationId: editTaskFromReceipt
+      summary: Edit an active internal task through its receipt.
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/CsrfHeader' }
+        - { $ref: '#/components/parameters/RequestIdHeader' }
+        - { $ref: '#/components/parameters/ReceiptIdPath' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EditTaskReceiptRequestV1' }
+      responses:
+        '200': { $ref: '#/components/responses/ActionReceipt' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '403': { $ref: '#/components/responses/CsrfInvalid' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/actions/receipts/{receiptId}/reminder:
+    post:
+      operationId: editReminderFromReceipt
+      summary: Edit scheduled internal reminder intent through its receipt.
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/CsrfHeader' }
+        - { $ref: '#/components/parameters/RequestIdHeader' }
+        - { $ref: '#/components/parameters/ReceiptIdPath' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              { $ref: '#/components/schemas/EditReminderReceiptRequestV1' }
+      responses:
+        '200': { $ref: '#/components/responses/ActionReceipt' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '403': { $ref: '#/components/responses/CsrfInvalid' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/actions/receipts/{receiptId}/undo:
+    post:
+      operationId: undoActionReceipt
+      summary: Undo creation while retaining the receipt and audit history.
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/CsrfHeader' }
+        - { $ref: '#/components/parameters/RequestIdHeader' }
+        - { $ref: '#/components/parameters/ReceiptIdPath' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UndoReceiptRequestV1' }
+      responses:
+        '200': { $ref: '#/components/responses/ActionReceipt' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
         '403': { $ref: '#/components/responses/CsrfInvalid' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
@@ -433,6 +562,11 @@ components:
       description: Stable command correlation identity; reuse it when retrying the same mutation.
     EntryIdPath:
       name: entryId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    ReceiptIdPath:
+      name: receiptId
       in: path
       required: true
       schema: { type: string, format: uuid }
@@ -712,6 +846,289 @@ components:
                   ]
               occurredAt: { type: string, format: date-time }
               entryId: { type: string, format: uuid }
+    ExplicitInternalAuthorityV1:
+      type: object
+      additionalProperties: false
+      required:
+        [explicit, deterministic, ambiguous, externalEffect, ownerConfirmed]
+      properties:
+        explicit: { type: boolean, const: true }
+        deterministic: { type: boolean, const: true }
+        ambiguous: { type: boolean, const: false }
+        externalEffect: { type: boolean, const: false }
+        ownerConfirmed: { type: boolean, const: true }
+    RecurrenceRuleV1:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, frequency, interval, weekDays, until]
+      properties:
+        schemaVersion: { type: integer, const: 1 }
+        frequency: { type: string, enum: [daily, weekly] }
+        interval: { type: integer, minimum: 1, maximum: 52 }
+        weekDays:
+          type: array
+          maxItems: 7
+          uniqueItems: true
+          items: { type: integer, minimum: 1, maximum: 7 }
+        until: { type: [string, 'null'], format: date-time }
+    CreateTaskRequestV1:
+      type: object
+      additionalProperties: false
+      required:
+        [authority, dueAt, estimateMinutes, goalResourceId, kind, notes, title]
+      properties:
+        authority: { $ref: '#/components/schemas/ExplicitInternalAuthorityV1' }
+        dueAt: { type: [string, 'null'], format: date-time }
+        estimateMinutes: { type: [integer, 'null'], minimum: 1, maximum: 10080 }
+        goalResourceId: { type: [string, 'null'], format: uuid }
+        kind: { type: string, enum: [task, commitment, routine, milestone] }
+        notes: { type: string, maxLength: 2000 }
+        title: { type: string, minLength: 1, maxLength: 240 }
+    CreateReminderRequestV1:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          authority,
+          expiresAt,
+          priority,
+          purpose,
+          recurrence,
+          relatedResourceId,
+          timeZone,
+          triggerAt,
+        ]
+      properties:
+        authority: { $ref: '#/components/schemas/ExplicitInternalAuthorityV1' }
+        expiresAt: { type: [string, 'null'], format: date-time }
+        priority: { type: string, enum: [low, normal, high] }
+        purpose: { type: string, minLength: 1, maxLength: 500 }
+        recurrence:
+          anyOf:
+            - { $ref: '#/components/schemas/RecurrenceRuleV1' }
+            - { type: 'null' }
+        relatedResourceId: { type: [string, 'null'], format: uuid }
+        timeZone: { type: string, minLength: 1, maxLength: 100 }
+        triggerAt: { type: string, format: date-time }
+    ExplicitReminderCommandRequestV1:
+      type: object
+      additionalProperties: false
+      required: [command, ownerConfirmed, timeZone]
+      properties:
+        command: { type: string, minLength: 1, maxLength: 1000 }
+        ownerConfirmed: { type: boolean, const: true }
+        timeZone: { type: string, minLength: 1, maxLength: 100 }
+    EditTaskReceiptRequestV1:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          dueAt,
+          estimateMinutes,
+          expectedReceiptVersion,
+          expectedTargetVersion,
+          kind,
+          notes,
+          ownerConfirmed,
+          title,
+        ]
+      properties:
+        dueAt: { type: [string, 'null'], format: date-time }
+        estimateMinutes: { type: [integer, 'null'], minimum: 1, maximum: 10080 }
+        expectedReceiptVersion: { type: integer, minimum: 1 }
+        expectedTargetVersion: { type: integer, minimum: 1 }
+        kind: { type: string, enum: [task, commitment, routine, milestone] }
+        notes: { type: string, maxLength: 2000 }
+        ownerConfirmed: { type: boolean, const: true }
+        title: { type: string, minLength: 1, maxLength: 240 }
+    EditReminderReceiptRequestV1:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          expiresAt,
+          expectedReceiptVersion,
+          expectedTargetVersion,
+          ownerConfirmed,
+          priority,
+          purpose,
+          recurrence,
+          timeZone,
+          triggerAt,
+        ]
+      properties:
+        expiresAt: { type: [string, 'null'], format: date-time }
+        expectedReceiptVersion: { type: integer, minimum: 1 }
+        expectedTargetVersion: { type: integer, minimum: 1 }
+        ownerConfirmed: { type: boolean, const: true }
+        priority: { type: string, enum: [low, normal, high] }
+        purpose: { type: string, minLength: 1, maxLength: 500 }
+        recurrence:
+          anyOf:
+            - { $ref: '#/components/schemas/RecurrenceRuleV1' }
+            - { type: 'null' }
+        timeZone: { type: string, minLength: 1, maxLength: 100 }
+        triggerAt: { type: string, format: date-time }
+    UndoReceiptRequestV1:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, ownerConfirmed]
+      properties:
+        expectedVersion: { type: integer, minimum: 1 }
+        ownerConfirmed: { type: boolean, const: true }
+    TaskResponseV1:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          resourceId,
+          goalResourceId,
+          kind,
+          title,
+          notes,
+          estimateMinutes,
+          dueAt,
+          state,
+          creationAuthority,
+          sourceProposalId,
+          createdAt,
+          updatedAt,
+          version,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        resourceId: { type: string, format: uuid }
+        goalResourceId: { type: [string, 'null'], format: uuid }
+        kind: { type: string, enum: [task, commitment, routine, milestone] }
+        title: { type: string }
+        notes: { type: string }
+        estimateMinutes: { type: [integer, 'null'] }
+        dueAt: { type: [string, 'null'], format: date-time }
+        state:
+          { type: string, enum: [open, scheduled, done, dropped, superseded] }
+        creationAuthority:
+          { type: string, enum: [manual, explicit_command, accepted_proposal] }
+        sourceProposalId: { type: [string, 'null'], format: uuid }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        version: { type: integer, minimum: 1 }
+    ReminderResponseV1:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          resourceId,
+          relatedResourceId,
+          purpose,
+          triggerAt,
+          timeZone,
+          recurrence,
+          deliveryPolicy,
+          priority,
+          quietHoursBehavior,
+          expiresAt,
+          state,
+          creationAuthority,
+          sourceProposalId,
+          ownerFeedback,
+          createdAt,
+          updatedAt,
+          version,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        resourceId: { type: string, format: uuid }
+        relatedResourceId: { type: [string, 'null'], format: uuid }
+        purpose: { type: string }
+        triggerAt: { type: string, format: date-time }
+        timeZone: { type: string }
+        recurrence:
+          anyOf:
+            - { $ref: '#/components/schemas/RecurrenceRuleV1' }
+            - { type: 'null' }
+        deliveryPolicy: { type: string, const: undecided }
+        priority: { type: string, enum: [low, normal, high] }
+        quietHoursBehavior: { type: string, const: defer }
+        expiresAt: { type: [string, 'null'], format: date-time }
+        state:
+          {
+            type: string,
+            enum:
+              [
+                scheduled,
+                due,
+                delivered,
+                completed,
+                dismissed,
+                snoozed,
+                paused,
+                expired,
+              ],
+          }
+        creationAuthority:
+          { type: string, enum: [manual, explicit_command, accepted_proposal] }
+        sourceProposalId: { type: [string, 'null'], format: uuid }
+        ownerFeedback: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        version: { type: integer, minimum: 1 }
+    CommandReceiptResponseV1:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          targetResourceId,
+          targetType,
+          status,
+          createdAt,
+          updatedAt,
+          undoneAt,
+          version,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        targetResourceId: { type: string, format: uuid }
+        targetType: { type: string, enum: [task, reminder] }
+        status: { type: string, enum: [active, undone] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        undoneAt: { type: [string, 'null'], format: date-time }
+        version: { type: integer, minimum: 1 }
+    ActionTargetResponseV1:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [targetType, task]
+          properties:
+            targetType: { type: string, const: task }
+            task: { $ref: '#/components/schemas/TaskResponseV1' }
+        - type: object
+          additionalProperties: false
+          required: [targetType, reminder]
+          properties:
+            targetType: { type: string, const: reminder }
+            reminder: { $ref: '#/components/schemas/ReminderResponseV1' }
+    ActionReceiptResponseV1:
+      type: object
+      additionalProperties: false
+      required: [receipt, target]
+      properties:
+        receipt: { $ref: '#/components/schemas/CommandReceiptResponseV1' }
+        target: { $ref: '#/components/schemas/ActionTargetResponseV1' }
+    ActionListResponseV1:
+      type: object
+      additionalProperties: false
+      required: [tasks, reminders]
+      properties:
+        tasks:
+          type: array
+          items: { $ref: '#/components/schemas/TaskResponseV1' }
+        reminders:
+          type: array
+          items: { $ref: '#/components/schemas/ReminderResponseV1' }
     ProposalPayloadV1:
       type: object
       additionalProperties: false
@@ -803,6 +1220,29 @@ components:
         expectedVersion: { type: integer, minimum: 1 }
         ownerConfirmed: { type: boolean, const: true }
         editedPayload: { $ref: '#/components/schemas/ProposalPayloadV1' }
+        acceptedReminder:
+          type: object
+          additionalProperties: false
+          required: [expiresAt, priority, recurrence, timeZone, triggerAt]
+          properties:
+            expiresAt: { type: [string, 'null'], format: date-time }
+            priority: { type: string, enum: [low, normal, high] }
+            recurrence:
+              anyOf:
+                - { $ref: '#/components/schemas/RecurrenceRuleV1' }
+                - { type: 'null' }
+            timeZone: { type: string, minLength: 1, maxLength: 100 }
+            triggerAt: { type: string, format: date-time }
+    ProposalDecisionResponseV1:
+      type: object
+      additionalProperties: false
+      required: [action, proposal]
+      properties:
+        action:
+          anyOf:
+            - { $ref: '#/components/schemas/ActionReceiptResponseV1' }
+            - { type: 'null' }
+        proposal: { $ref: '#/components/schemas/ProposalResponseV1' }
     InterpretRevisionRequestV1:
       type: object
       additionalProperties: false
@@ -934,6 +1374,11 @@ components:
       content:
         application/json:
           schema: { $ref: '#/components/schemas/JournalEntryResponseV1' }
+    ActionReceipt:
+      description: Compact receipt plus its internal canonical target; no delivery acknowledgement.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ActionReceiptResponseV1' }
     NotFound:
       description: The owner-scoped resource does not exist.
       content:
@@ -945,8 +1390,8 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorResponseV1' }
 x-document-metadata:
-  purpose: Canonical local-owner authentication, journal, Triage, worker-health, and integration REST contract.
+  purpose: Canonical local-owner authentication, journal, Triage, internal actions, worker-health, and integration REST contract.
   audience: Contributors, clients, and coding agents.
-  authoritative-for: WP-04 authentication, WP-05 journal, WP-06 health, WP-07 Microsoft consent, and WP-09 Triage HTTP request and response shapes.
+  authoritative-for: WP-04 authentication, WP-05 journal, WP-06 health, WP-07 Microsoft consent, WP-09 Triage, and WP-10 task/reminder HTTP request and response shapes.
   update-triggers: Versioned API boundary schemas, authentication, journal, system-health, or integration routes change.
   related-docs: conventions.md

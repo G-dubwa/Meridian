@@ -43,7 +43,7 @@ async function login(
   });
 }
 
-test.describe.serial('WP-04 through WP-07 authenticated acceptance', () => {
+test.describe.serial('WP-04 through WP-10 authenticated acceptance', () => {
   test('bootstraps exactly one owner and stores only Argon2id/recovery hashes', async () => {
     const first = spawnSync(
       'pnpm',
@@ -478,6 +478,141 @@ test.describe.serial('WP-04 through WP-07 authenticated acceptance', () => {
     const integrationsPage = await request.get('/settings/integrations');
     expect(integrationsPage.status()).toBe(200);
     expect(await integrationsPage.text()).toContain('Integrations and consent');
+  });
+
+  test('creates internal task and reminder receipts with Edit and Undo but no delivery', async ({
+    request,
+  }) => {
+    expect((await request.get('/api/actions')).status()).toBe(401);
+    expect((await login(request)).status()).toBe(200);
+    const actionsPage = await request.get('/actions');
+    expect(actionsPage.status()).toBe(200);
+    expect(await actionsPage.text()).toContain('Internal action ledger');
+    const noCsrf = await request.post('/api/actions/tasks', {
+      data: {
+        authority: {
+          ambiguous: false,
+          deterministic: true,
+          explicit: true,
+          externalEffect: false,
+          ownerConfirmed: true,
+        },
+        dueAt: null,
+        estimateMinutes: null,
+        goalResourceId: null,
+        kind: 'task',
+        notes: '',
+        title: 'Must not be created',
+      },
+    });
+    expect(noCsrf.status()).toBe(403);
+
+    const taskCreated = await request.post('/api/actions/tasks', {
+      data: {
+        authority: {
+          ambiguous: false,
+          deterministic: true,
+          explicit: true,
+          externalEffect: false,
+          ownerConfirmed: true,
+        },
+        dueAt: null,
+        estimateMinutes: 20,
+        goalResourceId: null,
+        kind: 'task',
+        notes: 'E2E private action detail',
+        title: 'E2E internal task',
+      },
+      headers: { 'x-csrf-token': await csrfCookie(request) },
+    });
+    expect(taskCreated.status()).toBe(201);
+    const taskReceipt = (await taskCreated.json()) as {
+      receipt: { id: string; status: string; version: number };
+      target: { targetType: 'task'; task: { version: number } };
+    };
+    expect(taskReceipt).toMatchObject({
+      receipt: { status: 'active' },
+      target: { targetType: 'task' },
+    });
+    const taskEdited = await request.post(
+      `/api/actions/receipts/${taskReceipt.receipt.id}/task`,
+      {
+        data: {
+          dueAt: null,
+          estimateMinutes: 25,
+          expectedReceiptVersion: taskReceipt.receipt.version,
+          expectedTargetVersion: taskReceipt.target.task.version,
+          kind: 'commitment',
+          notes: 'E2E private action detail',
+          ownerConfirmed: true,
+          title: 'E2E edited internal task',
+        },
+        headers: { 'x-csrf-token': await csrfCookie(request) },
+      },
+    );
+    expect(taskEdited.status()).toBe(200);
+    const taskUndone = await request.post(
+      `/api/actions/receipts/${taskReceipt.receipt.id}/undo`,
+      {
+        data: {
+          expectedVersion: taskReceipt.receipt.version,
+          ownerConfirmed: true,
+        },
+        headers: { 'x-csrf-token': await csrfCookie(request) },
+      },
+    );
+    expect(taskUndone.status()).toBe(200);
+    expect(await taskUndone.json()).toMatchObject({
+      receipt: { status: 'undone' },
+      target: { task: { state: 'dropped' }, targetType: 'task' },
+    });
+
+    const reminderCreated = await request.post(
+      '/api/actions/commands/reminder',
+      {
+        data: {
+          command: 'Remind me tomorrow at 15:00 to run the E2E reminder',
+          ownerConfirmed: true,
+          timeZone: 'Africa/Johannesburg',
+        },
+        headers: { 'x-csrf-token': await csrfCookie(request) },
+      },
+    );
+    expect(reminderCreated.status()).toBe(201);
+    expect(await reminderCreated.json()).toMatchObject({
+      receipt: { status: 'active', targetType: 'reminder' },
+      target: {
+        reminder: { deliveryPolicy: 'undecided', state: 'scheduled' },
+        targetType: 'reminder',
+      },
+    });
+    const list = await request.get('/api/actions');
+    expect(list.status()).toBe(200);
+    expect(await list.json()).toMatchObject({
+      reminders: [expect.objectContaining({ deliveryPolicy: 'undecided' })],
+      tasks: [expect.objectContaining({ state: 'dropped' })],
+    });
+
+    const sql = postgres(databaseUrl, { prepare: false });
+    try {
+      const [audit] = await sql<
+        { body_leaks: string; external_rows: string }[]
+      >`
+        select
+          count(*) filter (
+            where payload::text like '%E2E internal%'
+               or payload::text like '%E2E reminder%'
+          )::text as body_leaks,
+          count(*) filter (
+            where event_type like 'integration.%'
+          )::text as external_rows
+        from domain_events
+        where event_type like 'action.%'
+      `;
+      expect(audit).toEqual({ body_leaks: '0', external_rows: '0' });
+    } finally {
+      await sql.end();
+    }
   });
 
   test('locks the credential after repeated failures without revealing lock state', async ({

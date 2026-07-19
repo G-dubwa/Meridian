@@ -1,6 +1,5 @@
 import {
   ConflictError,
-  DomainValidationError,
   InvalidAuthorityError,
   NotFoundError,
   derivationLinkIdV1Schema,
@@ -11,7 +10,6 @@ import {
   proposalEventPayloadV1Schema,
   proposalBatchCreatedEventPayloadV1Schema,
   proposalIdV1Schema,
-  proposalPayloadV1Schema,
   resourceIdV1Schema,
   transitionProposalStatusV1,
   validateInterpretationOutputV1,
@@ -25,7 +23,6 @@ import type {
   OutboxMessageRecord,
   ProposalEventType,
   ProposalId,
-  ProposalPayloadV1,
   ProposalRecord,
   TransactionManager,
   TransactionPorts,
@@ -283,10 +280,9 @@ export class TriageService {
     scope: UserScope,
     proposalId: ProposalId,
     input: {
-      readonly decision: 'accept' | 'edit_accept' | 'dismiss';
+      readonly decision: 'dismiss';
       readonly expectedVersion: number;
       readonly ownerConfirmed: boolean;
-      readonly editedPayload?: ProposalPayloadV1;
     },
     context: TriageCommandContext,
   ): Promise<ProposalRecord> {
@@ -307,27 +303,10 @@ export class TriageService {
         input.decision,
         current.assertionClass,
       );
-      if (input.decision === 'edit_accept' && !input.editedPayload) {
-        throw new DomainValidationError(
-          'Edited acceptance requires a payload.',
-        );
-      }
-      if (
-        input.editedPayload &&
-        input.editedPayload.kind !== current.proposalType
-      ) {
-        throw new DomainValidationError(
-          'Proposal type cannot change during edit.',
-        );
-      }
       const now = this.dependencies.clock.now();
       const updated: ProposalRecord = {
         ...current,
         decidedAt: now,
-        payload:
-          input.editedPayload === undefined
-            ? current.payload
-            : proposalPayloadV1Schema.parse(input.editedPayload),
         status,
         suppressionUntil:
           status === 'dismissed'
@@ -337,12 +316,7 @@ export class TriageService {
       };
       const saved = await ports.proposals.update(updated, current.version);
       if (!saved) throw new ConflictError('Proposal was changed concurrently.');
-      const eventType: ProposalEventType =
-        status === 'accepted'
-          ? 'proposal.accepted.v1'
-          : status === 'edited_accepted'
-            ? 'proposal.edited_accepted.v1'
-            : 'proposal.dismissed.v1';
+      const eventType: ProposalEventType = 'proposal.dismissed.v1';
       await appendEvent(
         this.dependencies,
         ports,

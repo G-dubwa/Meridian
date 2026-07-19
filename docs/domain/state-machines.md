@@ -51,9 +51,37 @@ Consent records have no mutable state; each transition appends a new row.
 
 `pending → accepted | edited_accepted | dismissed | stale | expired`.
 Only pending, unexpired proposals accept an owner-confirmed optimistic decision.
-Accepted and edited-accepted record review only until a governing downstream
-package can atomically create the target. A hypothesis can be dismissed, made
-stale, or expire but cannot be accepted as durable structure. Dismissal records
+In WP-10, task/commitment/reminder acceptance and canonical target creation are
+one transaction; a reminder additionally needs an exact owner-confirmed instant
+and zone. A hypothesis can be dismissed, made stale, or expire but cannot be
+accepted as durable structure. Dismissal records
 a 90-day dedupe suppression; active proposals expire after 30 days. A material
 source revision change makes every pending proposal from the prior revision
 stale in the same journal transaction.
+
+## Task
+
+`open → scheduled | done | dropped | superseded` and `scheduled → open | done |
+dropped | superseded`. Terminal states never reopen. Due-field receipt edits
+move between open and scheduled. Undo of creation moves an active task to
+dropped while retaining the target, receipt, provenance, and audit event.
+
+## Reminder and occurrence
+
+Canonical reminder intent follows `scheduled → due → delivered → completed |
+dismissed | snoozed`; `due → completed | dismissed | snoozed`; `snoozed →
+scheduled`; `scheduled → paused | expired | dismissed`; and `paused →
+scheduled`. Completed, dismissed, and expired are terminal. WP-10 creates and
+edits only scheduled internal intent; delivery transitions remain inactive.
+
+Occurrence state is `pending → due → acknowledged | dismissed`, with pending
+also able to become cancelled when the trigger is edited or creation is undone.
+The unique reminder/instant key prevents duplicate occurrence identity. An edit
+cancels rather than rewrites old pending occurrences.
+
+## Command receipt
+
+`active → undone` after owner confirmation and optimistic receipt/target
+validation. Undone is terminal. Receipt edits leave the receipt active while
+advancing the target version and appending an action event. A receipt is
+evidence and a reversible-control handle, not external-action authority.

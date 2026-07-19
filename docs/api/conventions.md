@@ -65,3 +65,17 @@ immediately. Raw network addresses and user-agent strings are not persisted by
 the authentication feature.
 
 Versioned URLs, pagination, and sorting remain deferred until measured need.
+
+## Task and reminder commands
+
+`/api/actions` responses are authenticated, owner-scoped, and no-store. Every
+action mutation requires session-bound CSRF and literal owner confirmation.
+Create commands accept only explicit deterministic internal authority signals;
+receipt Edit/Undo and Triage decisions additionally use positive optimistic
+versions. `X-Request-ID` retains the command correlation and retry meaning.
+
+The bounded text reminder endpoint accepts only “Remind me tomorrow at HH:MM
+to …” or a `YYYY-MM-DD` date with an IANA zone. Invalid, past, nonexistent, or
+ambiguous instants return a generic validation failure. A successful reminder
+response says `deliveryPolicy: undecided`; it must not be interpreted as a
+delivery acknowledgement.

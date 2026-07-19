@@ -38,3 +38,7 @@ related-docs: release.md
 - WP-09 deterministic authority routing and owner-only Triage with strict
   source-bound proposals, dedupe/suppression, accept/edit/dismiss decisions,
   stale-source invalidation, content-free events, and no downstream mutation.
+- WP-10 thin owner-scoped tasks and canonical reminder intent with deterministic
+  time resolution, recurrence meaning, atomic proposal targets/provenance,
+  compact Edit/Undo receipts, occurrence history, content-free audit, and no
+  external delivery adapter or permission.

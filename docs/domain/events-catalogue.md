@@ -67,3 +67,19 @@ Payloads omit source text, proposal title/detail, uncertainty, confidence, and
 provider output. Source provenance stays in the owner-scoped proposal and
 derivation rows. Staleness is caused by the already-audited journal revision;
 WP-09 does not emit a second stale event.
+
+## Task and reminder action events v1
+
+| Event                        | Emitted when                                |
+| ---------------------------- | ------------------------------------------- |
+| `action.task_created.v1`     | Explicit or accepted-proposal task commits  |
+| `action.task_updated.v1`     | An active task receipt edit commits         |
+| `action.task_completed.v1`   | A later governed completion commits         |
+| `action.reminder_created.v1` | Internal canonical reminder intent commits  |
+| `action.reminder_updated.v1` | A scheduled reminder receipt edit commits   |
+| `action.receipt_undone.v1`   | Owner undo and terminal target state commit |
+
+Every payload contains only target resource ID/type/state and nullable receipt
+ID. Target title, notes, purpose, time, recurrence, feedback, source text, and
+delivery material stay out of events and outbox rows. WP-10 emits no delivery
+event because it has no delivery adapter.

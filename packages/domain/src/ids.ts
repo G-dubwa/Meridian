@@ -19,6 +19,16 @@ export const derivationLinkIdV1Schema = z.uuid().brand<'DerivationLinkId'>();
 export type DerivationLinkId = z.infer<typeof derivationLinkIdV1Schema>;
 export const proposalIdV1Schema = z.uuid().brand<'ProposalId'>();
 export type ProposalId = z.infer<typeof proposalIdV1Schema>;
+export const taskIdV1Schema = z.uuid().brand<'TaskId'>();
+export type TaskId = z.infer<typeof taskIdV1Schema>;
+export const reminderIdV1Schema = z.uuid().brand<'ReminderId'>();
+export type ReminderId = z.infer<typeof reminderIdV1Schema>;
+export const reminderOccurrenceIdV1Schema = z
+  .uuid()
+  .brand<'ReminderOccurrenceId'>();
+export type ReminderOccurrenceId = z.infer<typeof reminderOccurrenceIdV1Schema>;
+export const commandReceiptIdV1Schema = z.uuid().brand<'CommandReceiptId'>();
+export type CommandReceiptId = z.infer<typeof commandReceiptIdV1Schema>;
 export const sessionIdV1Schema = z.uuid().brand<'SessionId'>();
 export type SessionId = z.infer<typeof sessionIdV1Schema>;
 
@@ -29,6 +39,10 @@ export const idSchemasV1 = {
   entryRevisionId: entryRevisionIdV1Schema,
   outboxMessageId: outboxMessageIdV1Schema,
   proposalId: proposalIdV1Schema,
+  taskId: taskIdV1Schema,
+  reminderId: reminderIdV1Schema,
+  reminderOccurrenceId: reminderOccurrenceIdV1Schema,
+  commandReceiptId: commandReceiptIdV1Schema,
   resourceId: resourceIdV1Schema,
   sessionId: sessionIdV1Schema,
   userId: userIdV1Schema,

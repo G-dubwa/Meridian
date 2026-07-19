@@ -9,11 +9,14 @@ export default function TriagePage() {
           <p className="eyebrow">Owner review</p>
           <h1>Triage</h1>
           <p>
-            Proposals only. Nothing here creates a task, reminder, memory, or
-            external action.
+            Accepting a task or reminder proposal creates only its internal
+            canonical target. External actions remain unavailable.
           </p>
         </div>
-        <Link href="/journal">Journal</Link>
+        <nav className="button-row" aria-label="Triage navigation">
+          <Link href="/actions">Tasks & reminders</Link>
+          <Link href="/journal">Journal</Link>
+        </nav>
       </header>
       <TriageApp />
     </main>

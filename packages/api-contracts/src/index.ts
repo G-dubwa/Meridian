@@ -12,6 +12,7 @@ import { workerHealthResponseV1Schema } from './worker-health.js';
 import { microsoftConnectionStatusResponseV1Schema } from './microsoft-integration.js';
 
 export * from './journal-client.js';
+export * from './actions.js';
 export * from './journal.js';
 export * from './microsoft-integration.js';
 export * from './worker-health.js';

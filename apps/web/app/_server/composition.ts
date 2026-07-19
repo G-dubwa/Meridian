@@ -1,4 +1,5 @@
 import {
+  ActionService,
   AuthenticationService,
   InterpretationService,
   JournalService,
@@ -32,6 +33,7 @@ import {
 } from '@meridian/prompts';
 
 export interface AuthenticationRuntime {
+  readonly actions: ActionService;
   readonly ids: CryptoIdGenerator;
   readonly interpretation?: InterpretationService;
   readonly journal: JournalService;
@@ -87,6 +89,11 @@ function createRuntime(): AuthenticationRuntime {
       })
     : undefined;
   return {
+    actions: new ActionService({
+      clock: new SystemClock(),
+      ids,
+      transactions,
+    }),
     ids,
     ...(interpretation === undefined ? {} : { interpretation }),
     journal: new JournalService({

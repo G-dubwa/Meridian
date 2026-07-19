@@ -80,6 +80,26 @@ Foreign keys:
 
 Indexes: `auth_sessions_user_active_idx`.
 
+## command_receipts
+
+| Column | SQL type | Null | Default | Primary |
+|---|---|---|---|---|
+| `id` | `uuid` | no | no | yes |
+| `user_id` | `uuid` | no | no | no |
+| `target_resource_id` | `uuid` | no | no | no |
+| `target_type` | `text` | no | no | no |
+| `status` | `text` | no | yes | no |
+| `created_at` | `timestamp with time zone` | no | yes | no |
+| `updated_at` | `timestamp with time zone` | no | yes | no |
+| `undone_at` | `timestamp with time zone` | yes | no | no |
+| `version` | `integer` | no | yes | no |
+
+Foreign keys:
+- `command_receipts_user_id_users_id_fk`: (user_id) → `users` (id)
+- `command_receipts_target_owner_fk`: (target_resource_id, user_id) → `resources` (id, user_id)
+
+Indexes: `command_receipts_user_created_idx`.
+
 ## derivation_links
 
 | Column | SQL type | Null | Default | Primary |
@@ -241,6 +261,55 @@ Foreign keys:
 
 Indexes: `recovery_codes_user_active_idx`.
 
+## reminder_occurrences
+
+| Column | SQL type | Null | Default | Primary |
+|---|---|---|---|---|
+| `id` | `uuid` | no | no | yes |
+| `user_id` | `uuid` | no | no | no |
+| `reminder_id` | `uuid` | no | no | no |
+| `scheduled_for` | `timestamp with time zone` | no | no | no |
+| `state` | `text` | no | yes | no |
+| `created_at` | `timestamp with time zone` | no | yes | no |
+| `updated_at` | `timestamp with time zone` | no | yes | no |
+
+Foreign keys:
+- `reminder_occurrences_user_id_users_id_fk`: (user_id) → `users` (id)
+- `reminder_occurrences_reminder_owner_fk`: (reminder_id, user_id) → `reminders` (id, user_id)
+
+Indexes: `reminder_occurrences_user_due_idx`.
+
+## reminders
+
+| Column | SQL type | Null | Default | Primary |
+|---|---|---|---|---|
+| `id` | `uuid` | no | no | yes |
+| `user_id` | `uuid` | no | no | no |
+| `related_resource_id` | `uuid` | yes | no | no |
+| `purpose` | `text` | no | no | no |
+| `trigger_at` | `timestamp with time zone` | no | no | no |
+| `time_zone` | `text` | no | no | no |
+| `recurrence` | `jsonb` | yes | no | no |
+| `delivery_policy` | `text` | no | yes | no |
+| `priority` | `text` | no | yes | no |
+| `quiet_hours_behavior` | `text` | no | yes | no |
+| `expires_at` | `timestamp with time zone` | yes | no | no |
+| `state` | `text` | no | yes | no |
+| `creation_authority` | `text` | no | no | no |
+| `source_proposal_id` | `uuid` | yes | no | no |
+| `owner_feedback` | `text` | yes | no | no |
+| `created_at` | `timestamp with time zone` | no | yes | no |
+| `updated_at` | `timestamp with time zone` | no | yes | no |
+| `version` | `integer` | no | yes | no |
+
+Foreign keys:
+- `reminders_user_id_users_id_fk`: (user_id) → `users` (id)
+- `reminders_resource_owner_fk`: (id, user_id) → `resources` (id, user_id)
+- `reminders_related_owner_fk`: (related_resource_id, user_id) → `resources` (id, user_id)
+- `reminders_proposal_owner_fk`: (source_proposal_id, user_id) → `proposals` (id, user_id)
+
+Indexes: `reminders_user_state_trigger_idx`.
+
 ## resources
 
 | Column | SQL type | Null | Default | Primary |
@@ -269,6 +338,33 @@ Indexes: `resources_user_type_idx`, `resources_user_created_idx`.
 | `created_at` | `timestamp with time zone` | no | yes | no |
 | `updated_at` | `timestamp with time zone` | no | yes | no |
 
+## tasks
+
+| Column | SQL type | Null | Default | Primary |
+|---|---|---|---|---|
+| `id` | `uuid` | no | no | yes |
+| `user_id` | `uuid` | no | no | no |
+| `goal_resource_id` | `uuid` | yes | no | no |
+| `kind` | `text` | no | no | no |
+| `title` | `text` | no | no | no |
+| `notes` | `text` | no | yes | no |
+| `estimate_minutes` | `integer` | yes | no | no |
+| `due_at` | `timestamp with time zone` | yes | no | no |
+| `state` | `text` | no | yes | no |
+| `creation_authority` | `text` | no | no | no |
+| `source_proposal_id` | `uuid` | yes | no | no |
+| `created_at` | `timestamp with time zone` | no | yes | no |
+| `updated_at` | `timestamp with time zone` | no | yes | no |
+| `version` | `integer` | no | yes | no |
+
+Foreign keys:
+- `tasks_user_id_users_id_fk`: (user_id) → `users` (id)
+- `tasks_resource_owner_fk`: (id, user_id) → `resources` (id, user_id)
+- `tasks_goal_owner_fk`: (goal_resource_id, user_id) → `resources` (id, user_id)
+- `tasks_proposal_owner_fk`: (source_proposal_id, user_id) → `proposals` (id, user_id)
+
+Indexes: `tasks_user_state_due_idx`.
+
 ## users
 
 | Column | SQL type | Null | Default | Primary |
@@ -286,4 +382,4 @@ Indexes: `resources_user_type_idx`, `resources_user_created_idx`.
 - pgvector is installed as an extension but unused by schema columns.
 - `entries.current_revision_id` and `domain_events.aggregate_id` have owner-matching composite foreign keys added by custom migration.
 - Entry revisions and domain events reject updates; deletion remains available for governed hard-deletion propagation.
-- Registry seeds: `resource.entry@1` and `attrs.entry@1`.
+- Registry seeds: `resource.entry@1`, `attrs.entry@1`, `resource.proposal@1`, `resource.task@1`, and `resource.reminder@1`.
