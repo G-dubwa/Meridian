@@ -16,6 +16,11 @@ import {
   DrizzleIntegrationAccountRepository,
 } from './integration-repositories.js';
 import {
+  DrizzleExternalWriteOperationRepository,
+  DrizzleMicrosoftTodoListBindingRepository,
+  DrizzleMicrosoftTodoTaskBindingRepository,
+} from './microsoft-todo-repositories.js';
+import {
   DrizzleDerivationLinkRepository,
   DrizzleDomainEventRepository,
   DrizzleEntryRepository,
@@ -33,11 +38,20 @@ function createTransactionPorts(
   return {
     commandReceipts: new DrizzleCommandReceiptRepository(database),
     consentRecords: new DrizzleConsentRecordRepository(database),
+    externalWriteOperations: new DrizzleExternalWriteOperationRepository(
+      database,
+    ),
     derivationLinks: new DrizzleDerivationLinkRepository(database),
     domainEvents: new DrizzleDomainEventRepository(database),
     entries: new DrizzleEntryRepository(database),
     entryRevisions: new DrizzleEntryRevisionRepository(database),
     integrationAccounts: new DrizzleIntegrationAccountRepository(database),
+    microsoftTodoListBindings: new DrizzleMicrosoftTodoListBindingRepository(
+      database,
+    ),
+    microsoftTodoTaskBindings: new DrizzleMicrosoftTodoTaskBindingRepository(
+      database,
+    ),
     outbox: new DrizzleOutboxRepository(database),
     proposals: new DrizzleProposalRepository(database),
     reminderOccurrences: new DrizzleReminderOccurrenceRepository(database),

@@ -42,3 +42,9 @@ related-docs: release.md
   time resolution, recurrence meaning, atomic proposal targets/provenance,
   compact Edit/Undo receipts, occurrence history, content-free audit, and no
   external delivery adapter or permission.
+- WP-11 mocked Microsoft To Do spike with separately validated OAuth/OIDC and
+  Graph-token scope envelopes, dormant incremental consent, a dedicated-list
+  ownership marker, bounded uncertain-write recovery, owner-RLS bindings,
+  content-free operation evidence, and a constrained Graph adapter. Live
+  consent, Entra changes, provider requests, device testing, and activation
+  remain behind the second gate.

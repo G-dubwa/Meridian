@@ -5,15 +5,19 @@ import {
   randomBytes,
 } from 'node:crypto';
 import {
-  MICROSOFT_STAGE_A_SCOPES,
+  MICROSOFT_STAGE_A_REQUESTED_SCOPES,
   MicrosoftOAuthGatewayError,
-  microsoftDelegatedScopesV1Schema,
+  expectedMicrosoftGraphPermissionsV1,
+  microsoftGraphPermissionV1Schema,
+  microsoftGraphPermissionsV1Schema,
   microsoftProfileV1Schema,
+  microsoftRequestedScopesV1Schema,
   uuidV1Schema,
 } from '@meridian/domain';
 import type {
   MicrosoftAuthorizationRequest,
-  MicrosoftDelegatedScope,
+  MicrosoftGraphPermission,
+  MicrosoftRequestedScope,
   MicrosoftOAuthGateway,
   MicrosoftProfile,
   MicrosoftTokenGrant,
@@ -21,6 +25,8 @@ import type {
   PkcePair,
   TokenCipher,
 } from '@meridian/domain';
+
+export * from './todo.js';
 
 const AUTHORIZE_ENDPOINT =
   'https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize';
@@ -167,29 +173,53 @@ interface TokenEndpointResponse {
   readonly scope?: string;
 }
 
-function canonicalScope(value: string): MicrosoftDelegatedScope | null {
+function canonicalGraphPermission(
+  value: string,
+): MicrosoftGraphPermission | null {
   const withoutResource = value.replace(
     /^https:\/\/graph\.microsoft\.com\//i,
     '',
   );
   return (
-    MICROSOFT_STAGE_A_SCOPES.find(
-      (scope) => scope.toLowerCase() === withoutResource.toLowerCase(),
+    microsoftGraphPermissionV1Schema.options.find(
+      (permission) =>
+        permission.toLowerCase() === withoutResource.toLowerCase(),
     ) ?? null
   );
 }
 
-function validateReturnedScopes(
-  value: string,
-): readonly MicrosoftDelegatedScope[] {
-  const returned = value.split(/\s+/).filter(Boolean);
-  const canonical = returned.map(canonicalScope);
-  if (canonical.some((scope) => scope === null))
+function validateGraphAccessTokenPermissions(
+  accessToken: string,
+  requestedScopes: readonly MicrosoftRequestedScope[],
+): readonly MicrosoftGraphPermission[] {
+  const parts = accessToken.split('.');
+  if (parts.length !== 3 || !parts[1])
     throw new MicrosoftOAuthGatewayError('authorization_failed');
-  const unique = new Set(canonical);
-  if (!unique.has('User.Read') || !unique.has('Calendars.Read'))
+  let payload: unknown;
+  try {
+    payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+  } catch {
     throw new MicrosoftOAuthGatewayError('authorization_failed');
-  return microsoftDelegatedScopesV1Schema.parse([...MICROSOFT_STAGE_A_SCOPES]);
+  }
+  if (!payload || typeof payload !== 'object' || !('scp' in payload))
+    throw new MicrosoftOAuthGatewayError('authorization_failed');
+  const scp = (payload as Readonly<Record<string, unknown>>).scp;
+  if (typeof scp !== 'string')
+    throw new MicrosoftOAuthGatewayError('authorization_failed');
+  const canonical = scp
+    .split(/\s+/)
+    .filter(Boolean)
+    .map(canonicalGraphPermission);
+  if (canonical.some((permission) => permission === null))
+    throw new MicrosoftOAuthGatewayError('authorization_failed');
+  const parsed = microsoftGraphPermissionsV1Schema.parse(canonical);
+  const expected = expectedMicrosoftGraphPermissionsV1(requestedScopes);
+  if (
+    parsed.length !== expected.length ||
+    expected.some((permission) => !parsed.includes(permission))
+  )
+    throw new MicrosoftOAuthGatewayError('authorization_failed');
+  return expected;
 }
 
 function tokenResponse(value: unknown): TokenEndpointResponse {
@@ -225,7 +255,7 @@ export class MicrosoftOAuthHttpGateway implements MicrosoftOAuthGateway {
   public authorizationUrl(request: MicrosoftAuthorizationRequest): URL {
     if (request.redirectUri !== this.configuration.redirectUri)
       throw new MicrosoftOAuthGatewayError('authorization_failed');
-    const scopes = microsoftDelegatedScopesV1Schema.parse([...request.scopes]);
+    const scopes = microsoftRequestedScopesV1Schema.parse([...request.scopes]);
     const url = new URL(AUTHORIZE_ENDPOINT);
     url.search = new URLSearchParams({
       client_id: this.configuration.clientId,
@@ -244,6 +274,7 @@ export class MicrosoftOAuthHttpGateway implements MicrosoftOAuthGateway {
     code: string,
     codeVerifier: string,
     redirectUri: string,
+    requestedScopes: readonly MicrosoftRequestedScope[],
   ): Promise<MicrosoftTokenGrant> {
     if (redirectUri !== this.configuration.redirectUri)
       throw new MicrosoftOAuthGatewayError('authorization_failed');
@@ -255,21 +286,31 @@ export class MicrosoftOAuthHttpGateway implements MicrosoftOAuthGateway {
         code_verifier: codeVerifier,
         grant_type: 'authorization_code',
         redirect_uri: redirectUri,
-        scope: MICROSOFT_STAGE_A_SCOPES.join(' '),
+        scope: microsoftRequestedScopesV1Schema
+          .parse([...requestedScopes])
+          .join(' '),
       }),
+      undefined,
+      requestedScopes,
     );
   }
 
-  public refresh(refreshToken: string): Promise<MicrosoftTokenGrant> {
+  public refresh(
+    refreshToken: string,
+    requestedScopes: readonly MicrosoftRequestedScope[] = MICROSOFT_STAGE_A_REQUESTED_SCOPES,
+  ): Promise<MicrosoftTokenGrant> {
     return this.requestToken(
       new URLSearchParams({
         client_id: this.configuration.clientId,
         client_secret: this.configuration.clientSecret,
         grant_type: 'refresh_token',
         refresh_token: refreshToken,
-        scope: MICROSOFT_STAGE_A_SCOPES.join(' '),
+        scope: microsoftRequestedScopesV1Schema
+          .parse([...requestedScopes])
+          .join(' '),
       }),
       refreshToken,
+      requestedScopes,
     );
   }
 
@@ -307,6 +348,7 @@ export class MicrosoftOAuthHttpGateway implements MicrosoftOAuthGateway {
   private async requestToken(
     form: URLSearchParams,
     priorRefreshToken?: string,
+    requestedScopes: readonly MicrosoftRequestedScope[] = MICROSOFT_STAGE_A_REQUESTED_SCOPES,
   ): Promise<MicrosoftTokenGrant> {
     let response: Response;
     try {
@@ -350,12 +392,10 @@ export class MicrosoftOAuthHttpGateway implements MicrosoftOAuthGateway {
     return {
       accessToken: token.access_token,
       expiresInSeconds: token.expires_in,
-      grantedScopes:
-        token.scope === undefined
-          ? microsoftDelegatedScopesV1Schema.parse([
-              ...MICROSOFT_STAGE_A_SCOPES,
-            ])
-          : validateReturnedScopes(token.scope),
+      graphPermissions: validateGraphAccessTokenPermissions(
+        token.access_token,
+        requestedScopes,
+      ),
       refreshToken,
     };
   }

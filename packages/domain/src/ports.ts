@@ -10,12 +10,21 @@ import type { JournalEntryStatus } from './journal.js';
 import type {
   ConsentAction,
   IntegrationAccountStatus,
-  MicrosoftDelegatedScope,
+  MicrosoftGraphPermission,
   MicrosoftProfile,
+  MicrosoftRequestedScope,
 } from './integration.js';
+import type {
+  ExternalWriteOperationRecord,
+  MicrosoftTodoListBindingRecord,
+  MicrosoftTodoListSnapshot,
+  MicrosoftTodoProjection,
+  MicrosoftTodoTaskBindingRecord,
+} from './microsoft-todo.js';
 import type {
   DerivationLinkId,
   CommandReceiptId,
+  ExternalWriteOperationId,
   EntryId,
   EntryRevisionId,
   OutboxMessageId,
@@ -371,6 +380,10 @@ export interface ReminderRepository {
 }
 
 export interface ReminderOccurrenceRepository {
+  findById(
+    scope: UserScope,
+    id: ReminderOccurrenceId,
+  ): Promise<ReminderOccurrenceRecord | null>;
   save(occurrence: ReminderOccurrenceRecord): Promise<void>;
   cancelPending(
     scope: UserScope,
@@ -406,6 +419,9 @@ export interface TransactionPorts {
   readonly commandReceipts: CommandReceiptRepository;
   readonly integrationAccounts: IntegrationAccountRepository;
   readonly consentRecords: ConsentRecordRepository;
+  readonly microsoftTodoListBindings: MicrosoftTodoListBindingRepository;
+  readonly microsoftTodoTaskBindings: MicrosoftTodoTaskBindingRepository;
+  readonly externalWriteOperations: ExternalWriteOperationRepository;
 }
 
 export interface TransactionManager {
@@ -565,7 +581,8 @@ export interface IntegrationAccountRecord {
   readonly providerSubjectId: string;
   readonly displayName: string;
   readonly status: IntegrationAccountStatus;
-  readonly grantedScopes: readonly MicrosoftDelegatedScope[];
+  readonly requestedScopes: readonly MicrosoftRequestedScope[];
+  readonly graphPermissions: readonly MicrosoftGraphPermission[];
   readonly accessTokenCiphertext: string | null;
   readonly refreshTokenCiphertext: string | null;
   readonly tokenExpiresAt: Date | null;
@@ -583,7 +600,8 @@ export interface ConsentRecord {
   readonly integrationAccountId: Uuid;
   readonly provider: 'microsoft';
   readonly action: ConsentAction;
-  readonly scopes: readonly MicrosoftDelegatedScope[];
+  readonly requestedScopes: readonly MicrosoftRequestedScope[];
+  readonly graphPermissions: readonly MicrosoftGraphPermission[];
   readonly occurredAt: Date;
 }
 
@@ -594,7 +612,7 @@ export interface OAuthAuthorizationSessionRecord {
   readonly stateHash: string;
   readonly codeVerifierCiphertext: string;
   readonly redirectUri: string;
-  readonly requestedScopes: readonly MicrosoftDelegatedScope[];
+  readonly requestedScopes: readonly MicrosoftRequestedScope[];
   readonly createdAt: Date;
   readonly expiresAt: Date;
   readonly consumedAt: Date | null;
@@ -635,7 +653,7 @@ export interface TokenCipher {
 export interface MicrosoftAuthorizationRequest {
   readonly state: string;
   readonly codeChallenge: string;
-  readonly scopes: readonly MicrosoftDelegatedScope[];
+  readonly scopes: readonly MicrosoftRequestedScope[];
   readonly redirectUri: string;
 }
 
@@ -643,7 +661,7 @@ export interface MicrosoftTokenGrant {
   readonly accessToken: string;
   readonly refreshToken: string;
   readonly expiresInSeconds: number;
-  readonly grantedScopes: readonly MicrosoftDelegatedScope[];
+  readonly graphPermissions: readonly MicrosoftGraphPermission[];
 }
 
 export interface MicrosoftOAuthGateway {
@@ -652,7 +670,75 @@ export interface MicrosoftOAuthGateway {
     code: string,
     codeVerifier: string,
     redirectUri: string,
+    requestedScopes: readonly MicrosoftRequestedScope[],
   ): Promise<MicrosoftTokenGrant>;
-  refresh(refreshToken: string): Promise<MicrosoftTokenGrant>;
+  refresh(
+    refreshToken: string,
+    requestedScopes: readonly MicrosoftRequestedScope[],
+  ): Promise<MicrosoftTokenGrant>;
   readProfile(accessToken: string): Promise<MicrosoftProfile>;
+}
+
+export interface MicrosoftTodoListBindingRepository {
+  find(scope: UserScope): Promise<MicrosoftTodoListBindingRecord | null>;
+  save(record: MicrosoftTodoListBindingRecord): Promise<void>;
+}
+
+export interface MicrosoftTodoTaskBindingRepository {
+  findByOccurrence(
+    scope: UserScope,
+    occurrenceId: ReminderOccurrenceId,
+  ): Promise<MicrosoftTodoTaskBindingRecord | null>;
+  save(record: MicrosoftTodoTaskBindingRecord): Promise<void>;
+}
+
+export interface ExternalWriteOperationRepository {
+  findById(
+    scope: UserScope,
+    id: ExternalWriteOperationId,
+  ): Promise<ExternalWriteOperationRecord | null>;
+  save(record: ExternalWriteOperationRecord): Promise<void>;
+}
+
+export interface MicrosoftTodoGateway {
+  listLists(accessToken: string): Promise<readonly MicrosoftTodoListSnapshot[]>;
+  createListAtomically(
+    accessToken: string,
+    ownershipMarker: Uuid,
+  ): Promise<MicrosoftTodoListSnapshot>;
+  createList(
+    accessToken: string,
+    ownershipMarker: Uuid,
+  ): Promise<MicrosoftTodoListSnapshot>;
+  addListOwnershipMarker(
+    accessToken: string,
+    listId: string,
+    ownershipMarker: Uuid,
+  ): Promise<MicrosoftTodoListSnapshot>;
+  getList(
+    accessToken: string,
+    listId: string,
+  ): Promise<MicrosoftTodoListSnapshot>;
+  createTask(
+    accessToken: string,
+    listId: string,
+    projection: MicrosoftTodoProjection,
+    ownershipMarker: Uuid,
+  ): Promise<{ readonly id: string; readonly etag: string | null }>;
+  updateTask(
+    accessToken: string,
+    listId: string,
+    taskId: string,
+    projection: MicrosoftTodoProjection,
+  ): Promise<{ readonly etag: string | null }>;
+  deleteTask(
+    accessToken: string,
+    listId: string,
+    taskId: string,
+  ): Promise<void>;
+  findTasksByOwnershipMarker(
+    accessToken: string,
+    listId: string,
+    ownershipMarker: Uuid,
+  ): Promise<readonly { readonly id: string; readonly etag: string | null }[]>;
 }

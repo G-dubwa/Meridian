@@ -231,8 +231,8 @@ export const oauthAuthorizationSessions = pgTable(
       sql`${table.consumedAt} is null or ${table.consumedAt} >= ${table.createdAt}`,
     ),
     check(
-      'oauth_authorization_sessions_stage_a_scopes',
-      sql`cardinality(${table.requestedScopes}) = 5 and ${table.requestedScopes} @> ARRAY['openid', 'profile', 'offline_access', 'User.Read', 'Calendars.Read']::text[] and ${table.requestedScopes} <@ ARRAY['openid', 'profile', 'offline_access', 'User.Read', 'Calendars.Read']::text[]`,
+      'oauth_authorization_sessions_approved_scopes',
+      sql`(cardinality(${table.requestedScopes}) = 5 and ${table.requestedScopes} @> ARRAY['openid', 'profile', 'offline_access', 'User.Read', 'Calendars.Read']::text[] and ${table.requestedScopes} <@ ARRAY['openid', 'profile', 'offline_access', 'User.Read', 'Calendars.Read']::text[]) or (cardinality(${table.requestedScopes}) = 6 and ${table.requestedScopes} @> ARRAY['openid', 'profile', 'offline_access', 'User.Read', 'Calendars.Read', 'Tasks.ReadWrite']::text[] and ${table.requestedScopes} <@ ARRAY['openid', 'profile', 'offline_access', 'User.Read', 'Calendars.Read', 'Tasks.ReadWrite']::text[])`,
     ),
     index('oauth_authorization_sessions_expiry_idx').on(table.expiresAt),
   ],
@@ -249,7 +249,8 @@ export const integrationAccounts = pgTable(
     providerSubjectId: text('provider_subject_id').notNull(),
     displayName: text('display_name').notNull(),
     status: text('status').notNull(),
-    grantedScopes: text('granted_scopes').array().notNull(),
+    requestedScopes: text('requested_scopes').array().notNull(),
+    graphPermissions: text('graph_permissions').array().notNull(),
     accessTokenCiphertext: text('access_token_ciphertext'),
     refreshTokenCiphertext: text('refresh_token_ciphertext'),
     tokenExpiresAt: timestamp('token_expires_at', { withTimezone: true }),
@@ -286,8 +287,8 @@ export const integrationAccounts = pgTable(
       sql`(${table.accessTokenCiphertext} is null or ${table.accessTokenCiphertext} like 'v1.%') and (${table.refreshTokenCiphertext} is null or ${table.refreshTokenCiphertext} like 'v1.%')`,
     ),
     check(
-      'integration_accounts_stage_a_scopes',
-      sql`cardinality(${table.grantedScopes}) = 5 and ${table.grantedScopes} @> ARRAY['openid', 'profile', 'offline_access', 'User.Read', 'Calendars.Read']::text[] and ${table.grantedScopes} <@ ARRAY['openid', 'profile', 'offline_access', 'User.Read', 'Calendars.Read']::text[]`,
+      'integration_accounts_approved_scope_envelope',
+      sql`(cardinality(${table.requestedScopes}) = 5 and ${table.requestedScopes} @> ARRAY['openid', 'profile', 'offline_access', 'User.Read', 'Calendars.Read']::text[] and ${table.requestedScopes} <@ ARRAY['openid', 'profile', 'offline_access', 'User.Read', 'Calendars.Read']::text[] and cardinality(${table.graphPermissions}) = 2 and ${table.graphPermissions} @> ARRAY['User.Read', 'Calendars.Read']::text[] and ${table.graphPermissions} <@ ARRAY['User.Read', 'Calendars.Read']::text[]) or (cardinality(${table.requestedScopes}) = 6 and ${table.requestedScopes} @> ARRAY['openid', 'profile', 'offline_access', 'User.Read', 'Calendars.Read', 'Tasks.ReadWrite']::text[] and ${table.requestedScopes} <@ ARRAY['openid', 'profile', 'offline_access', 'User.Read', 'Calendars.Read', 'Tasks.ReadWrite']::text[] and cardinality(${table.graphPermissions}) = 3 and ${table.graphPermissions} @> ARRAY['User.Read', 'Calendars.Read', 'Tasks.ReadWrite']::text[] and ${table.graphPermissions} <@ ARRAY['User.Read', 'Calendars.Read', 'Tasks.ReadWrite']::text[])`,
     ),
     index('integration_accounts_user_status_idx').on(
       table.userId,
@@ -304,7 +305,8 @@ export const consentRecords = pgTable(
     integrationAccountId: uuid('integration_account_id').notNull(),
     provider: text('provider').notNull(),
     action: text('action').notNull(),
-    scopes: text('scopes').array().notNull(),
+    requestedScopes: text('requested_scopes').array().notNull(),
+    graphPermissions: text('graph_permissions').array().notNull(),
     occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
@@ -322,8 +324,8 @@ export const consentRecords = pgTable(
       sql`${table.action} in ('granted', 'disconnected', 'reauthorization_required')`,
     ),
     check(
-      'consent_records_stage_a_scopes',
-      sql`cardinality(${table.scopes}) = 5 and ${table.scopes} @> ARRAY['openid', 'profile', 'offline_access', 'User.Read', 'Calendars.Read']::text[] and ${table.scopes} <@ ARRAY['openid', 'profile', 'offline_access', 'User.Read', 'Calendars.Read']::text[]`,
+      'consent_records_approved_scope_envelope',
+      sql`(cardinality(${table.requestedScopes}) = 5 and ${table.requestedScopes} @> ARRAY['openid', 'profile', 'offline_access', 'User.Read', 'Calendars.Read']::text[] and ${table.requestedScopes} <@ ARRAY['openid', 'profile', 'offline_access', 'User.Read', 'Calendars.Read']::text[] and cardinality(${table.graphPermissions}) = 2 and ${table.graphPermissions} @> ARRAY['User.Read', 'Calendars.Read']::text[] and ${table.graphPermissions} <@ ARRAY['User.Read', 'Calendars.Read']::text[]) or (cardinality(${table.requestedScopes}) = 6 and ${table.requestedScopes} @> ARRAY['openid', 'profile', 'offline_access', 'User.Read', 'Calendars.Read', 'Tasks.ReadWrite']::text[] and ${table.requestedScopes} <@ ARRAY['openid', 'profile', 'offline_access', 'User.Read', 'Calendars.Read', 'Tasks.ReadWrite']::text[] and cardinality(${table.graphPermissions}) = 3 and ${table.graphPermissions} @> ARRAY['User.Read', 'Calendars.Read', 'Tasks.ReadWrite']::text[] and ${table.graphPermissions} <@ ARRAY['User.Read', 'Calendars.Read', 'Tasks.ReadWrite']::text[])`,
     ),
     index('consent_records_user_occurred_idx').on(
       table.userId,
@@ -799,6 +801,7 @@ export const reminderOccurrences = pgTable(
     ...timestamps,
   },
   (table) => [
+    unique('reminder_occurrences_id_user_unique').on(table.id, table.userId),
     foreignKey({
       columns: [table.reminderId, table.userId],
       foreignColumns: [reminders.id, reminders.userId],
@@ -861,6 +864,182 @@ export const commandReceipts = pgTable(
     index('command_receipts_user_created_idx').on(
       table.userId,
       table.createdAt,
+    ),
+  ],
+);
+
+export const microsoftTodoListBindings = pgTable(
+  'microsoft_todo_list_bindings',
+  {
+    id: uuid('id').primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    integrationAccountId: uuid('integration_account_id').notNull(),
+    externalListId: text('external_list_id').notNull(),
+    ownershipMarker: uuid('ownership_marker').notNull(),
+    displayName: text('display_name').notNull().default('Meridian'),
+    createdByMeridian: boolean('created_by_meridian').notNull().default(true),
+    status: text('status').notNull().default('experimental'),
+    extensionVerifiedAt: timestamp('extension_verified_at', {
+      withTimezone: true,
+    }).notNull(),
+    lastVerifiedAt: timestamp('last_verified_at', {
+      withTimezone: true,
+    }).notNull(),
+    deltaLinkCiphertext: text('delta_link_ciphertext'),
+    ...timestamps,
+    version: integer('version').notNull().default(1),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.integrationAccountId, table.userId],
+      foreignColumns: [integrationAccounts.id, integrationAccounts.userId],
+      name: 'microsoft_todo_lists_account_owner_fk',
+    }).onDelete('cascade'),
+    unique('microsoft_todo_lists_user_unique').on(table.userId),
+    unique('microsoft_todo_lists_external_unique').on(
+      table.integrationAccountId,
+      table.externalListId,
+    ),
+    unique('microsoft_todo_lists_id_user_unique').on(table.id, table.userId),
+    check(
+      'microsoft_todo_lists_name_valid',
+      sql`${table.displayName} = 'Meridian'`,
+    ),
+    check(
+      'microsoft_todo_lists_created_by_meridian',
+      sql`${table.createdByMeridian} = true`,
+    ),
+    check(
+      'microsoft_todo_lists_status_valid',
+      sql`${table.status} in ('experimental', 'suspended', 'unmanaged', 'cleaned')`,
+    ),
+    check('microsoft_todo_lists_version_positive', sql`${table.version} > 0`),
+    index('microsoft_todo_lists_user_status_idx').on(
+      table.userId,
+      table.status,
+    ),
+  ],
+);
+
+export const microsoftTodoTaskBindings = pgTable(
+  'microsoft_todo_task_bindings',
+  {
+    id: uuid('id').primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    listBindingId: uuid('list_binding_id').notNull(),
+    occurrenceId: uuid('occurrence_id').notNull(),
+    externalTaskId: text('external_task_id').notNull(),
+    ownershipMarker: uuid('ownership_marker').notNull(),
+    projectionHash: text('projection_hash').notNull(),
+    providerEtag: text('provider_etag'),
+    status: text('status').notNull().default('pending'),
+    ...timestamps,
+    version: integer('version').notNull().default(1),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.listBindingId, table.userId],
+      foreignColumns: [
+        microsoftTodoListBindings.id,
+        microsoftTodoListBindings.userId,
+      ],
+      name: 'microsoft_todo_tasks_list_owner_fk',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [table.occurrenceId, table.userId],
+      foreignColumns: [reminderOccurrences.id, reminderOccurrences.userId],
+      name: 'microsoft_todo_tasks_occurrence_owner_fk',
+    }).onDelete('cascade'),
+    unique('microsoft_todo_tasks_occurrence_unique').on(table.occurrenceId),
+    unique('microsoft_todo_tasks_external_unique').on(
+      table.listBindingId,
+      table.externalTaskId,
+    ),
+    check(
+      'microsoft_todo_tasks_projection_hash',
+      sql`${table.projectionHash} ~ '^[a-f0-9]{64}$'`,
+    ),
+    check(
+      'microsoft_todo_tasks_status_valid',
+      sql`${table.status} in ('pending', 'completed', 'deleted', 'orphaned', 'conflicted', 'unmanaged', 'cleaned')`,
+    ),
+    check('microsoft_todo_tasks_version_positive', sql`${table.version} > 0`),
+    index('microsoft_todo_tasks_user_status_idx').on(
+      table.userId,
+      table.status,
+    ),
+  ],
+);
+
+export const externalWriteOperations = pgTable(
+  'external_write_operations',
+  {
+    id: uuid('id').primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    listBindingId: uuid('list_binding_id'),
+    occurrenceId: uuid('occurrence_id'),
+    correlationId: uuid('correlation_id').notNull(),
+    operation: text('operation').notNull(),
+    ownershipMarker: uuid('ownership_marker').notNull(),
+    desiredProjectionHash: text('desired_projection_hash'),
+    baselineExternalIds: text('baseline_external_ids')
+      .array()
+      .notNull()
+      .default([]),
+    state: text('state').notNull().default('pending'),
+    attemptCount: integer('attempt_count').notNull().default(0),
+    failureClass: text('failure_class'),
+    ...timestamps,
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.listBindingId, table.userId],
+      foreignColumns: [
+        microsoftTodoListBindings.id,
+        microsoftTodoListBindings.userId,
+      ],
+      name: 'external_write_operations_list_owner_fk',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [table.occurrenceId, table.userId],
+      foreignColumns: [reminderOccurrences.id, reminderOccurrences.userId],
+      name: 'external_write_operations_occurrence_owner_fk',
+    }).onDelete('cascade'),
+    unique('external_write_operations_correlation_unique').on(
+      table.userId,
+      table.operation,
+      table.correlationId,
+    ),
+    check(
+      'external_write_operations_kind_valid',
+      sql`${table.operation} in ('create_list', 'mark_list', 'create_task', 'update_task', 'delete_task', 'reconcile', 'cleanup')`,
+    ),
+    check(
+      'external_write_operations_state_valid',
+      sql`${table.state} in ('pending', 'uncertain', 'succeeded', 'failed')`,
+    ),
+    check(
+      'external_write_operations_attempts_valid',
+      sql`${table.attemptCount} between 0 and 10`,
+    ),
+    check(
+      'external_write_operations_projection_hash',
+      sql`${table.desiredProjectionHash} is null or ${table.desiredProjectionHash} ~ '^[a-f0-9]{64}$'`,
+    ),
+    check(
+      'external_write_operations_failure_valid',
+      sql`${table.failureClass} is null or ${table.failureClass} in ('atomic_extension_unsupported', 'authorization_revoked', 'conflict', 'containment_rejected', 'not_found', 'provider_unavailable', 'rate_limited', 'uncertain_outcome', 'validation_failed')`,
+    ),
+    index('external_write_operations_user_state_idx').on(
+      table.userId,
+      table.state,
+      table.updatedAt,
     ),
   ],
 );
@@ -956,6 +1135,12 @@ export const schemaTables = {
   domainEvents,
   entries,
   entryRevisions,
+  externalWriteOperations,
+  integrationAccounts,
+  consentRecords,
+  microsoftTodoListBindings,
+  microsoftTodoTaskBindings,
+  oauthAuthorizationSessions,
   outboxMessages,
   proposals,
   reminderOccurrences,

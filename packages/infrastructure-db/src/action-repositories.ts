@@ -1,12 +1,14 @@
 import {
   recurrenceRuleV1Schema,
   reminderIdV1Schema,
+  reminderOccurrenceIdV1Schema,
   taskIdV1Schema,
 } from '@meridian/domain';
 import type {
   CommandReceiptRecord,
   CommandReceiptRepository,
   ReminderOccurrenceRecord,
+  ReminderOccurrenceId,
   ReminderOccurrenceRepository,
   ReminderRecord,
   ReminderRepository,
@@ -232,6 +234,33 @@ export class DrizzleReminderRepository implements ReminderRepository {
 
 export class DrizzleReminderOccurrenceRepository implements ReminderOccurrenceRepository {
   public constructor(private readonly database: DatabaseExecutor) {}
+
+  public async findById(
+    scope: UserScope,
+    id: ReminderOccurrenceId,
+  ): Promise<ReminderOccurrenceRecord | null> {
+    const [row] = await this.database
+      .select()
+      .from(reminderOccurrences)
+      .where(
+        and(
+          eq(reminderOccurrences.userId, scope.userId),
+          eq(reminderOccurrences.id, id),
+        ),
+      )
+      .limit(1);
+    return row
+      ? {
+          createdAt: row.createdAt,
+          id: reminderOccurrenceIdV1Schema.parse(row.id),
+          reminderId: reminderIdV1Schema.parse(row.reminderId),
+          scheduledFor: row.scheduledFor,
+          scope,
+          state: row.state as ReminderOccurrenceRecord['state'],
+          updatedAt: row.updatedAt,
+        }
+      : null;
+  }
 
   public async save(occurrence: ReminderOccurrenceRecord): Promise<void> {
     await this.database.insert(reminderOccurrences).values({

@@ -597,6 +597,46 @@ components:
         - { type: string, const: User.Read }
         - { type: string, const: Calendars.Read }
       items: false
+    MicrosoftTodoRequestedScopesV1:
+      type: array
+      minItems: 6
+      maxItems: 6
+      uniqueItems: true
+      prefixItems:
+        - { type: string, const: openid }
+        - { type: string, const: profile }
+        - { type: string, const: offline_access }
+        - { type: string, const: User.Read }
+        - { type: string, const: Calendars.Read }
+        - { type: string, const: Tasks.ReadWrite }
+      items: false
+    MicrosoftRequestedScopesV1:
+      oneOf:
+        - { $ref: '#/components/schemas/MicrosoftStageAScopesV1' }
+        - { $ref: '#/components/schemas/MicrosoftTodoRequestedScopesV1' }
+    MicrosoftStageAGraphPermissionsV1:
+      type: array
+      minItems: 2
+      maxItems: 2
+      uniqueItems: true
+      prefixItems:
+        - { type: string, const: User.Read }
+        - { type: string, const: Calendars.Read }
+      items: false
+    MicrosoftTodoGraphPermissionsV1:
+      type: array
+      minItems: 3
+      maxItems: 3
+      uniqueItems: true
+      prefixItems:
+        - { type: string, const: User.Read }
+        - { type: string, const: Calendars.Read }
+        - { type: string, const: Tasks.ReadWrite }
+      items: false
+    MicrosoftGraphPermissionsV1:
+      oneOf:
+        - { $ref: '#/components/schemas/MicrosoftStageAGraphPermissionsV1' }
+        - { $ref: '#/components/schemas/MicrosoftTodoGraphPermissionsV1' }
     MicrosoftConnectResponseV1:
       type: object
       additionalProperties: false
@@ -612,13 +652,16 @@ components:
     MicrosoftConsentRecordV1:
       type: object
       additionalProperties: false
-      required: [action, occurredAt, scopes]
+      required: [action, occurredAt, requestedScopes, graphPermissions]
       properties:
         action:
           type: string
           enum: [granted, disconnected, reauthorization_required]
         occurredAt: { type: string, format: date-time }
-        scopes: { $ref: '#/components/schemas/MicrosoftStageAScopesV1' }
+        requestedScopes:
+          { $ref: '#/components/schemas/MicrosoftRequestedScopesV1' }
+        graphPermissions:
+          { $ref: '#/components/schemas/MicrosoftGraphPermissionsV1' }
     MicrosoftConnectionAccountV1:
       type: object
       additionalProperties: false
@@ -627,7 +670,8 @@ components:
           id,
           displayName,
           status,
-          grantedScopes,
+          requestedScopes,
+          graphPermissions,
           connectedAt,
           disconnectedAt,
           lastRefreshedAt,
@@ -638,7 +682,10 @@ components:
         status:
           type: string
           enum: [connected, disconnected, reauthorization_required]
-        grantedScopes: { $ref: '#/components/schemas/MicrosoftStageAScopesV1' }
+        requestedScopes:
+          { $ref: '#/components/schemas/MicrosoftRequestedScopesV1' }
+        graphPermissions:
+          { $ref: '#/components/schemas/MicrosoftGraphPermissionsV1' }
         connectedAt: { type: string, format: date-time }
         disconnectedAt:
           anyOf:

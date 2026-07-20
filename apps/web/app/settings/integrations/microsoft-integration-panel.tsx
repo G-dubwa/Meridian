@@ -28,7 +28,7 @@ export function MicrosoftIntegrationPanel() {
       );
       setMessage(
         outcome === 'connected'
-          ? 'Microsoft connected with the approved read-only scope set.'
+          ? 'Microsoft connected with the approved scope envelope.'
           : outcome === 'failed'
             ? 'Microsoft connection failed safely. No token was retained.'
             : '',
@@ -155,8 +155,9 @@ export function MicrosoftIntegrationPanel() {
           ))}
         </dl>
         <p>
-          Explicitly excluded: calendar write, To Do, mail, shared-calendar, and
-          application permissions.
+          This current connect action excludes Tasks.ReadWrite, calendar write,
+          mail, shared-calendar, and application permissions. WP-11's proposed
+          incremental To Do consent remains a separate disabled live gate.
         </p>
       </section>
 
@@ -171,7 +172,9 @@ export function MicrosoftIntegrationPanel() {
                 <strong>{record.action.replaceAll('_', ' ')}</strong>{' '}
                 {new Date(record.occurredAt).toLocaleString()}
                 <br />
-                {record.scopes.join(', ')}
+                Requested: {record.requestedScopes.join(', ')}
+                <br />
+                Graph token: {record.graphPermissions.join(', ')}
               </li>
             ))}
           </ol>

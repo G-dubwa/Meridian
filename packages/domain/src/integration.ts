@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { uuidV1Schema } from './ids.js';
 
-export const MICROSOFT_STAGE_A_SCOPES = [
+export const MICROSOFT_STAGE_A_REQUESTED_SCOPES = [
   'openid',
   'profile',
   'offline_access',
@@ -9,25 +9,109 @@ export const MICROSOFT_STAGE_A_SCOPES = [
   'Calendars.Read',
 ] as const;
 
-export const microsoftDelegatedScopeV1Schema = z.enum(MICROSOFT_STAGE_A_SCOPES);
-export type MicrosoftDelegatedScope = z.infer<
-  typeof microsoftDelegatedScopeV1Schema
+export const MICROSOFT_TODO_SPIKE_REQUESTED_SCOPES = [
+  ...MICROSOFT_STAGE_A_REQUESTED_SCOPES,
+  'Tasks.ReadWrite',
+] as const;
+
+export const MICROSOFT_STAGE_A_GRAPH_PERMISSIONS = [
+  'User.Read',
+  'Calendars.Read',
+] as const;
+
+export const MICROSOFT_TODO_SPIKE_GRAPH_PERMISSIONS = [
+  ...MICROSOFT_STAGE_A_GRAPH_PERMISSIONS,
+  'Tasks.ReadWrite',
+] as const;
+
+/** @deprecated Prefer the explicit requested-scope name. */
+export const MICROSOFT_STAGE_A_SCOPES = MICROSOFT_STAGE_A_REQUESTED_SCOPES;
+
+export const microsoftRequestedScopeV1Schema = z.enum(
+  MICROSOFT_TODO_SPIKE_REQUESTED_SCOPES,
+);
+export type MicrosoftRequestedScope = z.infer<
+  typeof microsoftRequestedScopeV1Schema
 >;
 
+/** @deprecated Prefer MicrosoftRequestedScope. */
+export type MicrosoftDelegatedScope = MicrosoftRequestedScope;
+
+export const microsoftGraphPermissionV1Schema = z.enum(
+  MICROSOFT_TODO_SPIKE_GRAPH_PERMISSIONS,
+);
+export type MicrosoftGraphPermission = z.infer<
+  typeof microsoftGraphPermissionV1Schema
+>;
+
+function isExactSet(
+  values: readonly string[],
+  expected: readonly string[],
+): boolean {
+  const unique = new Set(values);
+  return (
+    values.length === expected.length &&
+    unique.size === expected.length &&
+    expected.every((value) => unique.has(value))
+  );
+}
+
 export const microsoftDelegatedScopesV1Schema = z
-  .array(microsoftDelegatedScopeV1Schema)
-  .length(MICROSOFT_STAGE_A_SCOPES.length)
+  .array(microsoftRequestedScopeV1Schema)
   .superRefine((scopes, context) => {
-    const unique = new Set(scopes);
-    if (
-      unique.size !== MICROSOFT_STAGE_A_SCOPES.length ||
-      MICROSOFT_STAGE_A_SCOPES.some((scope) => !unique.has(scope))
-    )
+    if (!isExactSet(scopes, MICROSOFT_STAGE_A_REQUESTED_SCOPES))
       context.addIssue({
         code: 'custom',
         message: 'The Microsoft Stage-A scope set must match exactly.',
       });
   });
+
+export const microsoftRequestedScopesV1Schema = z
+  .array(microsoftRequestedScopeV1Schema)
+  .superRefine((scopes, context) => {
+    if (
+      !isExactSet(scopes, MICROSOFT_STAGE_A_REQUESTED_SCOPES) &&
+      !isExactSet(scopes, MICROSOFT_TODO_SPIKE_REQUESTED_SCOPES)
+    )
+      context.addIssue({
+        code: 'custom',
+        message: 'The Microsoft requested-scope envelope is not approved.',
+      });
+  });
+
+export const microsoftTodoRequestedScopesV1Schema = z
+  .array(microsoftRequestedScopeV1Schema)
+  .superRefine((scopes, context) => {
+    if (!isExactSet(scopes, MICROSOFT_TODO_SPIKE_REQUESTED_SCOPES))
+      context.addIssue({
+        code: 'custom',
+        message: 'The Microsoft To Do spike scope set must match exactly.',
+      });
+  });
+
+export const microsoftGraphPermissionsV1Schema = z
+  .array(microsoftGraphPermissionV1Schema)
+  .superRefine((permissions, context) => {
+    if (
+      !isExactSet(permissions, MICROSOFT_STAGE_A_GRAPH_PERMISSIONS) &&
+      !isExactSet(permissions, MICROSOFT_TODO_SPIKE_GRAPH_PERMISSIONS)
+    )
+      context.addIssue({
+        code: 'custom',
+        message: 'The Microsoft Graph token permission set is not approved.',
+      });
+  });
+
+export function expectedMicrosoftGraphPermissionsV1(
+  requestedScopes: readonly MicrosoftRequestedScope[],
+): readonly MicrosoftGraphPermission[] {
+  const requested = microsoftRequestedScopesV1Schema.parse([
+    ...requestedScopes,
+  ]);
+  return requested.includes('Tasks.ReadWrite')
+    ? [...MICROSOFT_TODO_SPIKE_GRAPH_PERMISSIONS]
+    : [...MICROSOFT_STAGE_A_GRAPH_PERMISSIONS];
+}
 
 export const integrationAccountStatusV1Schema = z.enum([
   'connected',
@@ -75,7 +159,8 @@ export type MicrosoftProfile = z.infer<typeof microsoftProfileV1Schema>;
 export const microsoftConnectionEventPayloadV1Schema = z
   .object({
     integrationAccountId: uuidV1Schema,
-    scopes: microsoftDelegatedScopesV1Schema,
+    requestedScopes: microsoftRequestedScopesV1Schema,
+    graphPermissions: microsoftGraphPermissionsV1Schema,
   })
   .strict();
 

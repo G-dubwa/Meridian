@@ -69,3 +69,13 @@ Receipts are audit evidence, not permission to perform external work.
 Microsoft To Do, calendar writes, mail, shared calendars, application
 permissions, notification escalation, and autonomous safety-sensitive action
 are unavailable. WP-11 owns the separately approved delivery spike.
+
+## WP-11 experimental projection
+
+WP-11 retains the reminder/occurrence as source of truth. Its dormant To Do
+projection creates at most one marker-bound task per occurrence in Meridian's
+dedicated list. Canonical UTC plus `Africa/Johannesburg` is converted to the
+same local wall time with Microsoft's `South Africa Standard Time` label.
+Because the canonical model has no start instant, no To Do start time is sent.
+Canonical recurrence remains in Meridian; every occurrence would be a separate
+non-recurring external task. This is mocked only until the live gate passes.

@@ -2,13 +2,17 @@ import {
   AuthenticationFailedError,
   ConflictError,
   IntegrationUnavailableError,
-  MICROSOFT_STAGE_A_SCOPES,
+  MICROSOFT_STAGE_A_REQUESTED_SCOPES,
+  MICROSOFT_TODO_SPIKE_REQUESTED_SCOPES,
   domainEventEnvelopeV1Schema,
   domainEventIdV1Schema,
   microsoftAuthorizationCodeV1Schema,
   microsoftAuthorizationStateV1Schema,
   microsoftConnectionEventPayloadV1Schema,
-  microsoftDelegatedScopesV1Schema,
+  expectedMicrosoftGraphPermissionsV1,
+  microsoftGraphPermissionsV1Schema,
+  microsoftRequestedScopesV1Schema,
+  microsoftTodoRequestedScopesV1Schema,
   microsoftDisconnectionEventPayloadV1Schema,
   microsoftPkceChallengeV1Schema,
   microsoftPkceVerifierV1Schema,
@@ -24,7 +28,8 @@ import type {
   DomainEventEnvelopeV1,
   IdGenerator,
   IntegrationAccountRecord,
-  MicrosoftDelegatedScope,
+  MicrosoftGraphPermission,
+  MicrosoftRequestedScope,
   MicrosoftIntegrationEventType,
   MicrosoftOAuthGateway,
   MicrosoftTokenGrant,
@@ -66,7 +71,8 @@ export interface MicrosoftConnectionSummary {
   readonly id: Uuid;
   readonly displayName: string;
   readonly status: IntegrationAccountRecord['status'];
-  readonly grantedScopes: readonly MicrosoftDelegatedScope[];
+  readonly requestedScopes: readonly MicrosoftRequestedScope[];
+  readonly graphPermissions: readonly MicrosoftGraphPermission[];
   readonly connectedAt: Date;
   readonly disconnectedAt: Date | null;
   readonly lastRefreshedAt: Date | null;
@@ -74,7 +80,8 @@ export interface MicrosoftConnectionSummary {
 
 export interface MicrosoftConsentSummary {
   readonly action: ConsentAction;
-  readonly scopes: readonly MicrosoftDelegatedScope[];
+  readonly requestedScopes: readonly MicrosoftRequestedScope[];
+  readonly graphPermissions: readonly MicrosoftGraphPermission[];
   readonly occurredAt: Date;
 }
 
@@ -82,13 +89,16 @@ export interface MicrosoftConnectionStatusView {
   readonly configured: boolean;
   readonly account: MicrosoftConnectionSummary | null;
   readonly consentRecords: readonly MicrosoftConsentSummary[];
-  readonly requestedScopes: readonly MicrosoftDelegatedScope[];
+  readonly requestedScopes: readonly MicrosoftRequestedScope[];
 }
 
-function exactStageAScopes(
-  scopes: readonly MicrosoftDelegatedScope[] = MICROSOFT_STAGE_A_SCOPES,
-): readonly MicrosoftDelegatedScope[] {
-  return microsoftDelegatedScopesV1Schema.parse([...scopes]);
+function approvedRequestedScopes(
+  scopes: readonly MicrosoftRequestedScope[] = MICROSOFT_STAGE_A_REQUESTED_SCOPES,
+): readonly MicrosoftRequestedScope[] {
+  const parsed = microsoftRequestedScopesV1Schema.parse([...scopes]);
+  if (parsed.includes('Tasks.ReadWrite'))
+    return microsoftTodoRequestedScopesV1Schema.parse(parsed);
+  return parsed;
 }
 
 function tokenContext(
@@ -119,10 +129,11 @@ function summaryFor(
     connectedAt: account.connectedAt,
     disconnectedAt: account.disconnectedAt,
     displayName: account.displayName,
-    grantedScopes: account.grantedScopes,
+    graphPermissions: account.graphPermissions,
     id: account.id,
     lastRefreshedAt: account.lastRefreshedAt,
     status: account.status,
+    requestedScopes: account.requestedScopes,
   };
 }
 
@@ -184,10 +195,11 @@ export class MicrosoftConnectionService {
         configured: this.dependencies.authorization !== undefined,
         consentRecords: consents.map((record) => ({
           action: record.action,
+          graphPermissions: record.graphPermissions,
           occurredAt: record.occurredAt,
-          scopes: record.scopes,
+          requestedScopes: record.requestedScopes,
         })),
-        requestedScopes: exactStageAScopes(),
+        requestedScopes: approvedRequestedScopes(),
       };
     });
   }
@@ -200,6 +212,18 @@ export class MicrosoftConnectionService {
     if (current?.status === 'connected')
       throw new ConflictError('Microsoft is already connected.');
 
+    return this.beginAuthorizationFlow(
+      scope,
+      MICROSOFT_STAGE_A_REQUESTED_SCOPES,
+      authorization,
+    );
+  }
+
+  private async beginAuthorizationFlow(
+    scope: UserScope,
+    requestedScopes: readonly MicrosoftRequestedScope[],
+    authorization: MicrosoftAuthorizationRuntime,
+  ): Promise<URL> {
     const now = this.dependencies.clock.now();
     const flowId = uuidV1Schema.parse(this.dependencies.ids.next());
     const state = microsoftAuthorizationStateV1Schema.parse(
@@ -208,7 +232,7 @@ export class MicrosoftConnectionService {
     const pkce = authorization.pkce.generate();
     const verifier = microsoftPkceVerifierV1Schema.parse(pkce.verifier);
     const challenge = microsoftPkceChallengeV1Schema.parse(pkce.challenge);
-    const scopes = exactStageAScopes();
+    const scopes = approvedRequestedScopes(requestedScopes);
     await this.dependencies.oauthSessions.create({
       codeVerifierCiphertext: authorization.cipher.seal(
         verifier,
@@ -230,6 +254,25 @@ export class MicrosoftConnectionService {
       scopes,
       state,
     });
+  }
+
+  public async beginTodoIncrementalConsent(scope: UserScope): Promise<URL> {
+    const authorization = this.requireAuthorization();
+    const current = await this.dependencies.transactions.run(scope, (ports) =>
+      ports.integrationAccounts.findMicrosoft(scope),
+    );
+    if (
+      current?.status !== 'connected' ||
+      current.requestedScopes.includes('Tasks.ReadWrite')
+    )
+      throw new ConflictError(
+        'Stage-A Microsoft connection is required before incremental consent.',
+      );
+    return this.beginAuthorizationFlow(
+      scope,
+      MICROSOFT_TODO_SPIKE_REQUESTED_SCOPES,
+      authorization,
+    );
   }
 
   public async completeConnection(
@@ -258,8 +301,21 @@ export class MicrosoftConnectionService {
       code,
       verifier,
       flow.redirectUri,
+      flow.requestedScopes,
     );
-    const scopes = exactStageAScopes(grant.grantedScopes);
+    const requestedScopes = approvedRequestedScopes(flow.requestedScopes);
+    const graphPermissions = microsoftGraphPermissionsV1Schema.parse([
+      ...grant.graphPermissions,
+    ]);
+    const expectedGraphPermissions =
+      expectedMicrosoftGraphPermissionsV1(requestedScopes);
+    if (
+      graphPermissions.length !== expectedGraphPermissions.length ||
+      expectedGraphPermissions.some(
+        (permission) => !graphPermissions.includes(permission),
+      )
+    )
+      throw new AuthenticationFailedError();
     const profile = microsoftProfileV1Schema.parse(
       await authorization.gateway.readProfile(grant.accessToken),
     );
@@ -279,11 +335,12 @@ export class MicrosoftConnectionService {
         createdAt: existing?.createdAt ?? now,
         disconnectedAt: null,
         displayName: profile.displayName,
-        grantedScopes: scopes,
+        graphPermissions,
         id: accountId,
         lastRefreshedAt: null,
         provider: 'microsoft',
         providerSubjectId: profile.providerSubjectId,
+        requestedScopes,
         refreshTokenCiphertext: authorization.cipher.seal(
           grant.refreshToken,
           tokenContext(scope, accountId, 'refresh'),
@@ -302,11 +359,13 @@ export class MicrosoftConnectionService {
         occurredAt: now,
         provider: 'microsoft',
         scope,
-        scopes,
+        graphPermissions,
+        requestedScopes,
       });
       const payload = microsoftConnectionEventPayloadV1Schema.parse({
         integrationAccountId: accountId,
-        scopes,
+        graphPermissions,
+        requestedScopes,
       });
       await appendEvent(
         this.dependencies,
@@ -345,6 +404,14 @@ export class MicrosoftConnectionService {
           tokenExpiresAt: null,
           updatedAt: now,
         });
+        const todoList = await ports.microsoftTodoListBindings.find(scope);
+        if (todoList && todoList.status !== 'cleaned')
+          await ports.microsoftTodoListBindings.save({
+            ...todoList,
+            status: 'unmanaged',
+            updatedAt: now,
+            version: todoList.version + 1,
+          });
         await ports.consentRecords.append({
           action: 'disconnected',
           id: uuidV1Schema.parse(this.dependencies.ids.next()),
@@ -352,7 +419,8 @@ export class MicrosoftConnectionService {
           occurredAt: now,
           provider: 'microsoft',
           scope,
-          scopes: existing.grantedScopes,
+          graphPermissions: existing.graphPermissions,
+          requestedScopes: existing.requestedScopes,
         });
         const payload = microsoftDisconnectionEventPayloadV1Schema.parse({
           integrationAccountId: existing.id,
@@ -379,9 +447,10 @@ export class MicrosoftConnectionService {
         consentRecords: consents.map((record) => ({
           action: record.action,
           occurredAt: record.occurredAt,
-          scopes: record.scopes,
+          graphPermissions: record.graphPermissions,
+          requestedScopes: record.requestedScopes,
         })),
-        requestedScopes: exactStageAScopes(),
+        requestedScopes: approvedRequestedScopes(),
       };
     });
   }
@@ -413,7 +482,10 @@ export class MicrosoftConnectionService {
       tokenContext(scope, account.id, 'refresh'),
     );
     try {
-      const grant = await authorization.gateway.refresh(refreshToken);
+      const grant = await authorization.gateway.refresh(
+        refreshToken,
+        account.requestedScopes,
+      );
       return await this.persistRefresh(scope, account, grant, now);
     } catch (error) {
       if (isConsentRevoked(error)) {
@@ -431,7 +503,19 @@ export class MicrosoftConnectionService {
     now: Date,
   ): Promise<string> {
     const authorization = this.requireAuthorization();
-    const scopes = exactStageAScopes(grant.grantedScopes);
+    const graphPermissions = microsoftGraphPermissionsV1Schema.parse([
+      ...grant.graphPermissions,
+    ]);
+    const expectedGraphPermissions = expectedMicrosoftGraphPermissionsV1(
+      account.requestedScopes,
+    );
+    if (
+      graphPermissions.length !== expectedGraphPermissions.length ||
+      expectedGraphPermissions.some(
+        (permission) => !graphPermissions.includes(permission),
+      )
+    )
+      throw new AuthenticationFailedError();
     await this.dependencies.transactions.run(scope, async (ports) => {
       await ports.integrationAccounts.save({
         ...account,
@@ -439,7 +523,7 @@ export class MicrosoftConnectionService {
           grant.accessToken,
           tokenContext(scope, account.id, 'access'),
         ),
-        grantedScopes: scopes,
+        graphPermissions,
         lastRefreshedAt: now,
         refreshTokenCiphertext: authorization.cipher.seal(
           grant.refreshToken,
@@ -466,6 +550,14 @@ export class MicrosoftConnectionService {
         tokenExpiresAt: null,
         updatedAt: now,
       });
+      const todoList = await ports.microsoftTodoListBindings.find(scope);
+      if (todoList?.status === 'experimental')
+        await ports.microsoftTodoListBindings.save({
+          ...todoList,
+          status: 'suspended',
+          updatedAt: now,
+          version: todoList.version + 1,
+        });
       const consent: ConsentRecord = {
         action: 'reauthorization_required',
         id: uuidV1Schema.parse(this.dependencies.ids.next()),
@@ -473,7 +565,8 @@ export class MicrosoftConnectionService {
         occurredAt: now,
         provider: 'microsoft',
         scope,
-        scopes: account.grantedScopes,
+        graphPermissions: account.graphPermissions,
+        requestedScopes: account.requestedScopes,
       };
       await ports.consentRecords.append(consent);
       await appendEvent(

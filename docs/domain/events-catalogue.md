@@ -54,6 +54,24 @@ secret, provider diagnostics, journal content, or calendar data. The existing
 reliable worker accepts the `integration.` type prefix and otherwise applies the
 same identifier-only delivery policy.
 
+WP-11 distinguishes requested OAuth/OIDC scopes from Graph token `scp`
+permissions in the connected-event and consent evidence. Both sets are exact;
+OIDC scopes are not assumed to reappear in the access token.
+
+## Microsoft To Do experimental events v1
+
+| Event                                            | Emitted when                                    |
+| ------------------------------------------------ | ----------------------------------------------- |
+| `integration.microsoft_todo_list_prepared.v1`    | A marker-verified experimental binding commits  |
+| `delivery.microsoft_todo_task_created.v1`        | A bound experimental task create commits        |
+| `integration.microsoft_todo_operation_failed.v1` | A provider operation fails or remains uncertain |
+
+Payloads contain only local operation/list/occurrence IDs, operation kind,
+outcome, attempt count, and stable failure class. They exclude Microsoft IDs,
+list/task content, reminder/due times, tokens, response bodies, extensions,
+device data, and personal records. No event is emitted live before the second
+WP-11 gate because no live spike entry point is exposed.
+
 ## Proposal events v1
 
 | Event                         | Emitted when                           | Payload                 |

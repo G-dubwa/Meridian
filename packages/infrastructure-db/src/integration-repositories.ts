@@ -1,7 +1,8 @@
 import {
   consentActionV1Schema,
   integrationAccountStatusV1Schema,
-  microsoftDelegatedScopesV1Schema,
+  microsoftGraphPermissionsV1Schema,
+  microsoftRequestedScopesV1Schema,
   userIdV1Schema,
   uuidV1Schema,
 } from '@meridian/domain';
@@ -33,11 +34,16 @@ function mapIntegrationAccount(
     createdAt: row.createdAt,
     disconnectedAt: row.disconnectedAt,
     displayName: row.displayName,
-    grantedScopes: microsoftDelegatedScopesV1Schema.parse(row.grantedScopes),
+    graphPermissions: microsoftGraphPermissionsV1Schema.parse(
+      row.graphPermissions,
+    ),
     id: uuidV1Schema.parse(row.id),
     lastRefreshedAt: row.lastRefreshedAt,
     provider: 'microsoft',
     providerSubjectId: row.providerSubjectId,
+    requestedScopes: microsoftRequestedScopesV1Schema.parse(
+      row.requestedScopes,
+    ),
     refreshTokenCiphertext: row.refreshTokenCiphertext,
     scope,
     status: integrationAccountStatusV1Schema.parse(row.status),
@@ -75,11 +81,12 @@ export class DrizzleIntegrationAccountRepository implements IntegrationAccountRe
         createdAt: record.createdAt,
         disconnectedAt: record.disconnectedAt,
         displayName: record.displayName,
-        grantedScopes: [...record.grantedScopes],
+        graphPermissions: [...record.graphPermissions],
         id: record.id,
         lastRefreshedAt: record.lastRefreshedAt,
         provider: record.provider,
         providerSubjectId: record.providerSubjectId,
+        requestedScopes: [...record.requestedScopes],
         refreshTokenCiphertext: record.refreshTokenCiphertext,
         status: record.status,
         tokenExpiresAt: record.tokenExpiresAt,
@@ -94,9 +101,10 @@ export class DrizzleIntegrationAccountRepository implements IntegrationAccountRe
           connectedAt: record.connectedAt,
           disconnectedAt: record.disconnectedAt,
           displayName: record.displayName,
-          grantedScopes: [...record.grantedScopes],
+          graphPermissions: [...record.graphPermissions],
           lastRefreshedAt: record.lastRefreshedAt,
           providerSubjectId: record.providerSubjectId,
+          requestedScopes: [...record.requestedScopes],
           refreshTokenCiphertext: record.refreshTokenCiphertext,
           status: record.status,
           tokenExpiresAt: record.tokenExpiresAt,
@@ -118,7 +126,12 @@ function mapConsent(
     occurredAt: row.occurredAt,
     provider: 'microsoft',
     scope,
-    scopes: microsoftDelegatedScopesV1Schema.parse(row.scopes),
+    graphPermissions: microsoftGraphPermissionsV1Schema.parse(
+      row.graphPermissions,
+    ),
+    requestedScopes: microsoftRequestedScopesV1Schema.parse(
+      row.requestedScopes,
+    ),
   };
 }
 
@@ -132,7 +145,8 @@ export class DrizzleConsentRecordRepository implements ConsentRecordRepository {
       integrationAccountId: record.integrationAccountId,
       occurredAt: record.occurredAt,
       provider: record.provider,
-      scopes: [...record.scopes],
+      graphPermissions: [...record.graphPermissions],
+      requestedScopes: [...record.requestedScopes],
       userId: record.scope.userId,
     });
   }
@@ -158,7 +172,7 @@ function mapAuthorizationSession(
     id: uuidV1Schema.parse(row.id),
     provider: 'microsoft',
     redirectUri: row.redirectUri,
-    requestedScopes: microsoftDelegatedScopesV1Schema.parse(
+    requestedScopes: microsoftRequestedScopesV1Schema.parse(
       row.requestedScopes,
     ),
     stateHash: row.stateHash,

@@ -16,7 +16,7 @@ related-docs: ../README.md
 | Runtime role is over-privileged          | Forced RLS and documented separate migration/runtime grants                                                                 | Production grants require owner review and verification.          |
 | Authentication recovery is exhausted     | Ten offline one-use codes, generic recovery, revocation                                                                     | Regeneration/WebAuthn remain deferred decisions.                  |
 | Solo-maintainer operations become heavy  | One database, modular monolith, generated docs, complete gate, bounded processes                                            | Measure before adding services/agents.                            |
-| Provider permissions exceed need         | Exact five-scope allowlist at URL, token, domain, SQL, contract, UI; broad responses fail closed                            | Re-prove in live consent and every later provider package.        |
+| Provider permissions exceed need         | Separate exact requested/token envelopes; dormant six-scope path; unexpected Graph `scp` fails closed                       | Re-prove WP-11 incremental consent; reject any extra permission.  |
 | Provider tokens are disclosed            | AES-256-GCM with external key/context, strict non-disclosure contracts, encrypted-column checks                             | Production key custody/rotation and app-registration hardening.   |
 | Restore/rollback corrupts evidence       | Forward migrations, matching backup/commit restore, stop-worker order                                                       | Production restore drill remains mandatory before launch.         |
 | Model content crosses privacy boundary   | Pre-adapter processing assertion; Private/unconsented Sensitive zero-call tests; synthetic bake-off                         | Re-prove in every later AI workflow and composition root.         |
@@ -28,6 +28,8 @@ related-docs: ../README.md
 | Reminder intent is mistaken for delivery | `undecided` delivery constraint, internal-only UI/receipts, no adapter or external permission                               | WP-11 must prove a channel through explicit owner/device gates.   |
 | Local time resolves incorrectly          | IANA zone plus exact instant, DST gap/overlap rejection, time-zone matrix tests                                             | Re-test recurrence expansion and travel semantics in WP-11/13.    |
 | Receipt edit or undo races               | Owner CSRF/confirmation, target and receipt versions, one transaction, content-free audit                                   | Add multi-device conflict UX when measured.                       |
+| To Do grant reaches foreign/shared tasks | Stored dedicated-list/task IDs, owner/non-shared flags, opaque markers, no import/general sync, pre-write checks            | Live test must prove containment; otherwise reject the channel.   |
+| Provider retry creates duplicate tasks   | Pending operation ledger, correlation/projection hashes, marker search, one bounded retry, uncertain fail-closed            | Reject To Do on any critical duplicate defect.                    |
 
 No recorded risk authorizes broader provider access, production deployment,
 destructive live-data action, or high-risk recommendation without its mandatory

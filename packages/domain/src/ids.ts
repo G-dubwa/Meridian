@@ -29,6 +29,24 @@ export const reminderOccurrenceIdV1Schema = z
 export type ReminderOccurrenceId = z.infer<typeof reminderOccurrenceIdV1Schema>;
 export const commandReceiptIdV1Schema = z.uuid().brand<'CommandReceiptId'>();
 export type CommandReceiptId = z.infer<typeof commandReceiptIdV1Schema>;
+export const microsoftTodoListBindingIdV1Schema = z
+  .uuid()
+  .brand<'MicrosoftTodoListBindingId'>();
+export type MicrosoftTodoListBindingId = z.infer<
+  typeof microsoftTodoListBindingIdV1Schema
+>;
+export const microsoftTodoTaskBindingIdV1Schema = z
+  .uuid()
+  .brand<'MicrosoftTodoTaskBindingId'>();
+export type MicrosoftTodoTaskBindingId = z.infer<
+  typeof microsoftTodoTaskBindingIdV1Schema
+>;
+export const externalWriteOperationIdV1Schema = z
+  .uuid()
+  .brand<'ExternalWriteOperationId'>();
+export type ExternalWriteOperationId = z.infer<
+  typeof externalWriteOperationIdV1Schema
+>;
 export const sessionIdV1Schema = z.uuid().brand<'SessionId'>();
 export type SessionId = z.infer<typeof sessionIdV1Schema>;
 
@@ -43,6 +61,9 @@ export const idSchemasV1 = {
   reminderId: reminderIdV1Schema,
   reminderOccurrenceId: reminderOccurrenceIdV1Schema,
   commandReceiptId: commandReceiptIdV1Schema,
+  externalWriteOperationId: externalWriteOperationIdV1Schema,
+  microsoftTodoListBindingId: microsoftTodoListBindingIdV1Schema,
+  microsoftTodoTaskBindingId: microsoftTodoTaskBindingIdV1Schema,
   resourceId: resourceIdV1Schema,
   sessionId: sessionIdV1Schema,
   userId: userIdV1Schema,

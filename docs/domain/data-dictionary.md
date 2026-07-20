@@ -100,6 +100,25 @@ Foreign keys:
 
 Indexes: `command_receipts_user_created_idx`.
 
+## consent_records
+
+| Column | SQL type | Null | Default | Primary |
+|---|---|---|---|---|
+| `id` | `uuid` | no | no | yes |
+| `user_id` | `uuid` | no | no | no |
+| `integration_account_id` | `uuid` | no | no | no |
+| `provider` | `text` | no | no | no |
+| `action` | `text` | no | no | no |
+| `requested_scopes` | `text[]` | no | no | no |
+| `graph_permissions` | `text[]` | no | no | no |
+| `occurred_at` | `timestamp with time zone` | no | no | no |
+| `created_at` | `timestamp with time zone` | no | yes | no |
+
+Foreign keys:
+- `consent_records_account_owner_fk`: (integration_account_id, user_id) → `integration_accounts` (id, user_id)
+
+Indexes: `consent_records_user_occurred_idx`.
+
 ## derivation_links
 
 | Column | SQL type | Null | Default | Primary |
@@ -191,6 +210,128 @@ Foreign keys:
 - `entry_revisions_entry_owner_fk`: (entry_id, user_id) → `entries` (id, user_id)
 
 Indexes: `entry_revisions_entry_number_unique`, `entry_revisions_user_created_idx`, `entry_revisions_ai_processing_idx`.
+
+## external_write_operations
+
+| Column | SQL type | Null | Default | Primary |
+|---|---|---|---|---|
+| `id` | `uuid` | no | no | yes |
+| `user_id` | `uuid` | no | no | no |
+| `list_binding_id` | `uuid` | yes | no | no |
+| `occurrence_id` | `uuid` | yes | no | no |
+| `correlation_id` | `uuid` | no | no | no |
+| `operation` | `text` | no | no | no |
+| `ownership_marker` | `uuid` | no | no | no |
+| `desired_projection_hash` | `text` | yes | no | no |
+| `baseline_external_ids` | `text[]` | no | yes | no |
+| `state` | `text` | no | yes | no |
+| `attempt_count` | `integer` | no | yes | no |
+| `failure_class` | `text` | yes | no | no |
+| `created_at` | `timestamp with time zone` | no | yes | no |
+| `updated_at` | `timestamp with time zone` | no | yes | no |
+
+Foreign keys:
+- `external_write_operations_user_id_users_id_fk`: (user_id) → `users` (id)
+- `external_write_operations_list_owner_fk`: (list_binding_id, user_id) → `microsoft_todo_list_bindings` (id, user_id)
+- `external_write_operations_occurrence_owner_fk`: (occurrence_id, user_id) → `reminder_occurrences` (id, user_id)
+
+Indexes: `external_write_operations_user_state_idx`.
+
+## integration_accounts
+
+| Column | SQL type | Null | Default | Primary |
+|---|---|---|---|---|
+| `id` | `uuid` | no | no | yes |
+| `user_id` | `uuid` | no | no | no |
+| `provider` | `text` | no | no | no |
+| `provider_subject_id` | `text` | no | no | no |
+| `display_name` | `text` | no | no | no |
+| `status` | `text` | no | no | no |
+| `requested_scopes` | `text[]` | no | no | no |
+| `graph_permissions` | `text[]` | no | no | no |
+| `access_token_ciphertext` | `text` | yes | no | no |
+| `refresh_token_ciphertext` | `text` | yes | no | no |
+| `token_expires_at` | `timestamp with time zone` | yes | no | no |
+| `token_key_version` | `integer` | no | yes | no |
+| `connected_at` | `timestamp with time zone` | no | no | no |
+| `disconnected_at` | `timestamp with time zone` | yes | no | no |
+| `last_refreshed_at` | `timestamp with time zone` | yes | no | no |
+| `created_at` | `timestamp with time zone` | no | yes | no |
+| `updated_at` | `timestamp with time zone` | no | yes | no |
+
+Foreign keys:
+- `integration_accounts_user_id_users_id_fk`: (user_id) → `users` (id)
+
+Indexes: `integration_accounts_user_status_idx`.
+
+## microsoft_todo_list_bindings
+
+| Column | SQL type | Null | Default | Primary |
+|---|---|---|---|---|
+| `id` | `uuid` | no | no | yes |
+| `user_id` | `uuid` | no | no | no |
+| `integration_account_id` | `uuid` | no | no | no |
+| `external_list_id` | `text` | no | no | no |
+| `ownership_marker` | `uuid` | no | no | no |
+| `display_name` | `text` | no | yes | no |
+| `created_by_meridian` | `boolean` | no | yes | no |
+| `status` | `text` | no | yes | no |
+| `extension_verified_at` | `timestamp with time zone` | no | no | no |
+| `last_verified_at` | `timestamp with time zone` | no | no | no |
+| `delta_link_ciphertext` | `text` | yes | no | no |
+| `created_at` | `timestamp with time zone` | no | yes | no |
+| `updated_at` | `timestamp with time zone` | no | yes | no |
+| `version` | `integer` | no | yes | no |
+
+Foreign keys:
+- `microsoft_todo_list_bindings_user_id_users_id_fk`: (user_id) → `users` (id)
+- `microsoft_todo_lists_account_owner_fk`: (integration_account_id, user_id) → `integration_accounts` (id, user_id)
+
+Indexes: `microsoft_todo_lists_user_status_idx`.
+
+## microsoft_todo_task_bindings
+
+| Column | SQL type | Null | Default | Primary |
+|---|---|---|---|---|
+| `id` | `uuid` | no | no | yes |
+| `user_id` | `uuid` | no | no | no |
+| `list_binding_id` | `uuid` | no | no | no |
+| `occurrence_id` | `uuid` | no | no | no |
+| `external_task_id` | `text` | no | no | no |
+| `ownership_marker` | `uuid` | no | no | no |
+| `projection_hash` | `text` | no | no | no |
+| `provider_etag` | `text` | yes | no | no |
+| `status` | `text` | no | yes | no |
+| `created_at` | `timestamp with time zone` | no | yes | no |
+| `updated_at` | `timestamp with time zone` | no | yes | no |
+| `version` | `integer` | no | yes | no |
+
+Foreign keys:
+- `microsoft_todo_task_bindings_user_id_users_id_fk`: (user_id) → `users` (id)
+- `microsoft_todo_tasks_list_owner_fk`: (list_binding_id, user_id) → `microsoft_todo_list_bindings` (id, user_id)
+- `microsoft_todo_tasks_occurrence_owner_fk`: (occurrence_id, user_id) → `reminder_occurrences` (id, user_id)
+
+Indexes: `microsoft_todo_tasks_user_status_idx`.
+
+## oauth_authorization_sessions
+
+| Column | SQL type | Null | Default | Primary |
+|---|---|---|---|---|
+| `id` | `uuid` | no | no | yes |
+| `user_id` | `uuid` | no | no | no |
+| `provider` | `text` | no | no | no |
+| `state_hash` | `text` | no | no | no |
+| `code_verifier_ciphertext` | `text` | no | no | no |
+| `redirect_uri` | `text` | no | no | no |
+| `requested_scopes` | `text[]` | no | no | no |
+| `created_at` | `timestamp with time zone` | no | no | no |
+| `expires_at` | `timestamp with time zone` | no | no | no |
+| `consumed_at` | `timestamp with time zone` | yes | no | no |
+
+Foreign keys:
+- `oauth_authorization_sessions_user_id_users_id_fk`: (user_id) → `users` (id)
+
+Indexes: `oauth_authorization_sessions_expiry_idx`.
 
 ## outbox_messages
 

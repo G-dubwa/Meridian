@@ -8,16 +8,15 @@ related-docs: roadmap.md
 
 # Project state
 
-Last updated: 19 July 2026
+Last updated: 20 July 2026
 
 ## Current work package
 
-- WP-10 — Tasks and canonical reminders is complete on
-  `wp-10-tasks-canonical-reminders`, based exactly on WP-09. Internal canonical
-  tasks/reminders, deterministic time resolution, atomic accepted-proposal
-  targets/provenance, receipts, Edit/Undo, occurrence history, REST/UI, and
-  content-free audit passed the full gate. Work is stopped at the WP-11
-  Microsoft To Do permission and real-device gate.
+- WP-11 — Microsoft To Do delivery spike has completed its approved mocked
+  implementation on `wp-11-microsoft-todo-delivery-spike`, based exactly on
+  WP-10. The six-scope flow and contained adapter are dormant. Work is stopped
+  before the separate live incremental-consent/Graph/device gate; WP-11 remains
+  open and To Do remains experimental.
 
 ## Completed packages
 
@@ -34,8 +33,8 @@ Last updated: 19 July 2026
   `907c8a239dfe87185b510e136df855fa2e16dca0`.
 - WP-09 — Interpretation, commands, and Triage. Completion commit is the
   package-sized commit `930a4b567004589ec32a2268994ce0097b5316ff`.
-- WP-10 — Tasks and canonical reminders. Completion commit is the package-sized
-  WP-10 commit recorded in project history.
+- WP-10 — Tasks and canonical reminders. Commit
+  `718bc897939017a641e6c3ee20f593c9c7c35516`.
 
 ## Active branches or worktrees
 
@@ -52,10 +51,12 @@ Last updated: 19 July 2026
   `907c8a239dfe87185b510e136df855fa2e16dca0`.
 - `wp-09-interpretation-commands-triage` — complete and remotely verified at
   `930a4b567004589ec32a2268994ce0097b5316ff`.
-- `wp-10-tasks-canonical-reminders` — complete and ready for local integration.
+- `wp-10-tasks-canonical-reminders` — complete, pushed, and integrated at
+  `718bc897939017a641e6c3ee20f593c9c7c35516`.
+- `wp-11-microsoft-todo-delivery-spike` — mocked implementation; stopped at the
+  live gate.
 - Integration branch: remote `main` ends at
-  `930a4b567004589ec32a2268994ce0097b5316ff` after exact verification; remote
-  WP-08 and WP-09 branches retain their package commits.
+  `718bc897939017a641e6c3ee20f593c9c7c35516` after exact verification.
 
 ## Test status
 
@@ -103,6 +104,13 @@ profile offline_access User.Read Calendars.Read` and no additional permission.
   atomic proposal target/provenance, command idempotency, Edit/Undo, occurrence
   cancellation, content-free events, and no external delivery/provider call.
 - Gitleaks is configured in CI; local binary is not required by the local gate.
+- WP-11 mocked repository gate is green: formatting, lint, strict typecheck, 121
+  modules/236 dependencies plus the negative fixture, Drizzle consistency, 17
+  unit files/83 tests, one live local-PostgreSQL file/9 tests, 9 live-server
+  owner journeys, 99 governed Markdown documents/current dictionary, and every
+  workspace build. Tests use synthetic fixtures and mocked HTTP only; no
+  Microsoft Graph request, incremental consent, Entra change, or external
+  mutation occurred.
 
 ## Known risks
 
@@ -135,10 +143,15 @@ Calendars.Read`; no write, To Do, mail, shared-calendar, or application
   Terra/`none` bounded classification/proposals as provisional Alpha routes.
 - Later gates include production secrets, real-device delivery testing, and
   production deployment expenditure.
-- WP-11 is the next mandatory human gate. Microsoft To Do permission, a
-  dedicated list, provider mutations, device tests, and any delivery decision
-  require a separately reviewed scope request and explicit approval. WP-10 does
-  not pre-authorize them.
+- WP-11's first gate approved the contained design and mocked implementation.
+  Its second gate remains closed: Microsoft incremental consent, Entra changes,
+  the dedicated list, every Graph read/write, device testing, cleanup, and any
+  delivery decision require explicit approval. The proposed OAuth/OIDC request
+  is exactly `openid profile offline_access User.Read Calendars.Read
+Tasks.ReadWrite`; the expected Graph token `scp` set is separately exactly
+  `User.Read Calendars.Read Tasks.ReadWrite`. The broader technical access of
+  delegated `Tasks.ReadWrite`, including shared tasks, is acknowledged and
+  constrained at application level.
 
 ## Deferred work
 
@@ -151,6 +164,7 @@ Calendars.Read`; no write, To Do, mail, shared-calendar, or application
 
 ## Next package
 
-- WP-10 is complete. Stop at the WP-11 Microsoft To Do permission and
-  real-device acceptance gate until the owner approves the exact delegated
-  scope and paid/device test plan.
+- Stop WP-11 at live incremental consent. On approval, execute the single
+  synthetic real-device plan and seven-day experimental scorecard. WP-12 may
+  proceed independently during observation, but WP-11 cannot complete and To Do
+  cannot activate until every criterion and the final owner decision pass.

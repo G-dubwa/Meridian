@@ -78,3 +78,12 @@ The bounded reminder parser is deterministic local code, so it sends no content
 to a model or delivery provider. Accepted proposals retain owner-scoped source
 proposal and exact revision/span provenance. Microsoft processing and scopes do
 not change; reminder delivery remains `undecided` behind WP-11.
+
+WP-11's automated work uses synthetic fixtures and mocked HTTP only. Its dormant
+To Do projection would transmit the confirmed reminder title plus reminder/due
+wall time only to the owner's dedicated, marker-verified `Meridian` list.
+Existing personal/shared task bodies are never imported. Baseline recovery sees
+list metadata only. Local bindings retain opaque Microsoft IDs/markers and a
+projection hash under forced RLS; activity events omit provider IDs, task text,
+times, response bodies, and device data. No live Microsoft To Do processing has
+occurred, and the six-scope incremental route is not exposed.

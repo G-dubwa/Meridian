@@ -67,6 +67,17 @@ new content-free events through the existing concurrent dispatch/dead-letter
 path. Playwright proves unauthenticated Triage rejection and the authenticated
 empty Triage API/UI through the live server.
 
+WP-11 automated tests remain provider-free. Synthetic OAuth responses prove the
+exact six requested scopes are distinct from the exact three Graph `scp`
+permissions and reject extras. Mocked Graph tests inspect only request shape,
+dedicated-list paths, ownership markers, deterministic time conversion, and
+sanitized failures. Application tests prove owner confirmation, five-scope
+refusal before token access, baseline recovery, and no blind duplicate POST.
+The local PostgreSQL suite applies the new forced-RLS bindings and verifies the
+scope-envelope migration. Live consent, Graph reads/writes, device delivery,
+completion observation, cleanup, and the seven-day scorecard are a separate
+manual gate and never run under `pnpm check`.
+
 Tests may use synthetic fixture identifiers and passphrases only. Test output,
 snapshots, traces, and screenshots must not contain credentials, recovery codes,
 session cookies, journal content, or production data. A failed security journey

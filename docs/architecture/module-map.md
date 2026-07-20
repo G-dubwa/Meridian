@@ -29,11 +29,14 @@ adapters. Web route handlers depend on an application service facade; worker
 runtime handlers do the same. Client components and non-composition runtime code
 cannot import infrastructure modules.
 
-`packages/infrastructure-ms-graph` implements only the WP-07 OAuth, minimal
-profile, PKCE, and token-cipher ports. Calendar reads and all write surfaces are
-absent. `packages/infrastructure-db` implements owner-scoped integration/consent
-repositories plus the narrow one-time callback-session store. The application
-service depends on those domain ports and never imports either adapter.
+`packages/infrastructure-ms-graph` implements WP-07 OAuth, minimal profile,
+PKCE/token custody, and WP-11's dormant constrained To Do adapter. The adapter
+has only `/me/todo/lists` list/task paths; application policy owns authority,
+stored-ID/marker containment, and duplicate recovery. No web route composes the
+WP-11 mutation path before its live gate. `packages/infrastructure-db`
+implements owner-scoped integration/consent and To Do binding/operation
+repositories plus the narrow one-time callback-session store. Application
+services depend on domain ports and never import either adapter.
 
 `packages/infrastructure-models` implements the domain model-inference port and
 owns provider HTTP translation only. It must not decide processing eligibility,

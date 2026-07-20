@@ -1,6 +1,8 @@
 import {
   integrationAccountStatusV1Schema,
   microsoftDelegatedScopesV1Schema,
+  microsoftGraphPermissionsV1Schema,
+  microsoftRequestedScopesV1Schema,
   uuidV1Schema,
 } from '@meridian/domain';
 import { z } from 'zod';
@@ -17,7 +19,8 @@ export const microsoftConsentRecordV1Schema = z
   .object({
     action: z.enum(['granted', 'disconnected', 'reauthorization_required']),
     occurredAt: z.iso.datetime({ offset: true }),
-    scopes: microsoftDelegatedScopesV1Schema,
+    graphPermissions: microsoftGraphPermissionsV1Schema,
+    requestedScopes: microsoftRequestedScopesV1Schema,
   })
   .strict();
 
@@ -26,9 +29,10 @@ export const microsoftConnectionAccountV1Schema = z
     connectedAt: z.iso.datetime({ offset: true }),
     disconnectedAt: z.iso.datetime({ offset: true }).nullable(),
     displayName: z.string().min(1).max(255),
-    grantedScopes: microsoftDelegatedScopesV1Schema,
+    graphPermissions: microsoftGraphPermissionsV1Schema,
     id: uuidV1Schema,
     lastRefreshedAt: z.iso.datetime({ offset: true }).nullable(),
+    requestedScopes: microsoftRequestedScopesV1Schema,
     status: integrationAccountStatusV1Schema,
   })
   .strict();

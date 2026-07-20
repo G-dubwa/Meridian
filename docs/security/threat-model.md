@@ -153,3 +153,21 @@ administrator, wall-clock or time-zone database drift, travel semantics not yet
 implemented, and an owner assuming a scheduled internal reminder will notify a
 device. WP-11 must receive explicit permission approval and real-device
 evidence before any Microsoft To Do or alternate delivery adapter activates.
+
+## WP-11 Microsoft To Do spike extension
+
+| Threat                                      | Controls                                                                                                            |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Broad delegated task access is exercised    | Exact `scp`; dedicated stored list; owner/non-shared/marker checks; no imports, `/users`, shared traversal, or sync |
+| Foreign list/task is mutated                | Stored provider IDs plus list open extension and task linked marker; every mutation revalidates containment         |
+| Lost response creates a duplicate           | Durable pending operation, pre-create baseline, marker recovery, at most one bounded retry, multiple-match stop     |
+| Token permissions differ from OAuth request | Separate exact six requested vs exact three Graph permission schemas; missing/extra/opaque `scp` rejected           |
+| Disconnect leaves silent control            | Tokens erased; binding becomes unmanaged without provider call; reconnect requires fresh ownership verification     |
+| Reminder content leaks into audit           | Operation/event payloads contain local IDs, class, outcome and attempts only; provider diagnostics are sanitized    |
+| Wrong zone/date reaches device              | UTC/IANA canonical value, deterministic Johannesburg wall time, explicit Windows-zone mapping, live rejection gate  |
+
+Residual risks are the unavoidable breadth of delegated `Tasks.ReadWrite`,
+Microsoft client notification behavior, provider support for open extensions,
+eventual consistency, and device/OS delivery variance. They remain unaccepted
+until the second gate and seven-day scorecard pass. A failure rejects the
+channel; it does not relax containment or activate an alternative automatically.

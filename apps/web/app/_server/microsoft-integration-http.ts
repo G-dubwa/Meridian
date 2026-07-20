@@ -21,18 +21,20 @@ function statusResponse(view: MicrosoftConnectionStatusView): NextResponse {
             connectedAt: view.account.connectedAt.toISOString(),
             disconnectedAt: view.account.disconnectedAt?.toISOString() ?? null,
             displayName: view.account.displayName,
-            grantedScopes: view.account.grantedScopes,
+            graphPermissions: view.account.graphPermissions,
             id: view.account.id,
             lastRefreshedAt:
               view.account.lastRefreshedAt?.toISOString() ?? null,
+            requestedScopes: view.account.requestedScopes,
             status: view.account.status,
           }
         : null,
       configured: view.configured,
       consentRecords: view.consentRecords.map((record) => ({
         action: record.action,
+        graphPermissions: record.graphPermissions,
         occurredAt: record.occurredAt.toISOString(),
-        scopes: record.scopes,
+        requestedScopes: record.requestedScopes,
       })),
       requestedScopes: view.requestedScopes,
     }),

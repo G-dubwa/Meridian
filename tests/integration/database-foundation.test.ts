@@ -12,11 +12,15 @@ import type {
   UserScope,
 } from '../../packages/domain/src/index.js';
 import {
-  MICROSOFT_STAGE_A_SCOPES,
+  MICROSOFT_STAGE_A_REQUESTED_SCOPES,
+  MICROSOFT_STAGE_A_GRAPH_PERMISSIONS,
+  MICROSOFT_TODO_SPIKE_GRAPH_PERMISSIONS,
+  MICROSOFT_TODO_SPIKE_REQUESTED_SCOPES,
   MicrosoftOAuthGatewayError,
   derivationLinkIdV1Schema,
   entryIdV1Schema,
   entryRevisionIdV1Schema,
+  microsoftTodoListBindingIdV1Schema,
   resourceIdV1Schema,
   proposalIdV1Schema,
   userIdV1Schema,
@@ -127,7 +131,10 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
       'domain_events',
       'entries',
       'entry_revisions',
+      'external_write_operations',
       'integration_accounts',
+      'microsoft_todo_list_bindings',
+      'microsoft_todo_task_bindings',
       'oauth_authorization_sessions',
       'outbox_messages',
       'proposals',
@@ -153,6 +160,17 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
       where partrelid in ('domain_events'::regclass, 'outbox_messages'::regclass)
     `;
     expect(partitions).toHaveLength(0);
+    const todoRls = await admin.sql`
+      select relname
+      from pg_class
+      where relname in (
+        'external_write_operations',
+        'microsoft_todo_list_bindings',
+        'microsoft_todo_task_bindings'
+      ) and relrowsecurity and relforcerowsecurity
+      order by relname
+    `;
+    expect(todoRls).toHaveLength(3);
   });
 
   it('upgrades a seeded previous migration snapshot without losing its user', async () => {
@@ -288,7 +306,7 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
     await admin.sql.unsafe(`grant usage on schema public to ${appRole}`);
     await admin.sql.unsafe(`grant select on schema_registry to ${appRole}`);
     await admin.sql.unsafe(
-      `grant select, insert, update, delete on users, resources, entries, entry_revisions, derivation_links, domain_events, outbox_messages, proposals, tasks, reminders, reminder_occurrences, command_receipts, integration_accounts, consent_records, oauth_authorization_sessions to ${appRole}`,
+      `grant select, insert, update, delete on users, resources, entries, entry_revisions, derivation_links, domain_events, outbox_messages, proposals, tasks, reminders, reminder_occurrences, command_receipts, integration_accounts, consent_records, oauth_authorization_sessions, microsoft_todo_list_bindings, microsoft_todo_task_bindings, external_write_operations to ${appRole}`,
     );
 
     app = createDatabaseClient(appUrl.toString());
@@ -449,7 +467,7 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
       transactions,
     });
     const actions = new ActionService({
-      clock: new SystemClock(),
+      clock: { now: () => now },
       ids,
       transactions,
     });
@@ -1093,7 +1111,12 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
         }).toString();
         return url;
       },
-      exchangeAuthorizationCode(code, codeVerifier, redirectUri) {
+      exchangeAuthorizationCode(
+        code,
+        codeVerifier,
+        redirectUri,
+        requestedScopes,
+      ) {
         expect(code).toBe('one-time-code');
         expect(redirectUri).toBe(
           'http://localhost:3000/api/integrations/microsoft/callback',
@@ -1102,7 +1125,9 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
         return Promise.resolve({
           accessToken: 'initial-access-token',
           expiresInSeconds: 60,
-          grantedScopes: MICROSOFT_STAGE_A_SCOPES,
+          graphPermissions: requestedScopes.includes('Tasks.ReadWrite')
+            ? MICROSOFT_TODO_SPIKE_GRAPH_PERMISSIONS
+            : MICROSOFT_STAGE_A_GRAPH_PERMISSIONS,
           refreshToken: 'initial-refresh-token',
         });
       },
@@ -1113,7 +1138,7 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
           providerSubjectId: 'provider-subject-opaque',
         });
       },
-      refresh(refreshToken) {
+      refresh(refreshToken, requestedScopes) {
         expect(refreshToken).toBe('initial-refresh-token');
         if (consentRevoked)
           return Promise.reject(
@@ -1123,7 +1148,9 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
         return Promise.resolve({
           accessToken: 'rotated-access-token',
           expiresInSeconds: 3600,
-          grantedScopes: MICROSOFT_STAGE_A_SCOPES,
+          graphPermissions: requestedScopes.includes('Tasks.ReadWrite')
+            ? MICROSOFT_TODO_SPIKE_GRAPH_PERMISSIONS
+            : MICROSOFT_STAGE_A_GRAPH_PERMISSIONS,
           refreshToken: 'rotated-refresh-token',
         });
       },
@@ -1147,7 +1174,7 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
     expect(authorizationUrl.hostname).toBe('login.microsoftonline.com');
     expect(authorizationUrl.pathname).toContain('/consumers/');
     expect(authorizationUrl.searchParams.get('scope')?.split(' ')).toEqual(
-      MICROSOFT_STAGE_A_SCOPES,
+      MICROSOFT_STAGE_A_REQUESTED_SCOPES,
     );
     expect(authorizationUrl.search).not.toMatch(
       /ReadWrite|Mail|Tasks|Shared|\.default/i,
@@ -1195,13 +1222,56 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
     expect(connected).toMatchObject({
       account: {
         displayName: 'Meridian Test Owner',
-        grantedScopes: MICROSOFT_STAGE_A_SCOPES,
+        graphPermissions: MICROSOFT_STAGE_A_GRAPH_PERMISSIONS,
+        requestedScopes: MICROSOFT_STAGE_A_REQUESTED_SCOPES,
         status: 'connected',
       },
       configured: true,
     });
     expect(connected.consentRecords).toHaveLength(1);
     expect(await microsoft.status(scopeB)).toMatchObject({ account: null });
+
+    const incrementalUrl = await microsoft.beginTodoIncrementalConsent(scopeA);
+    expect(incrementalUrl.searchParams.get('scope')?.split(' ')).toEqual(
+      MICROSOFT_TODO_SPIKE_REQUESTED_SCOPES,
+    );
+    const incrementalState = incrementalUrl.searchParams.get('state');
+    if (!incrementalState)
+      throw new Error('Incremental authorization state was not generated.');
+    await microsoft.completeConnection(incrementalState, 'one-time-code');
+    const incrementallyConsented = await microsoft.status(scopeA);
+    expect(incrementallyConsented.account).toMatchObject({
+      graphPermissions: MICROSOFT_TODO_SPIKE_GRAPH_PERMISSIONS,
+      requestedScopes: MICROSOFT_TODO_SPIKE_REQUESTED_SCOPES,
+    });
+    expect(incrementallyConsented.consentRecords).toHaveLength(2);
+    const incrementalAccount = incrementallyConsented.account;
+    if (!incrementalAccount)
+      throw new Error('Expected the mocked incremental connection.');
+    const todoListBindingId = microsoftTodoListBindingIdV1Schema.parse(
+      ids.next(),
+    );
+    await transactions.run(scopeA, (ports) =>
+      ports.microsoftTodoListBindings.save({
+        createdAt: currentTime,
+        deltaLinkCiphertext: null,
+        extensionVerifiedAt: currentTime,
+        externalListId: 'synthetic-meridian-list',
+        id: todoListBindingId,
+        integrationAccountId: incrementalAccount.id,
+        lastVerifiedAt: currentTime,
+        ownershipMarker: ids.next(),
+        scope: scopeA,
+        status: 'experimental',
+        updatedAt: currentTime,
+        version: 1,
+      }),
+    );
+    await expect(
+      transactions.run(scopeB, (ports) =>
+        ports.microsoftTodoListBindings.find(scopeB),
+      ),
+    ).resolves.toBeNull();
 
     const [storedTokens] = await admin.sql<
       {
@@ -1222,11 +1292,11 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
         await sql`select set_config('meridian.user_id', ${scopeA.userId}, true)`;
         await sql`
           update integration_accounts
-          set granted_scopes = ARRAY['openid', 'profile', 'offline_access', 'User.Read', 'Mail.Read']::text[]
+          set requested_scopes = ARRAY['openid', 'profile', 'offline_access', 'User.Read', 'Mail.Read']::text[]
           where user_id = ${scopeA.userId}
         `;
       }),
-    ).rejects.toThrow(/integration_accounts_stage_a_scopes/);
+    ).rejects.toThrow(/integration_accounts_approved_scope_envelope/);
 
     currentTime = new Date('2026-07-18T09:01:00.000Z');
     await expect(microsoft.accessTokenFor(scopeA)).resolves.toBe(
@@ -1241,8 +1311,14 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
     });
     const disconnected = await microsoft.status(scopeA);
     expect(disconnected.account?.status).toBe('disconnected');
+    await expect(
+      transactions.run(scopeA, (ports) =>
+        ports.microsoftTodoListBindings.find(scopeA),
+      ),
+    ).resolves.toMatchObject({ status: 'unmanaged', version: 2 });
     expect(disconnected.consentRecords.map((record) => record.action)).toEqual([
       'disconnected',
+      'granted',
       'granted',
     ]);
     const [cleared] = await admin.sql<
@@ -1309,7 +1385,7 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
       where user_id = ${scopeA.userId}
         and topic like 'integration.%'
     `;
-    expect(events?.count).toBe('4');
-    expect(messages?.count).toBe('4');
+    expect(events?.count).toBe('5');
+    expect(messages?.count).toBe('5');
   });
 });
