@@ -262,16 +262,49 @@ export class DrizzleReminderOccurrenceRepository implements ReminderOccurrenceRe
       : null;
   }
 
+  public async findByReminder(
+    scope: UserScope,
+    reminderId: ReminderRecord['id'],
+  ): Promise<ReminderOccurrenceRecord | null> {
+    const [row] = await this.database
+      .select()
+      .from(reminderOccurrences)
+      .where(
+        and(
+          eq(reminderOccurrences.userId, scope.userId),
+          eq(reminderOccurrences.reminderId, reminderId),
+        ),
+      )
+      .limit(1);
+    return row
+      ? {
+          createdAt: row.createdAt,
+          id: reminderOccurrenceIdV1Schema.parse(row.id),
+          reminderId: reminderIdV1Schema.parse(row.reminderId),
+          scheduledFor: row.scheduledFor,
+          scope,
+          state: row.state as ReminderOccurrenceRecord['state'],
+          updatedAt: row.updatedAt,
+        }
+      : null;
+  }
+
   public async save(occurrence: ReminderOccurrenceRecord): Promise<void> {
-    await this.database.insert(reminderOccurrences).values({
-      createdAt: occurrence.createdAt,
-      id: occurrence.id,
-      reminderId: occurrence.reminderId,
-      scheduledFor: occurrence.scheduledFor,
-      state: occurrence.state,
-      updatedAt: occurrence.updatedAt,
-      userId: occurrence.scope.userId,
-    });
+    await this.database
+      .insert(reminderOccurrences)
+      .values({
+        createdAt: occurrence.createdAt,
+        id: occurrence.id,
+        reminderId: occurrence.reminderId,
+        scheduledFor: occurrence.scheduledFor,
+        state: occurrence.state,
+        updatedAt: occurrence.updatedAt,
+        userId: occurrence.scope.userId,
+      })
+      .onConflictDoUpdate({
+        target: reminderOccurrences.id,
+        set: { state: occurrence.state, updatedAt: occurrence.updatedAt },
+      });
   }
 
   public async cancelPending(

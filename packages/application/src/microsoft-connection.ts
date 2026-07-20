@@ -2,6 +2,7 @@ import {
   AuthenticationFailedError,
   ConflictError,
   IntegrationUnavailableError,
+  MICROSOFT_STAGE_A_GRAPH_PERMISSIONS,
   MICROSOFT_STAGE_A_REQUESTED_SCOPES,
   MICROSOFT_TODO_SPIKE_REQUESTED_SCOPES,
   domainEventEnvelopeV1Schema,
@@ -99,6 +100,13 @@ function approvedRequestedScopes(
   if (parsed.includes('Tasks.ReadWrite'))
     return microsoftTodoRequestedScopesV1Schema.parse(parsed);
   return parsed;
+}
+
+function exactSet(values: readonly string[], expected: readonly string[]) {
+  return (
+    values.length === expected.length &&
+    expected.every((value) => values.includes(value))
+  );
 }
 
 function tokenContext(
@@ -262,11 +270,13 @@ export class MicrosoftConnectionService {
       ports.integrationAccounts.findMicrosoft(scope),
     );
     if (
-      current?.status !== 'connected' ||
-      current.requestedScopes.includes('Tasks.ReadWrite')
+      !current ||
+      !['connected', 'disconnected'].includes(current.status) ||
+      !exactSet(current.requestedScopes, MICROSOFT_STAGE_A_REQUESTED_SCOPES) ||
+      !exactSet(current.graphPermissions, MICROSOFT_STAGE_A_GRAPH_PERMISSIONS)
     )
       throw new ConflictError(
-        'Stage-A Microsoft connection is required before incremental consent.',
+        'An exact Stage-A Microsoft account is required before incremental consent.',
       );
     return this.beginAuthorizationFlow(
       scope,

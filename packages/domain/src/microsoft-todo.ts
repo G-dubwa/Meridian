@@ -75,6 +75,8 @@ export type MicrosoftTodoFailureClass = z.infer<
 export const microsoftTodoActivityEventTypeV1Schema = z.enum([
   'integration.microsoft_todo_list_prepared.v1',
   'delivery.microsoft_todo_task_created.v1',
+  'delivery.microsoft_todo_completion_observed.v1',
+  'integration.microsoft_todo_cleanup_completed.v1',
   'integration.microsoft_todo_operation_failed.v1',
 ]);
 export type MicrosoftTodoActivityEventType = z.infer<
@@ -105,6 +107,24 @@ export const microsoftTodoListSnapshotV1Schema = z
   .strict();
 export type MicrosoftTodoListSnapshot = z.infer<
   typeof microsoftTodoListSnapshotV1Schema
+>;
+
+export const microsoftTodoTaskSnapshotV1Schema = z
+  .object({
+    id: z.string().min(1).max(1024),
+    etag: z.string().max(2048).nullable(),
+    status: z.enum([
+      'notStarted',
+      'inProgress',
+      'completed',
+      'waitingOnOthers',
+      'deferred',
+    ]),
+    ownershipMarker: uuidV1Schema.nullable(),
+  })
+  .strict();
+export type MicrosoftTodoTaskSnapshot = z.infer<
+  typeof microsoftTodoTaskSnapshotV1Schema
 >;
 
 export const microsoftTodoProjectionV1Schema = z
@@ -147,7 +167,7 @@ export function assertManagedMicrosoftTodoListV1(
     parsed.wellknownListName !== 'none' ||
     parsed.ownershipMarker !== expectedMarker
   )
-    throw new Error('Microsoft To Do containment check failed.');
+    throw new MicrosoftTodoGatewayError('containment_rejected');
 }
 
 export const microsoftTodoListBindingRecordV1Schema = z

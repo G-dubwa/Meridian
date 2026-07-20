@@ -15,6 +15,7 @@ import {
   microsoftTodoTaskBindingIdV1Schema,
   outboxMessageIdV1Schema,
   reminderOccurrenceIdV1Schema,
+  transitionReminderStateV1,
   uuidV1Schema,
 } from '@meridian/domain';
 import type {
@@ -49,6 +50,12 @@ export interface MicrosoftTodoSpikeDependencies {
 export interface MicrosoftTodoSpikeContext {
   readonly correlationId: Uuid;
   readonly ownerConfirmed: true;
+}
+
+export interface MicrosoftTodoExperimentalStatus {
+  readonly listStatus: MicrosoftTodoListBindingRecord['status'] | null;
+  readonly reminderAt: string | null;
+  readonly taskStatus: MicrosoftTodoTaskBindingRecord['status'] | null;
 }
 
 function failureClass(error: unknown): MicrosoftTodoFailureClass {
@@ -163,6 +170,16 @@ export class MicrosoftTodoSpikeService {
       if (existing.status === 'experimental') return existing;
       throw new IntegrationUnavailableError();
     }
+    const previousCreate = await this.dependencies.transactions.run(
+      scope,
+      (ports) =>
+        ports.externalWriteOperations.findByCorrelation(
+          scope,
+          context.correlationId,
+          'create_list',
+        ),
+    );
+    if (previousCreate) throw new IntegrationUnavailableError();
 
     const accessToken = await this.dependencies.accessTokenFor(scope);
     const baseline = await this.dependencies.gateway.listLists(accessToken);
@@ -327,6 +344,16 @@ export class MicrosoftTodoSpikeService {
       state.occurrence.scheduledFor.toISOString() !== projection.reminderAt
     )
       throw new ConflictError('Reminder occurrence does not match projection.');
+    const previousCreate = await this.dependencies.transactions.run(
+      scope,
+      (ports) =>
+        ports.externalWriteOperations.findByCorrelation(
+          scope,
+          context.correlationId,
+          'create_task',
+        ),
+    );
+    if (previousCreate) throw new IntegrationUnavailableError();
 
     const accessToken = await this.dependencies.accessTokenFor(scope);
     const verifiedList = await this.dependencies.gateway.getList(
@@ -459,6 +486,316 @@ export class MicrosoftTodoSpikeService {
       );
     });
     return binding;
+  }
+
+  public status(scope: UserScope): Promise<MicrosoftTodoExperimentalStatus> {
+    return this.dependencies.transactions.run(scope, async (ports) => {
+      const list = await ports.microsoftTodoListBindings.find(scope);
+      const task = await ports.microsoftTodoTaskBindings.findLatest(scope);
+      const occurrence = task
+        ? await ports.reminderOccurrences.findById(scope, task.occurrenceId)
+        : null;
+      return {
+        listStatus: list?.status ?? null,
+        reminderAt: occurrence?.scheduledFor.toISOString() ?? null,
+        taskStatus: task?.status ?? null,
+      };
+    });
+  }
+
+  public async reconcileExperimentalTask(
+    scope: UserScope,
+    context: MicrosoftTodoSpikeContext,
+  ): Promise<MicrosoftTodoTaskBindingRecord> {
+    await this.assertExperimentalAuthority(scope);
+    const state = await this.dependencies.transactions.run(
+      scope,
+      async (ports) => {
+        const list = await ports.microsoftTodoListBindings.find(scope);
+        const task = await ports.microsoftTodoTaskBindings.findLatest(scope);
+        const occurrence = task
+          ? await ports.reminderOccurrences.findById(scope, task.occurrenceId)
+          : null;
+        const reminder = occurrence
+          ? await ports.reminders.findById(scope, occurrence.reminderId)
+          : null;
+        return { list, occurrence, reminder, task };
+      },
+    );
+    if (
+      state.list?.status !== 'experimental' ||
+      !state.task ||
+      !state.occurrence ||
+      !state.reminder ||
+      state.task.listBindingId !== state.list.id
+    )
+      throw new IntegrationUnavailableError();
+    const list = state.list;
+    const task = state.task;
+    const occurrence = state.occurrence;
+    const reminder = state.reminder;
+    if (task.status === 'completed') return task;
+    const now = this.dependencies.clock.now();
+    const pendingOperation = this.operationFor(
+      scope,
+      context,
+      'reconcile',
+      list,
+      task,
+      now,
+    );
+    let providerTask: Awaited<ReturnType<MicrosoftTodoGateway['getTask']>>;
+    try {
+      const accessToken = await this.dependencies.accessTokenFor(scope);
+      const verifiedList = await this.dependencies.gateway.getList(
+        accessToken,
+        list.externalListId,
+      );
+      assertManagedMicrosoftTodoListV1(
+        verifiedList,
+        list.externalListId,
+        list.ownershipMarker,
+      );
+      providerTask = await this.dependencies.gateway.getTask(
+        accessToken,
+        list.externalListId,
+        task.externalTaskId,
+      );
+      if (
+        providerTask.id !== task.externalTaskId ||
+        providerTask.ownershipMarker !== task.ownershipMarker
+      )
+        throw new MicrosoftTodoGatewayError('containment_rejected');
+    } catch (error) {
+      await this.recordFailure(scope, pendingOperation, failureClass(error));
+      throw new IntegrationUnavailableError();
+    }
+    if (providerTask.status !== 'completed') {
+      await this.dependencies.transactions.run(scope, (ports) =>
+        ports.externalWriteOperations.save({
+          ...pendingOperation,
+          attemptCount: 1,
+          state: 'succeeded',
+        }),
+      );
+      return task;
+    }
+
+    if (now < occurrence.scheduledFor)
+      throw new ConflictError('Completion cannot be observed before delivery.');
+    const operation: ExternalWriteOperationRecord = {
+      ...pendingOperation,
+      attemptCount: 1,
+      state: 'succeeded',
+    };
+    const completedTask: MicrosoftTodoTaskBindingRecord = {
+      ...task,
+      providerEtag: providerTask.etag,
+      status: 'completed',
+      updatedAt: now,
+      version: task.version + 1,
+    };
+    await this.dependencies.transactions.run(scope, async (ports) => {
+      const dueState =
+        reminder.state === 'scheduled'
+          ? transitionReminderStateV1(reminder.state, 'due')
+          : reminder.state;
+      const completedState =
+        dueState === 'completed'
+          ? dueState
+          : transitionReminderStateV1(dueState, 'completed');
+      const reminderUpdated = await ports.reminders.update(
+        {
+          ...reminder,
+          state: completedState,
+          updatedAt: now,
+          version: reminder.version + 1,
+        },
+        reminder.version,
+      );
+      if (!reminderUpdated)
+        throw new ConflictError('Canonical reminder changed during read-back.');
+      await ports.reminderOccurrences.save({
+        ...occurrence,
+        state: 'acknowledged',
+        updatedAt: now,
+      });
+      await ports.microsoftTodoTaskBindings.save(completedTask);
+      await ports.externalWriteOperations.save(operation);
+      await appendActivity(
+        this.dependencies,
+        ports,
+        scope,
+        context,
+        'delivery.microsoft_todo_completion_observed.v1',
+        operation,
+      );
+    });
+    return completedTask;
+  }
+
+  public async cleanupExperimentalObjects(
+    scope: UserScope,
+    context: MicrosoftTodoSpikeContext,
+  ): Promise<MicrosoftTodoExperimentalStatus> {
+    await this.assertExperimentalAuthority(scope);
+    const state = await this.dependencies.transactions.run(
+      scope,
+      async (ports) => ({
+        list: await ports.microsoftTodoListBindings.find(scope),
+        task: await ports.microsoftTodoTaskBindings.findLatest(scope),
+      }),
+    );
+    if (state.list?.status !== 'experimental')
+      throw new IntegrationUnavailableError();
+    const list = state.list;
+    const now = this.dependencies.clock.now();
+    const pendingOperation = this.operationFor(
+      scope,
+      context,
+      'cleanup',
+      list,
+      state.task,
+      now,
+    );
+    try {
+      const accessToken = await this.dependencies.accessTokenFor(scope);
+      const verifiedList = await this.dependencies.gateway.getList(
+        accessToken,
+        list.externalListId,
+      );
+      assertManagedMicrosoftTodoListV1(
+        verifiedList,
+        list.externalListId,
+        list.ownershipMarker,
+      );
+      const providerTasks = await this.dependencies.gateway.listTasks(
+        accessToken,
+        list.externalListId,
+      );
+      if (state.task) {
+        const only = providerTasks[0];
+        if (providerTasks.length > 1)
+          throw new MicrosoftTodoGatewayError('containment_rejected');
+        if (only) {
+          if (
+            only.id !== state.task.externalTaskId ||
+            only.ownershipMarker !== state.task.ownershipMarker
+          )
+            throw new MicrosoftTodoGatewayError('containment_rejected');
+          await this.deleteTaskWithRecovery(
+            accessToken,
+            list.externalListId,
+            state.task,
+          );
+        }
+      } else if (providerTasks.length !== 0) {
+        throw new MicrosoftTodoGatewayError('containment_rejected');
+      }
+      await this.deleteListWithRecovery(accessToken, list.externalListId);
+    } catch (error) {
+      await this.recordFailure(scope, pendingOperation, failureClass(error));
+      throw new IntegrationUnavailableError();
+    }
+    const operation: ExternalWriteOperationRecord = {
+      ...pendingOperation,
+      attemptCount: 1,
+      state: 'succeeded',
+    };
+    await this.dependencies.transactions.run(scope, async (ports) => {
+      if (state.task)
+        await ports.microsoftTodoTaskBindings.save({
+          ...state.task,
+          status: 'cleaned',
+          updatedAt: now,
+          version: state.task.version + 1,
+        });
+      await ports.microsoftTodoListBindings.save({
+        ...list,
+        status: 'cleaned',
+        updatedAt: now,
+        version: list.version + 1,
+      });
+      await ports.externalWriteOperations.save(operation);
+      await appendActivity(
+        this.dependencies,
+        ports,
+        scope,
+        context,
+        'integration.microsoft_todo_cleanup_completed.v1',
+        operation,
+      );
+    });
+    return this.status(scope);
+  }
+
+  private operationFor(
+    scope: UserScope,
+    context: MicrosoftTodoSpikeContext,
+    operation: 'reconcile' | 'cleanup',
+    list: MicrosoftTodoListBindingRecord,
+    task: MicrosoftTodoTaskBindingRecord | null,
+    now: Date,
+  ): ExternalWriteOperationRecord {
+    return {
+      attemptCount: 0,
+      baselineExternalIds: [],
+      correlationId: context.correlationId,
+      createdAt: now,
+      desiredProjectionHash: task?.projectionHash ?? null,
+      failureClass: null,
+      id: externalWriteOperationIdV1Schema.parse(this.dependencies.ids.next()),
+      listBindingId: list.id,
+      occurrenceId: task?.occurrenceId ?? null,
+      operation,
+      ownershipMarker: task?.ownershipMarker ?? list.ownershipMarker,
+      scope,
+      state: 'pending',
+      updatedAt: now,
+    };
+  }
+
+  private async deleteTaskWithRecovery(
+    accessToken: string,
+    listId: string,
+    task: MicrosoftTodoTaskBindingRecord,
+  ): Promise<void> {
+    try {
+      await this.dependencies.gateway.deleteTask(
+        accessToken,
+        listId,
+        task.externalTaskId,
+      );
+    } catch (error) {
+      if (failureClass(error) !== 'uncertain_outcome') throw error;
+      try {
+        await this.dependencies.gateway.getTask(
+          accessToken,
+          listId,
+          task.externalTaskId,
+        );
+      } catch (readError) {
+        if (failureClass(readError) === 'not_found') return;
+      }
+      throw new MicrosoftTodoGatewayError('uncertain_outcome');
+    }
+  }
+
+  private async deleteListWithRecovery(
+    accessToken: string,
+    listId: string,
+  ): Promise<void> {
+    try {
+      await this.dependencies.gateway.deleteList(accessToken, listId);
+    } catch (error) {
+      if (failureClass(error) !== 'uncertain_outcome') throw error;
+      try {
+        await this.dependencies.gateway.getList(accessToken, listId);
+      } catch (readError) {
+        if (failureClass(readError) === 'not_found') return;
+      }
+      throw new MicrosoftTodoGatewayError('uncertain_outcome');
+    }
   }
 
   private async assertExperimentalAuthority(scope: UserScope): Promise<void> {

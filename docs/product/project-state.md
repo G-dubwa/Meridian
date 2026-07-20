@@ -12,11 +12,12 @@ Last updated: 20 July 2026
 
 ## Current work package
 
-- WP-11 — Microsoft To Do delivery spike has completed its approved mocked
-  implementation on `wp-11-microsoft-todo-delivery-spike`, based exactly on
-  WP-10. The six-scope flow and contained adapter are dormant. Work is stopped
-  before the separate live incremental-consent/Graph/device gate; WP-11 remains
-  open and To Do remains experimental.
+- WP-11 — Microsoft To Do delivery spike has a separate guarded-enablement
+  checkpoint in progress on `wp-11-microsoft-todo-delivery-spike`, based exactly
+  on its pushed mocked commit. Owner/CSRF/literal-confirmation controls are
+  locally exposed but were not invoked. Work remains stopped before the live
+  incremental-consent/Graph/device gate; WP-11 stays open and To Do stays
+  experimental.
 
 ## Completed packages
 
@@ -53,8 +54,8 @@ Last updated: 20 July 2026
   `930a4b567004589ec32a2268994ce0097b5316ff`.
 - `wp-10-tasks-canonical-reminders` — complete, pushed, and integrated at
   `718bc897939017a641e6c3ee20f593c9c7c35516`.
-- `wp-11-microsoft-todo-delivery-spike` — mocked implementation; stopped at the
-  live gate.
+- `wp-11-microsoft-todo-delivery-spike` — guarded enablement implementation;
+  stopped at the live gate.
 - Integration branch: remote `main` ends at
   `718bc897939017a641e6c3ee20f593c9c7c35516` after exact verification.
 
@@ -104,13 +105,14 @@ profile offline_access User.Read Calendars.Read` and no additional permission.
   atomic proposal target/provenance, command idempotency, Edit/Undo, occurrence
   cancellation, content-free events, and no external delivery/provider call.
 - Gitleaks is configured in CI; local binary is not required by the local gate.
-- WP-11 mocked repository gate is green: formatting, lint, strict typecheck, 121
-  modules/236 dependencies plus the negative fixture, Drizzle consistency, 17
-  unit files/83 tests, one live local-PostgreSQL file/9 tests, 9 live-server
-  owner journeys, 99 governed Markdown documents/current dictionary, and every
-  workspace build. Tests use synthetic fixtures and mocked HTTP only; no
-  Microsoft Graph request, incremental consent, Entra change, or external
-  mutation occurred.
+- WP-11 guarded-enablement repository gate is green: formatting, lint, strict
+  typecheck, 129 modules/250 dependencies plus the negative fixture, Drizzle
+  consistency, 18 unit files/86 tests, one live local-PostgreSQL file/9 tests, 9
+  live-server owner journeys, 99 governed Markdown documents/current dictionary,
+  and every workspace build. Tests use synthetic fixtures and mocked HTTP only;
+  no Microsoft Graph request, incremental consent, Entra change, or external
+  mutation occurred. Local-server acceptance proves unauthenticated rejection
+  and no-configuration refusal before provider access.
 
 ## Known risks
 

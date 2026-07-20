@@ -8,9 +8,9 @@ related-docs: ../process/work-packages/WP-11-microsoft-todo-delivery-spike.md
 
 # Microsoft To Do delivery spike
 
-Status: mocked implementation verified; live incremental consent and every real
-Graph read/write remain blocked at the second human gate. To Do is experimental,
-not an active Meridian delivery channel.
+Status: guarded enablement implemented and locally verified; live incremental
+consent and every real Graph read/write remain blocked at the second human gate.
+To Do is experimental, not an active Meridian delivery channel.
 
 ## Permission envelope and gate
 
@@ -41,10 +41,45 @@ permission. Meridian contains that broader technical grant in application code:
 - any missing, conflicting, shared, foreign, or unverifiable marker suspends the
   experimental path and fails closed.
 
-The existing UI still initiates only the five-scope Stage-A connection. The
-six-scope incremental method is dormant and has no HTTP route. Entra permissions
-must not be changed and that method must not be exposed until the owner approves
-the second gate.
+The existing normal connect action still initiates only the five-scope Stage-A
+connection. A separate owner-confirmed control posts to guarded local route
+`POST /api/integrations/microsoft/todo/consent`; the route creates only an
+authorization URL and cannot call Graph. Entra permissions and live consent
+remain prohibited until the owner approves the live second-gate execution.
+
+## Process and secret ownership
+
+The Next.js web process exclusively owns the Microsoft OAuth client, encrypted
+token access, dedicated-list/task creation, completion reconciliation, cleanup,
+and emergency suspension. It receives `DATABASE_URL`, `MICROSOFT_CLIENT_ID`,
+`MICROSOFT_CLIENT_SECRET`, `MICROSOFT_REDIRECT_URI`, and
+`MICROSOFT_TOKEN_ENCRYPTION_KEY` from untracked `apps/web/.env.local`, which
+Next.js loads directly. Values are never printed or copied into root `.env`.
+
+The separate worker receives only its database environment. It consumes the
+content-free `integration.*` and `delivery.*` envelopes and never constructs a
+Graph adapter, decrypts a Microsoft token, or receives Microsoft/OpenAI
+credentials. Live To Do creation and reconciliation do not run in the worker.
+
+## Guarded local controls
+
+All mutation controls require an authenticated owner session, same-origin CSRF,
+an exact literal confirmation, no-store responses, and the exact six-scope
+account state before token access. No date is compiled into the application.
+
+| Control                             | Route                                             | Literal confirmation            |
+| ----------------------------------- | ------------------------------------------------- | ------------------------------- |
+| Incremental authorization URL       | `POST /api/integrations/microsoft/todo/consent`   | `ENABLE WP11 TODO CONSENT`      |
+| One idempotent synthetic occurrence | `POST /api/integrations/microsoft/todo/first-day` | `CREATE WP11 FIRST-DAY TEST`    |
+| Exact bound-task completion read    | `POST /api/integrations/microsoft/todo/reconcile` | `OBSERVE WP11 COMPLETION`       |
+| Marker-verified task/list deletion  | `POST /api/integrations/microsoft/todo/cleanup`   | `DELETE WP11 SYNTHETIC OBJECTS` |
+| Immediate local token erasure       | `POST /api/integrations/microsoft/todo/suspend`   | `SUSPEND WP11 GRAPH`            |
+
+The first-day request also requires a future offset-aware instant and a UUID
+idempotency key. The same key must be reused after a lost response. The server
+requires at least 30 minutes' preparation, creates the canonical reminder first,
+and permits only the constant synthetic title. Status responses disclose no
+Microsoft identifier.
 
 ## Dedicated-list ownership
 
@@ -136,6 +171,59 @@ it deletes verified Meridian-created objects and records results. Reconnect does
 not adopt by name or resume writes until ownership is reverified.
 
 ## Real-device acceptance plan — second gate
+
+### Live execution instructions (not yet authorized)
+
+1. In the existing Entra app registration, open **API permissions → Add a
+   permission → Microsoft Graph → Delegated permissions**, select only
+   `Tasks.ReadWrite`, and add it. Do not add/grant any application, mail,
+   calendar-write, or shared-task-specific permission. The app's Graph delegated
+   permission list must then be exactly `User.Read`, `Calendars.Read`, and
+   `Tasks.ReadWrite`.
+2. Keep the existing exact five-scope Microsoft account record. It may be
+   connected or locally disconnected; no separate five-scope reconnect is
+   needed. Meridian performs an in-place incremental upgrade under the same
+   local integration account. The callback validates exact `scp`, reads the
+   owner profile, encrypts the replacement access and refresh tokens, and only
+   then atomically replaces the old token pair (or the cleared disconnected
+   fields). Any validation/exchange failure retains no candidate token and does
+   not enable To Do.
+3. Start PostgreSQL/migrations, web, and worker using the exact Homebrew and
+   process-isolation commands in `docs/ops/local-dev.md`. Sign in locally and
+   open <http://localhost:3000/settings/integrations>.
+4. Select **Begin guarded Tasks.ReadWrite consent**. This invokes only
+   `POST /api/integrations/microsoft/todo/consent` and redirects to Microsoft.
+   The Microsoft screen must identify the intended personal account and show
+   only the incremental ability to read and write the owner's tasks. Abort and
+   use emergency suspension if it shows mail, calendar-write, application, or
+   any other unexpected access.
+5. After callback, require the Meridian consent ledger to show the exact six
+   requested scopes and exact Graph-token permissions `User.Read`,
+   `Calendars.Read`, `Tasks.ReadWrite`. Anything else fails closed.
+6. Enter the separately approved Johannesburg wall time in the first-day field,
+   confirm **Create one first-day test**, and do not change the generated
+   idempotency key when retrying after an uncertain browser/network result. The
+   web process creates the marker-owned private `Meridian` list and exactly one
+   synthetic occurrence; the worker performs no Graph work.
+7. Record separate elapsed observations for Graph creation, To Do visibility,
+   phone notification, phone completion, and Meridian completion observation.
+   Select **Observe test completion** only after completing the task on the
+   phone. Repeat a deliberately interrupted submission with the same local
+   idempotency key and require one external task.
+8. On failure before disconnect, select **Clean up synthetic task and list**.
+   Cleanup first proves the list marker and that the list contains either zero
+   tasks or exactly the one locally bound marker-owned task. Any foreign or
+   additional task blocks deletion. If cleanup cannot be proven, select
+   **Emergency suspend all Microsoft Graph access** and manually retain the
+   clearly labelled Microsoft objects for owner review.
+9. The emergency control invokes
+   `POST /api/integrations/microsoft/todo/suspend`, deletes both local token
+   ciphertexts, marks the binding unmanaged, and performs no Graph request.
+   Normal **Disconnect Microsoft** has the same token-erasure containment.
+
+No task content, token, Microsoft list/task identifier, extension value, or
+provider response body is printed or logged by these controls. Content-free
+consent/activity evidence is the only retained execution evidence.
 
 Before the test, the phone must use the same personal Microsoft account, have a
 current Microsoft To Do app, working network access, automatic date/time and

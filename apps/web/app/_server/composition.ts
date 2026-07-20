@@ -4,6 +4,8 @@ import {
   InterpretationService,
   JournalService,
   MicrosoftConnectionService,
+  MicrosoftTodoEnablementService,
+  MicrosoftTodoSpikeService,
   ModelGatewayService,
   ProposalMaterialChangeInvalidationHook,
   OutboxHealthService,
@@ -21,7 +23,10 @@ import {
   DrizzleTransactionManager,
   createDatabaseClient,
 } from '@meridian/infrastructure-db';
-import { createMicrosoftInfrastructure } from '@meridian/infrastructure-ms-graph';
+import {
+  MicrosoftTodoHttpGateway,
+  createMicrosoftInfrastructure,
+} from '@meridian/infrastructure-ms-graph';
 import { OpenAiResponsesAdapter } from '@meridian/infrastructure-models';
 import {
   TRIAGE_EXTRACTION_PROMPT_ID,
@@ -38,6 +43,8 @@ export interface AuthenticationRuntime {
   readonly interpretation?: InterpretationService;
   readonly journal: JournalService;
   readonly microsoft: MicrosoftConnectionService;
+  readonly microsoftTodo?: MicrosoftTodoSpikeService;
+  readonly microsoftTodoEnablement?: MicrosoftTodoEnablementService;
   readonly triage: TriageService;
   readonly secrets: NodeSecretService;
   readonly service: AuthenticationService;
@@ -50,6 +57,7 @@ function createRuntime(): AuthenticationRuntime {
   const database = createDatabaseClient(connectionString);
   const ids = new CryptoIdGenerator();
   const secrets = new NodeSecretService();
+  const clock = new SystemClock();
   const transactions = new DrizzleTransactionManager(database.database);
   const microsoftInfrastructure = createMicrosoftInfrastructure({
     clientId: process.env.MICROSOFT_CLIENT_ID,
@@ -58,7 +66,7 @@ function createRuntime(): AuthenticationRuntime {
     tokenEncryptionKey: process.env.MICROSOFT_TOKEN_ENCRYPTION_KEY,
   });
   const triage = new TriageService({
-    clock: new SystemClock(),
+    clock,
     ids,
     transactions,
   });
@@ -88,38 +96,59 @@ function createRuntime(): AuthenticationRuntime {
         triage,
       })
     : undefined;
+  const actions = new ActionService({
+    clock,
+    ids,
+    transactions,
+  });
+  const microsoft = new MicrosoftConnectionService({
+    ...(microsoftInfrastructure === undefined
+      ? {}
+      : { authorization: microsoftInfrastructure }),
+    clock,
+    ids,
+    oauthSessions: new DrizzleOAuthAuthorizationSessionStore(database.database),
+    secrets,
+    transactions,
+  });
+  const microsoftTodo =
+    microsoftInfrastructure === undefined
+      ? undefined
+      : new MicrosoftTodoSpikeService({
+          accessTokenFor: (scope) => microsoft.accessTokenFor(scope),
+          clock,
+          gateway: new MicrosoftTodoHttpGateway(),
+          ids,
+          projectionHasher: secrets,
+          transactions,
+        });
+  const microsoftTodoEnablement = microsoftTodo
+    ? new MicrosoftTodoEnablementService({
+        actions,
+        clock,
+        todo: microsoftTodo,
+        transactions,
+      })
+    : undefined;
   return {
-    actions: new ActionService({
-      clock: new SystemClock(),
-      ids,
-      transactions,
-    }),
+    actions,
+    ...(microsoftTodo === undefined ? {} : { microsoftTodo }),
+    ...(microsoftTodoEnablement === undefined
+      ? {}
+      : { microsoftTodoEnablement }),
     ids,
     ...(interpretation === undefined ? {} : { interpretation }),
     journal: new JournalService({
-      clock: new SystemClock(),
+      clock,
+      ids,
       contentHasher: secrets,
-      ids,
-      invalidation: new ProposalMaterialChangeInvalidationHook(
-        new SystemClock(),
-      ),
+      invalidation: new ProposalMaterialChangeInvalidationHook(clock),
       transactions,
     }),
-    microsoft: new MicrosoftConnectionService({
-      ...(microsoftInfrastructure === undefined
-        ? {}
-        : { authorization: microsoftInfrastructure }),
-      clock: new SystemClock(),
-      ids,
-      oauthSessions: new DrizzleOAuthAuthorizationSessionStore(
-        database.database,
-      ),
-      secrets,
-      transactions,
-    }),
+    microsoft,
     secrets,
     service: new AuthenticationService({
-      clock: new SystemClock(),
+      clock,
       ids,
       passwords: new Argon2idPasswordHasher(),
       secrets,

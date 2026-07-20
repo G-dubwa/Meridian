@@ -5,7 +5,9 @@ import {
   MICROSOFT_TODO_SPIKE_GRAPH_PERMISSIONS,
   MICROSOFT_TODO_SPIKE_REQUESTED_SCOPES,
   MicrosoftTodoGatewayError,
+  reminderIdV1Schema,
   reminderOccurrenceIdV1Schema,
+  resourceIdV1Schema,
   userIdV1Schema,
   uuidV1Schema,
 } from '../../packages/domain/src/index.js';
@@ -15,6 +17,8 @@ import type {
   MicrosoftTodoGateway,
   MicrosoftTodoListBindingRecord,
   MicrosoftTodoTaskBindingRecord,
+  ReminderOccurrenceRecord,
+  ReminderRecord,
   TransactionManager,
   TransactionPorts,
 } from '../../packages/domain/src/index.js';
@@ -59,6 +63,38 @@ function harness(todoPermission = true) {
   let currentAccount = account(todoPermission);
   let listBinding: MicrosoftTodoListBindingRecord | null = null;
   let taskBinding: MicrosoftTodoTaskBindingRecord | null = null;
+  let occurrence: ReminderOccurrenceRecord = {
+    createdAt: now,
+    id: occurrenceId,
+    reminderId: reminderIdV1Schema.parse(
+      '018f0f77-34f1-7ef2-8ca1-7a3bf7f01973',
+    ),
+    scheduledFor: new Date('2026-07-21T08:30:00.000Z'),
+    scope,
+    state: 'pending',
+    updatedAt: now,
+  };
+  let reminder: ReminderRecord = {
+    createdAt: now,
+    creationAuthority: 'explicit_command',
+    deliveryPolicy: 'undecided',
+    expiresAt: null,
+    id: occurrence.reminderId,
+    ownerFeedback: null,
+    priority: 'normal',
+    purpose: 'Meridian WP-11 TEST — safe to delete',
+    quietHoursBehavior: 'defer',
+    recurrence: null,
+    relatedResourceId: null,
+    resourceId: resourceIdV1Schema.parse(occurrence.reminderId),
+    scope,
+    sourceProposalId: null,
+    state: 'scheduled',
+    timeZone: 'Africa/Johannesburg',
+    triggerAt: occurrence.scheduledFor,
+    updatedAt: now,
+    version: 1,
+  };
   const operations = new Map<string, ExternalWriteOperationRecord>();
   const activityEventTypes: string[] = [];
   const ports = {
@@ -69,6 +105,18 @@ function harness(todoPermission = true) {
       },
     },
     externalWriteOperations: {
+      findByCorrelation: (
+        _scope: typeof scope,
+        correlationId: string,
+        operation: ExternalWriteOperationRecord['operation'],
+      ) =>
+        Promise.resolve(
+          [...operations.values()].find(
+            (record) =>
+              record.correlationId === correlationId &&
+              record.operation === operation,
+          ) ?? null,
+        ),
       findById: (_scope: typeof scope, id: string) =>
         Promise.resolve(operations.get(id) ?? null),
       save: (record: ExternalWriteOperationRecord) => {
@@ -92,6 +140,7 @@ function harness(todoPermission = true) {
     },
     microsoftTodoTaskBindings: {
       findByOccurrence: () => Promise.resolve(taskBinding),
+      findLatest: () => Promise.resolve(taskBinding),
       save: (record: MicrosoftTodoTaskBindingRecord) => {
         taskBinding = record;
         return Promise.resolve();
@@ -99,18 +148,19 @@ function harness(todoPermission = true) {
     },
     outbox: { append: () => Promise.resolve() },
     reminderOccurrences: {
-      findById: () =>
-        Promise.resolve({
-          createdAt: now,
-          id: occurrenceId,
-          reminderId: uuidV1Schema.parse(
-            '018f0f77-34f1-7ef2-8ca1-7a3bf7f01973',
-          ),
-          scheduledFor: new Date('2026-07-21T08:30:00.000Z'),
-          scope,
-          state: 'pending' as const,
-          updatedAt: now,
-        }),
+      findById: () => Promise.resolve(occurrence),
+      save: (record: ReminderOccurrenceRecord) => {
+        occurrence = record;
+        return Promise.resolve();
+      },
+    },
+    reminders: {
+      findById: () => Promise.resolve(reminder),
+      update: (record: ReminderRecord, expectedVersion: number) => {
+        if (reminder.version !== expectedVersion) return Promise.resolve(false);
+        reminder = record;
+        return Promise.resolve(true);
+      },
     },
   } as unknown as TransactionPorts;
   const transactions: TransactionManager = {
@@ -118,6 +168,7 @@ function harness(todoPermission = true) {
   };
   return {
     activityEventTypes,
+    current: () => ({ listBinding, occurrence, reminder, taskBinding }),
     operations,
     setAccount: (value: IntegrationAccountRecord) => {
       currentAccount = value;
@@ -154,6 +205,7 @@ describe('WP-11 Microsoft To Do spike orchestration', () => {
         );
       },
       deleteTask: () => Promise.resolve(),
+      deleteList: () => Promise.resolve(),
       findTasksByOwnershipMarker: () =>
         Promise.resolve([{ etag: 'etag-1', id: 'managed-task' }]),
       getList: (_token, listId) =>
@@ -164,6 +216,13 @@ describe('WP-11 Microsoft To Do spike orchestration', () => {
           isShared: false,
           ownershipMarker,
           wellknownListName: 'none',
+        }),
+      getTask: () =>
+        Promise.resolve({
+          etag: null,
+          id: 'managed-task',
+          ownershipMarker,
+          status: 'notStarted',
         }),
       listLists: () => {
         listReads += 1;
@@ -182,6 +241,7 @@ describe('WP-11 Microsoft To Do spike orchestration', () => {
               ],
         );
       },
+      listTasks: () => Promise.resolve([]),
       updateTask: () => Promise.resolve({ etag: null }),
     };
     const ids = [
@@ -273,5 +333,139 @@ describe('WP-11 Microsoft To Do spike orchestration', () => {
       }),
     ).rejects.toMatchObject({ code: 'INTEGRATION_UNAVAILABLE' });
     expect(tokenRequests).toBe(0);
+  });
+
+  it('reads completion only from the bound marker and cleans only an otherwise empty managed list', async () => {
+    const state = harness();
+    let currentTime = now;
+    let taskDeleted = 0;
+    let listDeleted = 0;
+    const listMarker = uuidV1Schema.parse(randomUUID());
+    const taskMarker = uuidV1Schema.parse(randomUUID());
+    const gateway: MicrosoftTodoGateway = {
+      addListOwnershipMarker: () => Promise.reject(new Error('not expected')),
+      createList: () => Promise.reject(new Error('not expected')),
+      createListAtomically: () =>
+        Promise.resolve({
+          displayName: 'Meridian',
+          id: 'managed-list',
+          isOwner: true,
+          isShared: false,
+          ownershipMarker: listMarker,
+          wellknownListName: 'none',
+        }),
+      createTask: () =>
+        Promise.resolve({ etag: 'created-etag', id: 'managed-task' }),
+      deleteList: () => {
+        listDeleted += 1;
+        return Promise.resolve();
+      },
+      deleteTask: () => {
+        taskDeleted += 1;
+        return Promise.resolve();
+      },
+      findTasksByOwnershipMarker: () => Promise.resolve([]),
+      getList: () =>
+        Promise.resolve({
+          displayName: 'Meridian',
+          id: 'managed-list',
+          isOwner: true,
+          isShared: false,
+          ownershipMarker: listMarker,
+          wellknownListName: 'none',
+        }),
+      getTask: () =>
+        Promise.resolve({
+          etag: 'completed-etag',
+          id: 'managed-task',
+          ownershipMarker: taskMarker,
+          status: 'completed',
+        }),
+      listLists: () => Promise.resolve([]),
+      listTasks: () =>
+        Promise.resolve([
+          {
+            etag: 'completed-etag',
+            id: 'managed-task',
+            ownershipMarker: taskMarker,
+            status: 'completed',
+          },
+        ]),
+      updateTask: () => Promise.resolve({ etag: null }),
+    };
+    const generated = [
+      randomUUID(),
+      listMarker,
+      randomUUID(),
+      randomUUID(),
+      randomUUID(),
+      randomUUID(),
+      taskMarker,
+      randomUUID(),
+      randomUUID(),
+      randomUUID(),
+      randomUUID(),
+      randomUUID(),
+      randomUUID(),
+      randomUUID(),
+    ].map((id) => uuidV1Schema.parse(id));
+    const service = new MicrosoftTodoSpikeService({
+      accessTokenFor: () => Promise.resolve('synthetic-access-token'),
+      clock: { now: () => currentTime },
+      gateway,
+      ids: {
+        next: () => {
+          const value = generated.shift();
+          return value ?? uuidV1Schema.parse(randomUUID());
+        },
+      },
+      projectionHasher: { hash: () => '0'.repeat(64) },
+      transactions: state.transactions,
+    });
+    await service.prepareExperimentalList(scope, {
+      correlationId: uuidV1Schema.parse(randomUUID()),
+      ownerConfirmed: true,
+    });
+    await service.createExperimentalTask(
+      scope,
+      {
+        dueAt: null,
+        occurrenceId,
+        recurrence: null,
+        reminderAt: '2026-07-21T08:30:00.000Z',
+        timeZone: 'Africa/Johannesburg',
+        title: 'Meridian WP-11 TEST — safe to delete',
+      },
+      {
+        correlationId: uuidV1Schema.parse(randomUUID()),
+        ownerConfirmed: true,
+      },
+    );
+    currentTime = new Date('2026-07-21T08:31:00.000Z');
+    await service.reconcileExperimentalTask(scope, {
+      correlationId: uuidV1Schema.parse(randomUUID()),
+      ownerConfirmed: true,
+    });
+    expect(state.current()).toMatchObject({
+      occurrence: { state: 'acknowledged' },
+      reminder: { state: 'completed' },
+      taskBinding: { status: 'completed' },
+    });
+    await service.cleanupExperimentalObjects(scope, {
+      correlationId: uuidV1Schema.parse(randomUUID()),
+      ownerConfirmed: true,
+    });
+    expect(taskDeleted).toBe(1);
+    expect(listDeleted).toBe(1);
+    expect(state.current()).toMatchObject({
+      listBinding: { status: 'cleaned' },
+      taskBinding: { status: 'cleaned' },
+    });
+    expect(state.activityEventTypes).toEqual([
+      'integration.microsoft_todo_list_prepared.v1',
+      'delivery.microsoft_todo_task_created.v1',
+      'delivery.microsoft_todo_completion_observed.v1',
+      'integration.microsoft_todo_cleanup_completed.v1',
+    ]);
   });
 });

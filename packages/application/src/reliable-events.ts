@@ -43,7 +43,8 @@ export class FoundationEventConsumer implements ReliableEventConsumer {
   public handle(event: DomainEventEnvelopeV1): Promise<void> {
     if (
       !event.eventType.startsWith('journal.') &&
-      !event.eventType.startsWith('integration.')
+      !event.eventType.startsWith('integration.') &&
+      !event.eventType.startsWith('delivery.')
     ) {
       throw new EventHandlingError(
         workerErrorCodeV1Schema.parse('UNSUPPORTED_EVENT_TYPE'),

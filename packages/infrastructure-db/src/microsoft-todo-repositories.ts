@@ -17,7 +17,7 @@ import type {
   ReminderOccurrenceId,
   UserScope,
 } from '@meridian/domain';
-import { and, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import type { DatabaseExecutor } from './repositories.js';
 import {
   externalWriteOperations,
@@ -157,6 +157,33 @@ export class DrizzleMicrosoftTodoTaskBindingRepository implements MicrosoftTodoT
         },
       });
   }
+
+  public async findLatest(
+    scope: UserScope,
+  ): Promise<MicrosoftTodoTaskBindingRecord | null> {
+    const [row] = await this.database
+      .select()
+      .from(microsoftTodoTaskBindings)
+      .where(eq(microsoftTodoTaskBindings.userId, scope.userId))
+      .orderBy(desc(microsoftTodoTaskBindings.createdAt))
+      .limit(1);
+    return row
+      ? microsoftTodoTaskBindingRecordV1Schema.parse({
+          createdAt: row.createdAt,
+          externalTaskId: row.externalTaskId,
+          id: row.id,
+          listBindingId: row.listBindingId,
+          occurrenceId: row.occurrenceId,
+          ownershipMarker: row.ownershipMarker,
+          projectionHash: row.projectionHash,
+          providerEtag: row.providerEtag,
+          scope,
+          status: row.status,
+          updatedAt: row.updatedAt,
+          version: row.version,
+        })
+      : null;
+  }
 }
 
 export class DrizzleExternalWriteOperationRepository implements ExternalWriteOperationRepository {
@@ -235,5 +262,48 @@ export class DrizzleExternalWriteOperationRepository implements ExternalWriteOpe
           updatedAt: parsed.updatedAt,
         },
       });
+  }
+
+  public async findByCorrelation(
+    scope: UserScope,
+    correlationId: ExternalWriteOperationRecord['correlationId'],
+    operation: ExternalWriteOperationRecord['operation'],
+  ): Promise<ExternalWriteOperationRecord | null> {
+    const [row] = await this.database
+      .select()
+      .from(externalWriteOperations)
+      .where(
+        and(
+          eq(externalWriteOperations.userId, scope.userId),
+          eq(externalWriteOperations.correlationId, correlationId),
+          eq(externalWriteOperations.operation, operation),
+        ),
+      )
+      .orderBy(desc(externalWriteOperations.createdAt))
+      .limit(1);
+    return row
+      ? externalWriteOperationRecordV1Schema.parse({
+          attemptCount: row.attemptCount,
+          baselineExternalIds: row.baselineExternalIds,
+          correlationId: row.correlationId,
+          createdAt: row.createdAt,
+          desiredProjectionHash: row.desiredProjectionHash,
+          failureClass: row.failureClass,
+          id: externalWriteOperationIdV1Schema.parse(row.id),
+          listBindingId:
+            row.listBindingId === null
+              ? null
+              : microsoftTodoListBindingIdV1Schema.parse(row.listBindingId),
+          occurrenceId:
+            row.occurrenceId === null
+              ? null
+              : reminderOccurrenceIdV1Schema.parse(row.occurrenceId),
+          operation: row.operation,
+          ownershipMarker: row.ownershipMarker,
+          scope,
+          state: row.state,
+          updatedAt: row.updatedAt,
+        })
+      : null;
   }
 }

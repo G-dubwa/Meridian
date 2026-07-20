@@ -1231,6 +1231,13 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
     expect(connected.consentRecords).toHaveLength(1);
     expect(await microsoft.status(scopeB)).toMatchObject({ account: null });
 
+    await microsoft.disconnect(scopeA, 'DISCONNECT', {
+      correlationId: ids.next(),
+    });
+    expect((await microsoft.status(scopeA)).account?.status).toBe(
+      'disconnected',
+    );
+
     const incrementalUrl = await microsoft.beginTodoIncrementalConsent(scopeA);
     expect(incrementalUrl.searchParams.get('scope')?.split(' ')).toEqual(
       MICROSOFT_TODO_SPIKE_REQUESTED_SCOPES,
@@ -1244,7 +1251,7 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
       graphPermissions: MICROSOFT_TODO_SPIKE_GRAPH_PERMISSIONS,
       requestedScopes: MICROSOFT_TODO_SPIKE_REQUESTED_SCOPES,
     });
-    expect(incrementallyConsented.consentRecords).toHaveLength(2);
+    expect(incrementallyConsented.consentRecords).toHaveLength(3);
     const incrementalAccount = incrementallyConsented.account;
     if (!incrementalAccount)
       throw new Error('Expected the mocked incremental connection.');
@@ -1319,6 +1326,7 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
     expect(disconnected.consentRecords.map((record) => record.action)).toEqual([
       'disconnected',
       'granted',
+      'disconnected',
       'granted',
     ]);
     const [cleared] = await admin.sql<
@@ -1385,7 +1393,7 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
       where user_id = ${scopeA.userId}
         and topic like 'integration.%'
     `;
-    expect(events?.count).toBe('5');
-    expect(messages?.count).toBe('5');
+    expect(events?.count).toBe('6');
+    expect(messages?.count).toBe('6');
   });
 });

@@ -20,6 +20,7 @@ import type {
   MicrosoftTodoListSnapshot,
   MicrosoftTodoProjection,
   MicrosoftTodoTaskBindingRecord,
+  MicrosoftTodoTaskSnapshot,
 } from './microsoft-todo.js';
 import type {
   DerivationLinkId,
@@ -384,6 +385,10 @@ export interface ReminderOccurrenceRepository {
     scope: UserScope,
     id: ReminderOccurrenceId,
   ): Promise<ReminderOccurrenceRecord | null>;
+  findByReminder(
+    scope: UserScope,
+    reminderId: ReminderId,
+  ): Promise<ReminderOccurrenceRecord | null>;
   save(occurrence: ReminderOccurrenceRecord): Promise<void>;
   cancelPending(
     scope: UserScope,
@@ -689,6 +694,7 @@ export interface MicrosoftTodoTaskBindingRepository {
     scope: UserScope,
     occurrenceId: ReminderOccurrenceId,
   ): Promise<MicrosoftTodoTaskBindingRecord | null>;
+  findLatest(scope: UserScope): Promise<MicrosoftTodoTaskBindingRecord | null>;
   save(record: MicrosoftTodoTaskBindingRecord): Promise<void>;
 }
 
@@ -696,6 +702,11 @@ export interface ExternalWriteOperationRepository {
   findById(
     scope: UserScope,
     id: ExternalWriteOperationId,
+  ): Promise<ExternalWriteOperationRecord | null>;
+  findByCorrelation(
+    scope: UserScope,
+    correlationId: Uuid,
+    operation: ExternalWriteOperationRecord['operation'],
   ): Promise<ExternalWriteOperationRecord | null>;
   save(record: ExternalWriteOperationRecord): Promise<void>;
 }
@@ -719,6 +730,7 @@ export interface MicrosoftTodoGateway {
     accessToken: string,
     listId: string,
   ): Promise<MicrosoftTodoListSnapshot>;
+  deleteList(accessToken: string, listId: string): Promise<void>;
   createTask(
     accessToken: string,
     listId: string,
@@ -736,6 +748,15 @@ export interface MicrosoftTodoGateway {
     listId: string,
     taskId: string,
   ): Promise<void>;
+  getTask(
+    accessToken: string,
+    listId: string,
+    taskId: string,
+  ): Promise<MicrosoftTodoTaskSnapshot>;
+  listTasks(
+    accessToken: string,
+    listId: string,
+  ): Promise<readonly MicrosoftTodoTaskSnapshot[]>;
   findTasksByOwnershipMarker(
     accessToken: string,
     listId: string,

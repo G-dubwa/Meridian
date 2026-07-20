@@ -10,6 +10,7 @@ export * from './interpretation.js';
 export * from './journal.js';
 export * from './microsoft-connection.js';
 export * from './microsoft-todo-spike.js';
+export * from './microsoft-todo-enablement.js';
 export * from './model-gateway.js';
 export * from './model-routing.js';
 export * from './reliable-events.js';

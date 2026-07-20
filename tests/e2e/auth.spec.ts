@@ -287,6 +287,9 @@ test.describe.serial('WP-04 through WP-10 authenticated acceptance', () => {
     expect((await request.get('/api/integrations/microsoft')).status()).toBe(
       401,
     );
+    expect(
+      (await request.get('/api/integrations/microsoft/todo')).status(),
+    ).toBe(401);
     expect((await request.get('/api/triage/proposals')).status()).toBe(401);
     expect((await login(request)).status()).toBe(200);
     const standardBody = 'First standard journal evidence.';
@@ -473,6 +476,17 @@ test.describe.serial('WP-04 through WP-10 authenticated acceptance', () => {
     );
     expect(connectWithoutEnvironment.status()).toBe(503);
     expect(await connectWithoutEnvironment.json()).toEqual({
+      error: 'INTEGRATION_UNAVAILABLE',
+    });
+    const todoWithoutEnvironment = await request.post(
+      '/api/integrations/microsoft/todo/consent',
+      {
+        data: { confirmation: 'ENABLE WP11 TODO CONSENT' },
+        headers: { 'x-csrf-token': await csrfCookie(request) },
+      },
+    );
+    expect(todoWithoutEnvironment.status()).toBe(503);
+    expect(await todoWithoutEnvironment.json()).toEqual({
       error: 'INTEGRATION_UNAVAILABLE',
     });
     const integrationsPage = await request.get('/settings/integrations');

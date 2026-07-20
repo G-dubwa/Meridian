@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Meridian API
-  version: 0.10.0
+  version: 0.11.0
   description: Same-origin REST contract for owner authentication, journal evidence, Triage, internal tasks/reminders, worker health, and Microsoft consent.
 paths:
   /api/auth/csrf:
@@ -540,6 +540,126 @@ paths:
         '401': { $ref: '#/components/responses/SessionInvalid' }
         '403': { $ref: '#/components/responses/CsrfInvalid' }
         '409': { $ref: '#/components/responses/Conflict' }
+  /api/integrations/microsoft/todo:
+    get:
+      operationId: getMicrosoftTodoExperimentalStatus
+      summary: Read local experimental list/task state without Microsoft identifiers or Graph access.
+      security: [{ sessionCookie: [] }]
+      responses:
+        '200':
+          description: Content-free local experimental status.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MicrosoftTodoStatusV1' }
+        '401': { $ref: '#/components/responses/SessionInvalid' }
+        '503': { $ref: '#/components/responses/IntegrationUnavailable' }
+  /api/integrations/microsoft/todo/consent:
+    post:
+      operationId: beginMicrosoftTodoIncrementalConsent
+      summary: Create the exact six-scope authorization URL without calling Graph.
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/CsrfHeader' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              { $ref: '#/components/schemas/MicrosoftTodoConsentRequestV1' }
+      responses:
+        '200':
+          description: One-time incremental authorization destination.
+          content:
+            application/json:
+              schema:
+                { $ref: '#/components/schemas/MicrosoftConnectResponseV1' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '401': { $ref: '#/components/responses/SessionInvalid' }
+        '403': { $ref: '#/components/responses/CsrfInvalid' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '503': { $ref: '#/components/responses/IntegrationUnavailable' }
+  /api/integrations/microsoft/todo/first-day:
+    post:
+      operationId: createMicrosoftTodoFirstDayTest
+      summary: Create one owner-confirmed canonical synthetic occurrence and contained mirror.
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/CsrfHeader' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              { $ref: '#/components/schemas/MicrosoftTodoFirstDayRequestV1' }
+      responses:
+        '200': { $ref: '#/components/responses/MicrosoftTodoStatus' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '401': { $ref: '#/components/responses/SessionInvalid' }
+        '403': { $ref: '#/components/responses/CsrfInvalid' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '503': { $ref: '#/components/responses/IntegrationUnavailable' }
+  /api/integrations/microsoft/todo/reconcile:
+    post:
+      operationId: reconcileMicrosoftTodoFirstDayTest
+      summary: Read only the exact bound task and observe phone completion.
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/CsrfHeader' }
+        - { $ref: '#/components/parameters/RequestIdHeader' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              { $ref: '#/components/schemas/MicrosoftTodoReconcileRequestV1' }
+      responses:
+        '200': { $ref: '#/components/responses/MicrosoftTodoStatus' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '401': { $ref: '#/components/responses/SessionInvalid' }
+        '403': { $ref: '#/components/responses/CsrfInvalid' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '503': { $ref: '#/components/responses/IntegrationUnavailable' }
+  /api/integrations/microsoft/todo/cleanup:
+    post:
+      operationId: cleanupMicrosoftTodoFirstDayTest
+      summary: Delete only marker-verified synthetic objects after a fresh containment check.
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/CsrfHeader' }
+        - { $ref: '#/components/parameters/RequestIdHeader' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              { $ref: '#/components/schemas/MicrosoftTodoCleanupRequestV1' }
+      responses:
+        '200': { $ref: '#/components/responses/MicrosoftTodoStatus' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '401': { $ref: '#/components/responses/SessionInvalid' }
+        '403': { $ref: '#/components/responses/CsrfInvalid' }
+        '503': { $ref: '#/components/responses/IntegrationUnavailable' }
+  /api/integrations/microsoft/todo/suspend:
+    post:
+      operationId: suspendMicrosoftTodoGraph
+      summary: Erase local Microsoft tokens and suspend Graph access without a provider request.
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/CsrfHeader' }
+        - { $ref: '#/components/parameters/RequestIdHeader' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              { $ref: '#/components/schemas/MicrosoftTodoSuspendRequestV1' }
+      responses:
+        '200': { $ref: '#/components/responses/MicrosoftTodoStatus' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '401': { $ref: '#/components/responses/SessionInvalid' }
+        '403': { $ref: '#/components/responses/CsrfInvalid' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '503': { $ref: '#/components/responses/IntegrationUnavailable' }
 components:
   securitySchemes:
     sessionCookie:
@@ -649,6 +769,70 @@ components:
       required: [confirmation]
       properties:
         confirmation: { type: string, const: DISCONNECT }
+    MicrosoftTodoConsentRequestV1:
+      type: object
+      additionalProperties: false
+      required: [confirmation]
+      properties:
+        confirmation: { type: string, const: ENABLE WP11 TODO CONSENT }
+    MicrosoftTodoFirstDayRequestV1:
+      type: object
+      additionalProperties: false
+      required: [confirmation, idempotencyKey, reminderAt]
+      properties:
+        confirmation: { type: string, const: CREATE WP11 FIRST-DAY TEST }
+        idempotencyKey: { type: string, format: uuid }
+        reminderAt: { type: string, format: date-time }
+    MicrosoftTodoReconcileRequestV1:
+      type: object
+      additionalProperties: false
+      required: [confirmation]
+      properties:
+        confirmation: { type: string, const: OBSERVE WP11 COMPLETION }
+    MicrosoftTodoCleanupRequestV1:
+      type: object
+      additionalProperties: false
+      required: [confirmation]
+      properties:
+        confirmation: { type: string, const: DELETE WP11 SYNTHETIC OBJECTS }
+    MicrosoftTodoSuspendRequestV1:
+      type: object
+      additionalProperties: false
+      required: [confirmation]
+      properties:
+        confirmation: { type: string, const: SUSPEND WP11 GRAPH }
+    MicrosoftTodoStatusV1:
+      type: object
+      additionalProperties: false
+      required: [listStatus, reminderAt, taskStatus]
+      properties:
+        listStatus:
+          anyOf:
+            - {
+                type: string,
+                enum: [experimental, suspended, unmanaged, cleaned],
+              }
+            - { type: 'null' }
+        reminderAt:
+          anyOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        taskStatus:
+          anyOf:
+            - {
+                type: string,
+                enum:
+                  [
+                    pending,
+                    completed,
+                    deleted,
+                    orphaned,
+                    conflicted,
+                    unmanaged,
+                    cleaned,
+                  ],
+              }
+            - { type: 'null' }
     MicrosoftConsentRecordV1:
       type: object
       additionalProperties: false
@@ -1416,6 +1600,11 @@ components:
       content:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorResponseV1' }
+    MicrosoftTodoStatus:
+      description: Content-free local state for the one experimental To Do test.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/MicrosoftTodoStatusV1' }
     JournalEntry:
       description: Current entry state and complete immutable revision history.
       content:
@@ -1439,6 +1628,6 @@ components:
 x-document-metadata:
   purpose: Canonical local-owner authentication, journal, Triage, internal actions, worker-health, and integration REST contract.
   audience: Contributors, clients, and coding agents.
-  authoritative-for: WP-04 authentication, WP-05 journal, WP-06 health, WP-07 Microsoft consent, WP-09 Triage, and WP-10 task/reminder HTTP request and response shapes.
+  authoritative-for: WP-04 authentication, WP-05 journal, WP-06 health, WP-07 Microsoft consent, WP-09 Triage, WP-10 task/reminder, and guarded WP-11 To Do HTTP request and response shapes.
   update-triggers: Versioned API boundary schemas, authentication, journal, system-health, or integration routes change.
   related-docs: conventions.md

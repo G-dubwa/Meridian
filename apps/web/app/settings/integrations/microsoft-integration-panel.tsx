@@ -1,6 +1,9 @@
 'use client';
 
-import type { MicrosoftConnectionStatusResponseV1 } from '@meridian/api-contracts';
+import type {
+  MicrosoftConnectionStatusResponseV1,
+  MicrosoftTodoStatusResponseV1,
+} from '@meridian/api-contracts';
 import { getMicrosoftConnectionStatusV1 } from '@meridian/api-contracts';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
@@ -18,11 +21,27 @@ export function MicrosoftIntegrationPanel() {
   const [status, setStatus] =
     useState<MicrosoftConnectionStatusResponseV1 | null>(null);
   const [message, setMessage] = useState('Loading Microsoft status…');
+  const [todoStatus, setTodoStatus] =
+    useState<MicrosoftTodoStatusResponseV1 | null>(null);
+  const [testTime, setTestTime] = useState('');
+  const [testIdempotencyKey, setTestIdempotencyKey] = useState<string | null>(
+    null,
+  );
 
   async function refresh() {
     try {
       const current = await getMicrosoftConnectionStatusV1();
       setStatus(current);
+      if (current.configured) {
+        const todoResponse = await fetch('/api/integrations/microsoft/todo', {
+          cache: 'no-store',
+          credentials: 'same-origin',
+        });
+        if (todoResponse.ok)
+          setTodoStatus(
+            (await todoResponse.json()) as MicrosoftTodoStatusResponseV1,
+          );
+      }
       const outcome = new URLSearchParams(window.location.search).get(
         'microsoft',
       );
@@ -83,6 +102,81 @@ export function MicrosoftIntegrationPanel() {
     await refresh();
   }
 
+  async function beginTodoConsent() {
+    if (
+      !window.confirm(
+        'Begin the separately approved incremental consent for exactly Tasks.ReadWrite? This will leave Meridian for Microsoft’s consent screen.',
+      )
+    )
+      return;
+    const response = await postWithCsrf(
+      '/api/integrations/microsoft/todo/consent',
+      { confirmation: 'ENABLE WP11 TODO CONSENT' },
+    );
+    if (!response.ok) {
+      setMessage('Incremental To Do consent could not be started.');
+      return;
+    }
+    const body = (await response.json()) as { authorizationUrl?: unknown };
+    if (typeof body.authorizationUrl !== 'string') {
+      setMessage('Incremental To Do consent response was invalid.');
+      return;
+    }
+    window.location.assign(body.authorizationUrl);
+  }
+
+  async function firstDayTest() {
+    if (!testTime) {
+      setMessage('Choose the approved Johannesburg first-day test time.');
+      return;
+    }
+    if (
+      !window.confirm(
+        `Create the one synthetic Meridian test reminder for ${testTime} Africa/Johannesburg?`,
+      )
+    )
+      return;
+    const idempotencyKey = testIdempotencyKey ?? crypto.randomUUID();
+    setTestIdempotencyKey(idempotencyKey);
+    const response = await postWithCsrf(
+      '/api/integrations/microsoft/todo/first-day',
+      {
+        confirmation: 'CREATE WP11 FIRST-DAY TEST',
+        idempotencyKey,
+        reminderAt: `${testTime}:00+02:00`,
+      },
+    );
+    setMessage(
+      response.ok
+        ? 'Synthetic test is prepared. Record Graph, app, notification, and completion observations separately.'
+        : 'First-day test failed closed. Retry uses the same local idempotency key.',
+    );
+    await refresh();
+  }
+
+  async function todoControl(
+    route: 'reconcile' | 'cleanup' | 'suspend',
+    confirmation: string,
+  ) {
+    const labels = {
+      cleanup: 'delete the marker-owned synthetic task and Meridian list',
+      reconcile: 'read back only the marker-owned synthetic task status',
+      suspend:
+        'remove local Microsoft tokens and immediately suspend all Graph access',
+    } as const;
+    if (!window.confirm(`Confirm: ${labels[route]}?`)) return;
+    const response = await postWithCsrf(
+      `/api/integrations/microsoft/todo/${route}`,
+      { confirmation },
+    );
+    setMessage(
+      response.ok
+        ? `WP-11 ${route} control completed.`
+        : `WP-11 ${route} control failed closed.`,
+    );
+    await refresh();
+  }
+
   if (!status)
     return (
       <section className="auth-card">
@@ -94,6 +188,8 @@ export function MicrosoftIntegrationPanel() {
     );
 
   const connected = status.account?.status === 'connected';
+  const todoConsented =
+    connected && status.account?.requestedScopes.includes('Tasks.ReadWrite');
   return (
     <div className="security-grid">
       <section className="auth-card">
@@ -139,6 +235,77 @@ export function MicrosoftIntegrationPanel() {
       </section>
 
       <section className="auth-card">
+        <h2>Experimental Microsoft To Do gate</h2>
+        <p>
+          The channel is inactive. These owner-confirmed controls are limited to
+          one synthetic occurrence and the marker-owned private Meridian list.
+        </p>
+        <p>
+          Local list: <strong>{todoStatus?.listStatus ?? 'not created'}</strong>
+          <br />
+          Test task: <strong>{todoStatus?.taskStatus ?? 'not created'}</strong>
+          {todoStatus?.reminderAt ? (
+            <>
+              <br />
+              Scheduled: {new Date(todoStatus.reminderAt).toLocaleString()}
+            </>
+          ) : null}
+        </p>
+        {connected && !todoConsented ? (
+          <button onClick={() => void beginTodoConsent()} type="button">
+            Begin guarded Tasks.ReadWrite consent
+          </button>
+        ) : null}
+        {todoConsented && todoStatus?.taskStatus === null ? (
+          <>
+            <label htmlFor="todo-test-time">
+              Approved Johannesburg test time
+            </label>
+            <input
+              id="todo-test-time"
+              onChange={(event) => {
+                setTestTime(event.target.value);
+              }}
+              type="datetime-local"
+              value={testTime}
+            />
+            <button onClick={() => void firstDayTest()} type="button">
+              Create one first-day test
+            </button>
+          </>
+        ) : null}
+        {todoConsented && todoStatus?.taskStatus === 'pending' ? (
+          <button
+            onClick={() =>
+              void todoControl('reconcile', 'OBSERVE WP11 COMPLETION')
+            }
+            type="button"
+          >
+            Observe test completion
+          </button>
+        ) : null}
+        {todoConsented && todoStatus?.listStatus === 'experimental' ? (
+          <button
+            onClick={() =>
+              void todoControl('cleanup', 'DELETE WP11 SYNTHETIC OBJECTS')
+            }
+            type="button"
+          >
+            Clean up synthetic task and list
+          </button>
+        ) : null}
+        {connected ? (
+          <button
+            className="button-danger"
+            onClick={() => void todoControl('suspend', 'SUSPEND WP11 GRAPH')}
+            type="button"
+          >
+            Emergency suspend all Microsoft Graph access
+          </button>
+        ) : null}
+      </section>
+
+      <section className="auth-card">
         <h2>Provider-processing register</h2>
         <p>
           Meridian sends the authorization code, PKCE verifier, client
@@ -155,9 +322,10 @@ export function MicrosoftIntegrationPanel() {
           ))}
         </dl>
         <p>
-          This current connect action excludes Tasks.ReadWrite, calendar write,
-          mail, shared-calendar, and application permissions. WP-11's proposed
-          incremental To Do consent remains a separate disabled live gate.
+          The normal connect action excludes Tasks.ReadWrite. The separate
+          guarded WP-11 control may add only delegated Tasks.ReadWrite; calendar
+          write, mail, shared-calendar-specific, and application permissions
+          remain excluded.
         </p>
       </section>
 

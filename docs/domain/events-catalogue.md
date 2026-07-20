@@ -60,17 +60,20 @@ OIDC scopes are not assumed to reappear in the access token.
 
 ## Microsoft To Do experimental events v1
 
-| Event                                            | Emitted when                                    |
-| ------------------------------------------------ | ----------------------------------------------- |
-| `integration.microsoft_todo_list_prepared.v1`    | A marker-verified experimental binding commits  |
-| `delivery.microsoft_todo_task_created.v1`        | A bound experimental task create commits        |
-| `integration.microsoft_todo_operation_failed.v1` | A provider operation fails or remains uncertain |
+| Event                                             | Emitted when                                    |
+| ------------------------------------------------- | ----------------------------------------------- |
+| `integration.microsoft_todo_list_prepared.v1`     | A marker-verified experimental binding commits  |
+| `delivery.microsoft_todo_task_created.v1`         | A bound experimental task create commits        |
+| `delivery.microsoft_todo_completion_observed.v1`  | Bound phone completion advances canonical state |
+| `integration.microsoft_todo_cleanup_completed.v1` | Marker-verified synthetic cleanup commits       |
+| `integration.microsoft_todo_operation_failed.v1`  | A provider operation fails or remains uncertain |
 
 Payloads contain only local operation/list/occurrence IDs, operation kind,
 outcome, attempt count, and stable failure class. They exclude Microsoft IDs,
 list/task content, reminder/due times, tokens, response bodies, extensions,
-device data, and personal records. No event is emitted live before the second
-WP-11 gate because no live spike entry point is exposed.
+device data, and personal records. The worker accepts both `integration.` and
+`delivery.` prefixes but receives no provider credential and makes no Graph
+request.
 
 ## Proposal events v1
 

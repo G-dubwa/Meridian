@@ -12,7 +12,7 @@ related-docs: ../README.md
 
 - Node.js 24.18.0 LTS, pinned by `.node-version` and `.nvmrc`.
 - pnpm 11.14.0, pinned by `package.json#packageManager`.
-- Docker Compose with PostgreSQL 18 and pgvector 0.8.5, or local PostgreSQL 18 plus pgvector 0.8.x for integration tests.
+- Homebrew PostgreSQL 18 plus pgvector 0.8.x.
 - Git.
 
 Node 24 is selected because production applications should use an LTS line. Next.js 16.2.10 is the current stable release verified on 18 July 2026. TypeScript 6.0.3 is the latest stable version inside `typescript-eslint` 8.64.0's supported `<6.1` peer range; TypeScript 7.0.2 was checked and rejected because it breaks the required lint stack. Re-check official support, peer ranges, and security notices before changing pins.
@@ -26,11 +26,19 @@ pnpm install --frozen-lockfile
 pnpm run check
 ```
 
-Copy `.env.example` to an untracked repository-root `.env` for Docker Compose.
-Export that file in the private terminal before database/operator commands
-(`set -a; source .env; set +a`), then run `docker compose up -d postgres` and
-`pnpm db:migrate` for a persistent local database. The example credentials are
-development-only. Bootstrap the one local owner from the same private terminal:
+Copy `.env.example` to an untracked repository-root `.env`. Start the existing
+Homebrew PostgreSQL 18 service and migrate from a private terminal exactly as
+follows:
+
+```sh
+brew services start postgresql@18
+pg_isready -h 127.0.0.1 -p 5432
+set -a; source .env; set +a
+pnpm db:migrate
+```
+
+The example credentials are development-only. Bootstrap the one local owner
+from the same private terminal:
 
 ```sh
 pnpm auth:bootstrap -- --identifier owner --time-zone Africa/Johannesburg --locale en-ZA
@@ -43,11 +51,25 @@ Run the web application with `pnpm --filter @meridian/web dev`, then open
 <http://localhost:3000/journal>. See the operations runbook before automating
 bootstrap or handling lockout/recovery.
 
-Build and start the separate worker after bootstrap:
+The web process is the exclusive owner of live Microsoft OAuth, token refresh,
+To Do list/task creation, completion reconciliation, cleanup, and emergency
+suspension. Next.js loads `apps/web/.env.local` itself; start it without sourcing
+or copying that file. It must contain `DATABASE_URL` and the four Microsoft
+values listed below.
+
+The worker handles content-free outbox events only and must not receive
+Microsoft credentials, the Microsoft token-encryption key, or the OpenAI key.
+Build it, then start it from a subshell that loads root `.env` for the database
+and removes provider variables before process creation:
 
 ```sh
 pnpm --filter @meridian/worker build
-pnpm --filter @meridian/worker start
+(
+  set -a; source .env; set +a
+  unset MICROSOFT_CLIENT_ID MICROSOFT_CLIENT_SECRET MICROSOFT_REDIRECT_URI
+  unset MICROSOFT_TOKEN_ENCRYPTION_KEY OPENAI_API_KEY
+  pnpm --filter @meridian/worker start
+)
 ```
 
 The first start installs pg-boss tables when the development `DATABASE_URL`
@@ -65,8 +87,8 @@ and register this redirect URI exactly:
 http://localhost:3000/api/integrations/microsoft/callback
 ```
 
-Because the filtered Next.js command runs from `apps/web`, put its runtime values
-in untracked `apps/web/.env.local` (not in `.env.example` itself). Include
+Because Next.js runs from `apps/web`, put its runtime values only in untracked
+`apps/web/.env.local` (not in root `.env` and not in `.env.example` itself). Include
 `DATABASE_URL` plus these Microsoft names:
 
 ```dotenv
@@ -81,8 +103,10 @@ Generate the encryption value locally with `openssl rand -base64 32`. Do not
 paste either secret into chat, logs, tickets, or source control. Meridian asks
 Microsoft only for `openid profile offline_access User.Read Calendars.Read`.
 After login, use <http://localhost:3000/settings/integrations> to connect and
-disconnect. The automated E2E runner deliberately clears these variables and
-never contacts Microsoft.
+disconnect. The guarded WP-11 controls on the same page remain inert until the
+owner separately adds delegated `Tasks.ReadWrite` in Entra and approves the
+incremental live run. The automated E2E runner deliberately clears these
+variables and never contacts Microsoft.
 
 `pnpm test:integration` uses `TEST_DATABASE_URL` when supplied. Otherwise, on
 macOS with Homebrew PostgreSQL 18 and pgvector installed, it creates and destroys

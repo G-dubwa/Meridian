@@ -5,6 +5,7 @@ import {
   MicrosoftTodoGatewayError,
   microsoftTodoListSnapshotV1Schema,
   microsoftTodoProjectionV1Schema,
+  microsoftTodoTaskSnapshotV1Schema,
   uuidV1Schema,
 } from '@meridian/domain';
 import type {
@@ -12,6 +13,7 @@ import type {
   MicrosoftTodoGateway,
   MicrosoftTodoListSnapshot,
   MicrosoftTodoProjection,
+  MicrosoftTodoTaskSnapshot,
   Uuid,
 } from '@meridian/domain';
 
@@ -71,6 +73,8 @@ function listSnapshot(value: unknown): MicrosoftTodoListSnapshot {
 
 function collection(value: unknown): readonly unknown[] {
   const candidate = record(value);
+  if (candidate['@odata.nextLink'] !== undefined)
+    throw new MicrosoftTodoGatewayError('validation_failed');
   if (!Array.isArray(candidate.value))
     throw new MicrosoftTodoGatewayError('validation_failed');
   return candidate.value;
@@ -87,6 +91,33 @@ function taskResult(value: unknown): {
   if (etag !== undefined && typeof etag !== 'string')
     throw new MicrosoftTodoGatewayError('validation_failed');
   return { etag: etag ?? null, id: candidate.id };
+}
+
+function taskSnapshot(value: unknown): MicrosoftTodoTaskSnapshot {
+  const candidate = record(value);
+  const linked = Array.isArray(candidate.linkedResources)
+    ? candidate.linkedResources
+    : [];
+  const prefix = 'Meridian occurrence ';
+  const marker = linked.flatMap((item) => {
+    const resource = record(item);
+    if (
+      resource.applicationName !== 'Meridian' ||
+      typeof resource.displayName !== 'string' ||
+      !resource.displayName.startsWith(prefix)
+    )
+      return [];
+    const parsed = uuidV1Schema.safeParse(
+      resource.displayName.slice(prefix.length),
+    );
+    return parsed.success ? [parsed.data] : [];
+  });
+  const base = taskResult(candidate);
+  return microsoftTodoTaskSnapshotV1Schema.parse({
+    ...base,
+    ownershipMarker: marker.length === 1 ? marker[0] : null,
+    status: candidate.status,
+  });
 }
 
 function projectionBody(
@@ -222,6 +253,10 @@ export class MicrosoftTodoHttpGateway implements MicrosoftTodoGateway {
     return listSnapshot(await response.json());
   }
 
+  public async deleteList(accessToken: string, listId: string): Promise<void> {
+    await this.request(listPath(listId), accessToken, { method: 'DELETE' });
+  }
+
   public async createTask(
     accessToken: string,
     listId: string,
@@ -266,6 +301,31 @@ export class MicrosoftTodoHttpGateway implements MicrosoftTodoGateway {
     await this.request(taskPath(listId, taskId), accessToken, {
       method: 'DELETE',
     });
+  }
+
+  public async getTask(
+    accessToken: string,
+    listId: string,
+    taskId: string,
+  ): Promise<MicrosoftTodoTaskSnapshot> {
+    const response = await this.request(
+      `${taskPath(listId, taskId)}?$select=id,status&$expand=linkedResources`,
+      accessToken,
+      { method: 'GET' },
+    );
+    return taskSnapshot(await response.json());
+  }
+
+  public async listTasks(
+    accessToken: string,
+    listId: string,
+  ): Promise<readonly MicrosoftTodoTaskSnapshot[]> {
+    const response = await this.request(
+      `${taskPath(listId)}?$select=id,status&$expand=linkedResources`,
+      accessToken,
+      { method: 'GET' },
+    );
+    return collection(await response.json()).map(taskSnapshot);
   }
 
   public async findTasksByOwnershipMarker(
