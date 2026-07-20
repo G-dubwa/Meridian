@@ -18,6 +18,9 @@ Last updated: 20 July 2026
   locally exposed but were not invoked. Work remains stopped before the live
   incremental-consent/Graph/device gate; WP-11 stays open and To Do stays
   experimental.
+  A pre-Graph live attempt found the disconnected-account UI gate inconsistent
+  with the backend. A separate mocked/local correction checkpoint is in progress;
+  no new consent evidence, token, list, or task was created.
 
 ## Completed packages
 

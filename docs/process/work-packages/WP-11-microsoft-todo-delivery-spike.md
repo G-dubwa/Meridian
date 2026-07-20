@@ -38,6 +38,16 @@ All Microsoft/Graph execution belongs to the web process using only untracked
 `apps/web/.env.local`. The worker consumes content-free events only and receives
 no Microsoft credential or token-encryption key.
 
+The first controlled live attempt exposed a reachability defect before any new
+grant or Graph request: the retained account was exact Stage-A and disconnected,
+the backend accepted that state, but the UI required `connected` to render the
+guarded control and instead exposed ordinary read-only reconnect. That five-scope
+callback consumed a valid, unexpired local authorization session but failed
+before account/token/consent commit; the existing schema retained no finer OAuth
+failure class. The correction makes guarded eligibility an authoritative
+content-free status-contract field shared by route policy and UI, displays both
+exact envelopes before redirect, and keeps five-scope validation unchanged.
+
 ## Verification and acceptance boundary
 
 Mocked tests must prove exact six-scope request construction; exact three-scope

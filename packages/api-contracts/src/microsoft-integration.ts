@@ -3,6 +3,8 @@ import {
   microsoftDelegatedScopesV1Schema,
   microsoftGraphPermissionsV1Schema,
   microsoftRequestedScopesV1Schema,
+  microsoftTodoGraphPermissionsV1Schema,
+  microsoftTodoRequestedScopesV1Schema,
   uuidV1Schema,
 } from '@meridian/domain';
 import { z } from 'zod';
@@ -90,6 +92,13 @@ export const microsoftConnectionStatusResponseV1Schema = z
     configured: z.boolean(),
     consentRecords: z.array(microsoftConsentRecordV1Schema),
     requestedScopes: microsoftDelegatedScopesV1Schema,
+    todoConsent: z
+      .object({
+        eligible: z.boolean(),
+        expectedGraphPermissions: microsoftTodoGraphPermissionsV1Schema,
+        requestedScopes: microsoftTodoRequestedScopesV1Schema,
+      })
+      .strict(),
   })
   .strict();
 

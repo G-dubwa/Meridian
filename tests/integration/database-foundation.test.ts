@@ -1095,6 +1095,7 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
     let exchangedVerifier = '';
     let refreshCount = 0;
     let consentRevoked = false;
+    let rejectNextTodoEnvelope = false;
     const gateway: MicrosoftOAuthGateway = {
       authorizationUrl(request) {
         const url = new URL(
@@ -1122,12 +1123,16 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
           'http://localhost:3000/api/integrations/microsoft/callback',
         );
         exchangedVerifier = codeVerifier;
+        const graphPermissions = rejectNextTodoEnvelope
+          ? (['User.Read', 'Tasks.ReadWrite'] as const)
+          : requestedScopes.includes('Tasks.ReadWrite')
+            ? MICROSOFT_TODO_SPIKE_GRAPH_PERMISSIONS
+            : MICROSOFT_STAGE_A_GRAPH_PERMISSIONS;
+        rejectNextTodoEnvelope = false;
         return Promise.resolve({
           accessToken: 'initial-access-token',
           expiresInSeconds: 60,
-          graphPermissions: requestedScopes.includes('Tasks.ReadWrite')
-            ? MICROSOFT_TODO_SPIKE_GRAPH_PERMISSIONS
-            : MICROSOFT_STAGE_A_GRAPH_PERMISSIONS,
+          graphPermissions,
           refreshToken: 'initial-refresh-token',
         });
       },
@@ -1227,6 +1232,11 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
         status: 'connected',
       },
       configured: true,
+      todoConsent: {
+        eligible: true,
+        expectedGraphPermissions: MICROSOFT_TODO_SPIKE_GRAPH_PERMISSIONS,
+        requestedScopes: MICROSOFT_TODO_SPIKE_REQUESTED_SCOPES,
+      },
     });
     expect(connected.consentRecords).toHaveLength(1);
     expect(await microsoft.status(scopeB)).toMatchObject({ account: null });
@@ -1234,9 +1244,46 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
     await microsoft.disconnect(scopeA, 'DISCONNECT', {
       correlationId: ids.next(),
     });
-    expect((await microsoft.status(scopeA)).account?.status).toBe(
-      'disconnected',
-    );
+    const disconnectedStageA = await microsoft.status(scopeA);
+    expect(disconnectedStageA.account?.status).toBe('disconnected');
+    expect(disconnectedStageA.todoConsent).toEqual({
+      eligible: true,
+      expectedGraphPermissions: MICROSOFT_TODO_SPIKE_GRAPH_PERMISSIONS,
+      requestedScopes: MICROSOFT_TODO_SPIKE_REQUESTED_SCOPES,
+    });
+
+    rejectNextTodoEnvelope = true;
+    const rejectedIncrementalUrl =
+      await microsoft.beginTodoIncrementalConsent(scopeA);
+    expect(
+      rejectedIncrementalUrl.searchParams.get('scope')?.split(' '),
+    ).toEqual(MICROSOFT_TODO_SPIKE_REQUESTED_SCOPES);
+    const rejectedIncrementalState =
+      rejectedIncrementalUrl.searchParams.get('state');
+    if (!rejectedIncrementalState)
+      throw new Error('Rejected incremental state was not generated.');
+    await expect(
+      microsoft.completeConnection(rejectedIncrementalState, 'one-time-code'),
+    ).rejects.toMatchObject({ code: 'AUTHENTICATION_FAILED' });
+    expect(await microsoft.status(scopeA)).toMatchObject({
+      account: { status: 'disconnected' },
+      consentRecords: [{ action: 'granted' }, { action: 'disconnected' }],
+      todoConsent: { eligible: true },
+    });
+    const [afterRejectedIncremental] = await admin.sql<
+      {
+        access_token_ciphertext: string | null;
+        refresh_token_ciphertext: string | null;
+      }[]
+    >`
+      select access_token_ciphertext, refresh_token_ciphertext
+      from integration_accounts
+      where user_id = ${scopeA.userId}
+    `;
+    expect(afterRejectedIncremental).toEqual({
+      access_token_ciphertext: null,
+      refresh_token_ciphertext: null,
+    });
 
     const incrementalUrl = await microsoft.beginTodoIncrementalConsent(scopeA);
     expect(incrementalUrl.searchParams.get('scope')?.split(' ')).toEqual(
@@ -1251,6 +1298,7 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
       graphPermissions: MICROSOFT_TODO_SPIKE_GRAPH_PERMISSIONS,
       requestedScopes: MICROSOFT_TODO_SPIKE_REQUESTED_SCOPES,
     });
+    expect(incrementallyConsented.todoConsent.eligible).toBe(false);
     expect(incrementallyConsented.consentRecords).toHaveLength(3);
     const incrementalAccount = incrementallyConsented.account;
     if (!incrementalAccount)

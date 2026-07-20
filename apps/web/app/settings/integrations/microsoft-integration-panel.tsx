@@ -17,6 +17,15 @@ const scopePurpose = [
   ['Calendars.Read', 'Read the owner’s calendar in the later WP-12 sync.'],
 ] as const;
 
+const todoScopePurpose = [
+  ['openid', 'Identify the Microsoft account during authorization.'],
+  ['profile', 'Return the basic account label after authorization.'],
+  ['offline_access', 'Permit encrypted refresh-token replacement.'],
+  ['User.Read', 'Validate and read the signed-in owner profile.'],
+  ['Calendars.Read', 'Preserve the already approved calendar-read grant.'],
+  ['Tasks.ReadWrite', 'Run only the contained WP-11 synthetic To Do test.'],
+] as const;
+
 export function MicrosoftIntegrationPanel() {
   const [status, setStatus] =
     useState<MicrosoftConnectionStatusResponseV1 | null>(null);
@@ -103,9 +112,11 @@ export function MicrosoftIntegrationPanel() {
   }
 
   async function beginTodoConsent() {
+    const exactRequested = status?.todoConsent.requestedScopes.join(' ');
+    if (!exactRequested) return;
     if (
       !window.confirm(
-        'Begin the separately approved incremental consent for exactly Tasks.ReadWrite? This will leave Meridian for Microsoft’s consent screen.',
+        `Begin the separately approved authorization with exactly these requested scopes?\n\n${exactRequested}\n\nThis will leave Meridian for Microsoft’s consent screen.`,
       )
     )
       return;
@@ -190,6 +201,7 @@ export function MicrosoftIntegrationPanel() {
   const connected = status.account?.status === 'connected';
   const todoConsented =
     connected && status.account?.requestedScopes.includes('Tasks.ReadWrite');
+  const todoConsentEligible = status.todoConsent.eligible;
   return (
     <div className="security-grid">
       <section className="auth-card">
@@ -215,6 +227,12 @@ export function MicrosoftIntegrationPanel() {
           >
             Disconnect Microsoft
           </button>
+        ) : todoConsentEligible ? (
+          <p>
+            The retained historical five-scope account is eligible for the
+            guarded authorization below; no separate read-only reconnect is
+            required.
+          </p>
         ) : (
           <button
             disabled={!status.configured}
@@ -251,9 +269,26 @@ export function MicrosoftIntegrationPanel() {
             </>
           ) : null}
         </p>
-        {connected && !todoConsented ? (
+        {todoConsentEligible ? (
+          <>
+            <p>The next authorization request is exactly:</p>
+            <dl>
+              {todoScopePurpose.map(([scope, purpose]) => (
+                <div key={scope}>
+                  <dt>{scope}</dt>
+                  <dd>{purpose}</dd>
+                </div>
+              ))}
+            </dl>
+            <p>
+              Expected Graph token permissions:{' '}
+              {status.todoConsent.expectedGraphPermissions.join(', ')}
+            </p>
+          </>
+        ) : null}
+        {todoConsentEligible && !todoConsented ? (
           <button onClick={() => void beginTodoConsent()} type="button">
-            Begin guarded Tasks.ReadWrite consent
+            Begin guarded exact six-scope consent
           </button>
         ) : null}
         {todoConsented && todoStatus?.taskStatus === null ? (

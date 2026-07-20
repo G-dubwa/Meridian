@@ -102,6 +102,16 @@ export const microsoftGraphPermissionsV1Schema = z
       });
   });
 
+export const microsoftTodoGraphPermissionsV1Schema = z
+  .array(microsoftGraphPermissionV1Schema)
+  .superRefine((permissions, context) => {
+    if (!isExactSet(permissions, MICROSOFT_TODO_SPIKE_GRAPH_PERMISSIONS))
+      context.addIssue({
+        code: 'custom',
+        message: 'The Microsoft To Do Graph permission set must match exactly.',
+      });
+  });
+
 export function expectedMicrosoftGraphPermissionsV1(
   requestedScopes: readonly MicrosoftRequestedScope[],
 ): readonly MicrosoftGraphPermission[] {

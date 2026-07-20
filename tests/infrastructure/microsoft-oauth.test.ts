@@ -11,7 +11,10 @@ import {
   NodePkceGenerator,
   createMicrosoftInfrastructure,
 } from '../../packages/infrastructure-ms-graph/src/index.js';
-import { microsoftConnectionStatusResponseV1Schema } from '../../packages/api-contracts/src/microsoft-integration.js';
+import {
+  microsoftConnectionStatusResponseV1Schema,
+  microsoftTodoConsentRequestV1Schema,
+} from '../../packages/api-contracts/src/microsoft-integration.js';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
@@ -292,6 +295,33 @@ describe('WP-07 Microsoft OAuth infrastructure', () => {
         configured: false,
         consentRecords: [],
         requestedScopes: MICROSOFT_STAGE_A_REQUESTED_SCOPES,
+      }),
+    ).toThrow();
+    expect(
+      microsoftConnectionStatusResponseV1Schema.parse({
+        account: null,
+        configured: false,
+        consentRecords: [],
+        requestedScopes: MICROSOFT_STAGE_A_REQUESTED_SCOPES,
+        todoConsent: {
+          eligible: false,
+          expectedGraphPermissions: MICROSOFT_TODO_SPIKE_GRAPH_PERMISSIONS,
+          requestedScopes: MICROSOFT_TODO_SPIKE_REQUESTED_SCOPES,
+        },
+      }).todoConsent,
+    ).toEqual({
+      eligible: false,
+      expectedGraphPermissions: MICROSOFT_TODO_SPIKE_GRAPH_PERMISSIONS,
+      requestedScopes: MICROSOFT_TODO_SPIKE_REQUESTED_SCOPES,
+    });
+    expect(
+      microsoftTodoConsentRequestV1Schema.parse({
+        confirmation: 'ENABLE WP11 TODO CONSENT',
+      }),
+    ).toEqual({ confirmation: 'ENABLE WP11 TODO CONSENT' });
+    expect(() =>
+      microsoftTodoConsentRequestV1Schema.parse({
+        confirmation: 'CONNECT',
       }),
     ).toThrow();
   });

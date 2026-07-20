@@ -4,6 +4,7 @@ import {
   IntegrationUnavailableError,
   MICROSOFT_STAGE_A_GRAPH_PERMISSIONS,
   MICROSOFT_STAGE_A_REQUESTED_SCOPES,
+  MICROSOFT_TODO_SPIKE_GRAPH_PERMISSIONS,
   MICROSOFT_TODO_SPIKE_REQUESTED_SCOPES,
   domainEventEnvelopeV1Schema,
   domainEventIdV1Schema,
@@ -91,6 +92,11 @@ export interface MicrosoftConnectionStatusView {
   readonly account: MicrosoftConnectionSummary | null;
   readonly consentRecords: readonly MicrosoftConsentSummary[];
   readonly requestedScopes: readonly MicrosoftRequestedScope[];
+  readonly todoConsent: {
+    readonly eligible: boolean;
+    readonly expectedGraphPermissions: readonly MicrosoftGraphPermission[];
+    readonly requestedScopes: readonly MicrosoftRequestedScope[];
+  };
 }
 
 function approvedRequestedScopes(
@@ -102,11 +108,43 @@ function approvedRequestedScopes(
   return parsed;
 }
 
+function approvedGraphPermissions(
+  permissions: readonly MicrosoftGraphPermission[],
+): readonly MicrosoftGraphPermission[] {
+  const parsed = microsoftGraphPermissionsV1Schema.safeParse([...permissions]);
+  if (!parsed.success) throw new AuthenticationFailedError();
+  return parsed.data;
+}
+
 function exactSet(values: readonly string[], expected: readonly string[]) {
   return (
     values.length === expected.length &&
     expected.every((value) => values.includes(value))
   );
+}
+
+function todoConsentEligible(
+  account: IntegrationAccountRecord | null,
+  configured: boolean,
+): boolean {
+  return (
+    configured &&
+    account !== null &&
+    ['connected', 'disconnected'].includes(account.status) &&
+    exactSet(account.requestedScopes, MICROSOFT_STAGE_A_REQUESTED_SCOPES) &&
+    exactSet(account.graphPermissions, MICROSOFT_STAGE_A_GRAPH_PERMISSIONS)
+  );
+}
+
+function todoConsentView(
+  account: IntegrationAccountRecord | null,
+  configured: boolean,
+): MicrosoftConnectionStatusView['todoConsent'] {
+  return {
+    eligible: todoConsentEligible(account, configured),
+    expectedGraphPermissions: [...MICROSOFT_TODO_SPIKE_GRAPH_PERMISSIONS],
+    requestedScopes: [...MICROSOFT_TODO_SPIKE_REQUESTED_SCOPES],
+  };
 }
 
 function tokenContext(
@@ -198,9 +236,10 @@ export class MicrosoftConnectionService {
         ports.integrationAccounts.findMicrosoft(scope),
         ports.consentRecords.list(scope),
       ]);
+      const configured = this.dependencies.authorization !== undefined;
       return {
         account: account ? summaryFor(account) : null,
-        configured: this.dependencies.authorization !== undefined,
+        configured,
         consentRecords: consents.map((record) => ({
           action: record.action,
           graphPermissions: record.graphPermissions,
@@ -208,6 +247,7 @@ export class MicrosoftConnectionService {
           requestedScopes: record.requestedScopes,
         })),
         requestedScopes: approvedRequestedScopes(),
+        todoConsent: todoConsentView(account, configured),
       };
     });
   }
@@ -269,12 +309,7 @@ export class MicrosoftConnectionService {
     const current = await this.dependencies.transactions.run(scope, (ports) =>
       ports.integrationAccounts.findMicrosoft(scope),
     );
-    if (
-      !current ||
-      !['connected', 'disconnected'].includes(current.status) ||
-      !exactSet(current.requestedScopes, MICROSOFT_STAGE_A_REQUESTED_SCOPES) ||
-      !exactSet(current.graphPermissions, MICROSOFT_STAGE_A_GRAPH_PERMISSIONS)
-    )
+    if (!todoConsentEligible(current, true))
       throw new ConflictError(
         'An exact Stage-A Microsoft account is required before incremental consent.',
       );
@@ -314,9 +349,7 @@ export class MicrosoftConnectionService {
       flow.requestedScopes,
     );
     const requestedScopes = approvedRequestedScopes(flow.requestedScopes);
-    const graphPermissions = microsoftGraphPermissionsV1Schema.parse([
-      ...grant.graphPermissions,
-    ]);
+    const graphPermissions = approvedGraphPermissions(grant.graphPermissions);
     const expectedGraphPermissions =
       expectedMicrosoftGraphPermissionsV1(requestedScopes);
     if (
@@ -451,9 +484,10 @@ export class MicrosoftConnectionService {
       }
       const account = await ports.integrationAccounts.findMicrosoft(scope);
       const consents = await ports.consentRecords.list(scope);
+      const configured = this.dependencies.authorization !== undefined;
       return {
         account: account ? summaryFor(account) : null,
-        configured: this.dependencies.authorization !== undefined,
+        configured,
         consentRecords: consents.map((record) => ({
           action: record.action,
           occurredAt: record.occurredAt,
@@ -461,6 +495,7 @@ export class MicrosoftConnectionService {
           requestedScopes: record.requestedScopes,
         })),
         requestedScopes: approvedRequestedScopes(),
+        todoConsent: todoConsentView(account, configured),
       };
     });
   }
@@ -513,9 +548,7 @@ export class MicrosoftConnectionService {
     now: Date,
   ): Promise<string> {
     const authorization = this.requireAuthorization();
-    const graphPermissions = microsoftGraphPermissionsV1Schema.parse([
-      ...grant.graphPermissions,
-    ]);
+    const graphPermissions = approvedGraphPermissions(grant.graphPermissions);
     const expectedGraphPermissions = expectedMicrosoftGraphPermissionsV1(
       account.requestedScopes,
     );

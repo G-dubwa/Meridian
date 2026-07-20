@@ -37,6 +37,7 @@ function statusResponse(view: MicrosoftConnectionStatusView): NextResponse {
         requestedScopes: record.requestedScopes,
       })),
       requestedScopes: view.requestedScopes,
+      todoConsent: view.todoConsent,
     }),
   );
 }

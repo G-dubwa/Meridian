@@ -882,7 +882,8 @@ components:
     MicrosoftConnectionStatusV1:
       type: object
       additionalProperties: false
-      required: [configured, requestedScopes, account, consentRecords]
+      required:
+        [configured, requestedScopes, account, consentRecords, todoConsent]
       properties:
         configured: { type: boolean }
         requestedScopes:
@@ -894,6 +895,16 @@ components:
         consentRecords:
           type: array
           items: { $ref: '#/components/schemas/MicrosoftConsentRecordV1' }
+        todoConsent:
+          type: object
+          additionalProperties: false
+          required: [eligible, expectedGraphPermissions, requestedScopes]
+          properties:
+            eligible: { type: boolean }
+            expectedGraphPermissions:
+              { $ref: '#/components/schemas/MicrosoftTodoGraphPermissionsV1' }
+            requestedScopes:
+              { $ref: '#/components/schemas/MicrosoftTodoRequestedScopesV1' }
     CsrfResponseV1:
       type: object
       additionalProperties: false

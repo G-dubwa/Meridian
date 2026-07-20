@@ -46,6 +46,12 @@ connection. A separate owner-confirmed control posts to guarded local route
 `POST /api/integrations/microsoft/todo/consent`; the route creates only an
 authorization URL and cannot call Graph. Entra permissions and live consent
 remain prohibited until the owner approves the live second-gate execution.
+The connection-status contract computes the guarded consent eligibility on the
+server from local configuration plus an exact historical Stage-A requested and
+Graph-permission envelope. Connected and locally disconnected Stage-A accounts
+are eligible. The UI displays the exact six requested scopes and expected three
+Graph permissions before enabling the redirect; it does not direct an eligible
+disconnected owner through the ordinary five-scope reconnect route.
 
 ## Process and secret ownership
 
