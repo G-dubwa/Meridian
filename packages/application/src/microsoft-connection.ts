@@ -6,6 +6,7 @@ import {
   MICROSOFT_STAGE_A_REQUESTED_SCOPES,
   MICROSOFT_TODO_SPIKE_GRAPH_PERMISSIONS,
   MICROSOFT_TODO_SPIKE_REQUESTED_SCOPES,
+  MicrosoftOAuthGatewayError,
   domainEventEnvelopeV1Schema,
   domainEventIdV1Schema,
   microsoftAuthorizationCodeV1Schema,
@@ -31,10 +32,12 @@ import type {
   IdGenerator,
   IntegrationAccountRecord,
   MicrosoftGraphPermission,
+  MicrosoftProfile,
   MicrosoftRequestedScope,
   MicrosoftIntegrationEventType,
   MicrosoftOAuthGateway,
   MicrosoftTokenGrant,
+  OAuthAuthorizationSessionRecord,
   OAuthAuthorizationSessionStore,
   OutboxMessageRecord,
   PkceGenerator,
@@ -48,6 +51,33 @@ import type {
 
 const AUTHORIZATION_SESSION_LIFETIME_MS = 10 * 60 * 1000;
 const ACCESS_TOKEN_REFRESH_WINDOW_MS = 5 * 60 * 1000;
+
+export type MicrosoftCallbackFailureClass =
+  | 'token_exchange_failed'
+  | 'token_validation_failed'
+  | 'profile_request_failed'
+  | 'profile_validation_failed'
+  | 'persistence_failed';
+
+export type MicrosoftCallbackValidationResult =
+  'not_reached' | 'accepted' | 'rejected';
+
+export interface MicrosoftCallbackFailureDiagnostic {
+  readonly correlationId: Uuid;
+  readonly failureClass: MicrosoftCallbackFailureClass;
+  readonly profileValidation: MicrosoftCallbackValidationResult;
+  readonly requestedScopes: readonly MicrosoftRequestedScope[];
+  readonly tokenValidation: MicrosoftCallbackValidationResult;
+}
+
+export class MicrosoftCallbackFailedError extends AuthenticationFailedError {
+  public constructor(
+    public readonly diagnostic: MicrosoftCallbackFailureDiagnostic,
+  ) {
+    super();
+    this.name = 'MicrosoftCallbackFailedError';
+  }
+}
 
 export interface MicrosoftAuthorizationRuntime {
   readonly cipher: TokenCipher;
@@ -166,6 +196,35 @@ function isConsentRevoked(error: unknown): boolean {
     'reason' in error &&
     error.reason === 'consent_revoked'
   );
+}
+
+function callbackFailure(
+  flow: OAuthAuthorizationSessionRecord,
+  failureClass: MicrosoftCallbackFailureClass,
+  tokenValidation: MicrosoftCallbackValidationResult,
+  profileValidation: MicrosoftCallbackValidationResult,
+): MicrosoftCallbackFailedError {
+  return new MicrosoftCallbackFailedError({
+    correlationId: flow.id,
+    failureClass,
+    profileValidation,
+    requestedScopes: flow.requestedScopes,
+    tokenValidation,
+  });
+}
+
+function tokenFailureClass(error: unknown): MicrosoftCallbackFailureClass {
+  return error instanceof MicrosoftOAuthGatewayError &&
+    error.stage !== 'token_validation'
+    ? 'token_exchange_failed'
+    : 'token_validation_failed';
+}
+
+function profileFailureClass(error: unknown): MicrosoftCallbackFailureClass {
+  return error instanceof MicrosoftOAuthGatewayError &&
+    error.stage !== 'profile_validation'
+    ? 'profile_request_failed'
+    : 'profile_validation_failed';
 }
 
 function summaryFor(
@@ -342,88 +401,120 @@ export class MicrosoftConnectionService {
         flowContext(flow.id),
       ),
     );
-    const grant = await authorization.gateway.exchangeAuthorizationCode(
-      code,
-      verifier,
-      flow.redirectUri,
-      flow.requestedScopes,
-    );
-    const requestedScopes = approvedRequestedScopes(flow.requestedScopes);
-    const graphPermissions = approvedGraphPermissions(grant.graphPermissions);
-    const expectedGraphPermissions =
-      expectedMicrosoftGraphPermissionsV1(requestedScopes);
-    if (
-      graphPermissions.length !== expectedGraphPermissions.length ||
-      expectedGraphPermissions.some(
-        (permission) => !graphPermissions.includes(permission),
+    let grant: MicrosoftTokenGrant;
+    let requestedScopes: readonly MicrosoftRequestedScope[];
+    let graphPermissions: readonly MicrosoftGraphPermission[];
+    try {
+      grant = await authorization.gateway.exchangeAuthorizationCode(
+        code,
+        verifier,
+        flow.redirectUri,
+        flow.requestedScopes,
+      );
+      requestedScopes = approvedRequestedScopes(flow.requestedScopes);
+      graphPermissions = approvedGraphPermissions(grant.graphPermissions);
+      const expectedGraphPermissions =
+        expectedMicrosoftGraphPermissionsV1(requestedScopes);
+      if (
+        graphPermissions.length !== expectedGraphPermissions.length ||
+        expectedGraphPermissions.some(
+          (permission) => !graphPermissions.includes(permission),
+        )
       )
-    )
-      throw new AuthenticationFailedError();
-    const profile = microsoftProfileV1Schema.parse(
-      await authorization.gateway.readProfile(grant.accessToken),
-    );
+        throw new AuthenticationFailedError();
+    } catch (error) {
+      const failureClass = tokenFailureClass(error);
+      throw callbackFailure(
+        flow,
+        failureClass,
+        failureClass === 'token_validation_failed' ? 'rejected' : 'not_reached',
+        'not_reached',
+      );
+    }
+    let profile: MicrosoftProfile;
+    try {
+      profile = microsoftProfileV1Schema.parse(
+        await authorization.gateway.readProfile(grant.accessToken),
+      );
+    } catch (error) {
+      const failureClass = profileFailureClass(error);
+      throw callbackFailure(
+        flow,
+        failureClass,
+        'accepted',
+        failureClass === 'profile_validation_failed'
+          ? 'rejected'
+          : 'not_reached',
+      );
+    }
     const scope = { userId: userIdV1Schema.parse(flow.userId) };
 
-    await this.dependencies.transactions.run(scope, async (ports) => {
-      const existing = await ports.integrationAccounts.findMicrosoft(scope);
-      const accountId = uuidV1Schema.parse(
-        existing?.id ?? this.dependencies.ids.next(),
-      );
-      const account: IntegrationAccountRecord = {
-        accessTokenCiphertext: authorization.cipher.seal(
-          grant.accessToken,
-          tokenContext(scope, accountId, 'access'),
-        ),
-        connectedAt: now,
-        createdAt: existing?.createdAt ?? now,
-        disconnectedAt: null,
-        displayName: profile.displayName,
-        graphPermissions,
-        id: accountId,
-        lastRefreshedAt: null,
-        provider: 'microsoft',
-        providerSubjectId: profile.providerSubjectId,
-        requestedScopes,
-        refreshTokenCiphertext: authorization.cipher.seal(
-          grant.refreshToken,
-          tokenContext(scope, accountId, 'refresh'),
-        ),
-        scope,
-        status: 'connected',
-        tokenExpiresAt: new Date(now.getTime() + grant.expiresInSeconds * 1000),
-        tokenKeyVersion: 1,
-        updatedAt: now,
-      };
-      await ports.integrationAccounts.save(account);
-      await ports.consentRecords.append({
-        action: 'granted',
-        id: uuidV1Schema.parse(this.dependencies.ids.next()),
-        integrationAccountId: accountId,
-        occurredAt: now,
-        provider: 'microsoft',
-        scope,
-        graphPermissions,
-        requestedScopes,
-      });
-      const payload = microsoftConnectionEventPayloadV1Schema.parse({
-        integrationAccountId: accountId,
-        graphPermissions,
-        requestedScopes,
-      });
-      await appendEvent(
-        this.dependencies,
-        ports,
-        eventFor(
-          this.dependencies,
+    try {
+      await this.dependencies.transactions.run(scope, async (ports) => {
+        const existing = await ports.integrationAccounts.findMicrosoft(scope);
+        const accountId = uuidV1Schema.parse(
+          existing?.id ?? this.dependencies.ids.next(),
+        );
+        const account: IntegrationAccountRecord = {
+          accessTokenCiphertext: authorization.cipher.seal(
+            grant.accessToken,
+            tokenContext(scope, accountId, 'access'),
+          ),
+          connectedAt: now,
+          createdAt: existing?.createdAt ?? now,
+          disconnectedAt: null,
+          displayName: profile.displayName,
+          graphPermissions,
+          id: accountId,
+          lastRefreshedAt: null,
+          provider: 'microsoft',
+          providerSubjectId: profile.providerSubjectId,
+          requestedScopes,
+          refreshTokenCiphertext: authorization.cipher.seal(
+            grant.refreshToken,
+            tokenContext(scope, accountId, 'refresh'),
+          ),
           scope,
-          flow.id,
-          'integration.microsoft_connected.v1',
+          status: 'connected',
+          tokenExpiresAt: new Date(
+            now.getTime() + grant.expiresInSeconds * 1000,
+          ),
+          tokenKeyVersion: 1,
+          updatedAt: now,
+        };
+        await ports.integrationAccounts.save(account);
+        await ports.consentRecords.append({
+          action: 'granted',
+          id: uuidV1Schema.parse(this.dependencies.ids.next()),
+          integrationAccountId: accountId,
+          occurredAt: now,
+          provider: 'microsoft',
+          scope,
+          graphPermissions,
+          requestedScopes,
+        });
+        const payload = microsoftConnectionEventPayloadV1Schema.parse({
+          integrationAccountId: accountId,
+          graphPermissions,
+          requestedScopes,
+        });
+        await appendEvent(
+          this.dependencies,
+          ports,
+          eventFor(
+            this.dependencies,
+            scope,
+            flow.id,
+            'integration.microsoft_connected.v1',
+            now,
+            payload,
+          ),
           now,
-          payload,
-        ),
-        now,
-      );
-    });
+        );
+      });
+    } catch {
+      throw callbackFailure(flow, 'persistence_failed', 'accepted', 'accepted');
+    }
     return scope;
   }
 

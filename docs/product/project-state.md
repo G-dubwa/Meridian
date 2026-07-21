@@ -8,19 +8,20 @@ related-docs: roadmap.md
 
 # Project state
 
-Last updated: 20 July 2026
+Last updated: 21 July 2026
 
 ## Current work package
 
 - WP-11 — Microsoft To Do delivery spike has a separate guarded-enablement
-  checkpoint in progress on `wp-11-microsoft-todo-delivery-spike`, based exactly
-  on its pushed mocked commit. Owner/CSRF/literal-confirmation controls are
-  locally exposed but were not invoked. Work remains stopped before the live
-  incremental-consent/Graph/device gate; WP-11 stays open and To Do stays
-  experimental.
-  A pre-Graph live attempt found the disconnected-account UI gate inconsistent
-  with the backend. A separate mocked/local correction checkpoint is in progress;
-  no new consent evidence, token, list, or task was created.
+  checkpoint in progress on `wp-11-microsoft-todo-delivery-spike`. The guarded
+  exact-six-scope callback was attempted after approval and failed closed before
+  account/token/consent commit. Its latest authorization session used the exact
+  requested envelope and consumed state, while the account and consent ledger
+  remained at the 18 July disconnected five-scope state. Mocked reproduction
+  found that requested OIDC markers in access-token `scp` were incorrectly
+  treated as additional Graph permissions. A separate correction checkpoint is
+  in progress; no retained token, list, task, reconciliation, cleanup, or
+  delivery activation resulted. WP-11 remains open and To Do experimental.
 
 ## Completed packages
 
@@ -58,7 +59,8 @@ Last updated: 20 July 2026
 - `wp-10-tasks-canonical-reminders` — complete, pushed, and integrated at
   `718bc897939017a641e6c3ee20f593c9c7c35516`.
 - `wp-11-microsoft-todo-delivery-spike` — guarded enablement implementation;
-  stopped at the live gate.
+  pushed through `99052ebf88caddb352ab13db6d8c7c5cc4bbacae`, with the callback
+  correction in local verification and stopped before another live attempt.
 - Integration branch: remote `main` ends at
   `718bc897939017a641e6c3ee20f593c9c7c35516` after exact verification.
 
@@ -116,6 +118,16 @@ profile offline_access User.Read Calendars.Read` and no additional permission.
   no Microsoft Graph request, incremental consent, Entra change, or external
   mutation occurred. Local-server acceptance proves unauthenticated rejection
   and no-configuration refusal before provider access.
+- WP-11 callback-correction verification is green for formatting, lint, strict
+  typecheck, 129 modules/251 dependencies and the negative fixture, Drizzle
+  consistency, 18 unit files/86 tests, one disposable local-PostgreSQL file/9
+  tests, 99 governed Markdown documents/current dictionary, and every non-web
+  workspace build. The focused mocked token fixture proves requested OIDC
+  markers are excluded from the exact Graph comparison while an unrequested
+  marker or broader permission still fails closed. The live development server
+  held Next's project lock, so the unchanged nine-journey browser suite and web
+  production build were not rerun for this checkpoint; the prior WP-11 gate for
+  both remains green.
 
 ## Known risks
 
@@ -149,9 +161,10 @@ Calendars.Read`; no write, To Do, mail, shared-calendar, or application
 - Later gates include production secrets, real-device delivery testing, and
   production deployment expenditure.
 - WP-11's first gate approved the contained design and mocked implementation.
-  Its second gate remains closed: Microsoft incremental consent, Entra changes,
-  the dedicated list, every Graph read/write, device testing, cleanup, and any
-  delivery decision require explicit approval. The proposed OAuth/OIDC request
+  Its second gate authorized only the exact-six-scope consent attempt, which
+  failed closed. Another authorization attempt now requires fresh approval; the
+  dedicated list, every Graph read/write, device testing, cleanup, and any
+  delivery decision remain unapproved. The OAuth/OIDC request
   is exactly `openid profile offline_access User.Read Calendars.Read
 Tasks.ReadWrite`; the expected Graph token `scp` set is separately exactly
   `User.Read Calendars.Read Tasks.ReadWrite`. The broader technical access of

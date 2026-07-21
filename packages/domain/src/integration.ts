@@ -186,8 +186,17 @@ export type MicrosoftIntegrationEventType =
 export type MicrosoftOAuthFailureReason =
   'authorization_failed' | 'consent_revoked' | 'provider_unavailable';
 
+export type MicrosoftOAuthFailureStage =
+  | 'token_exchange'
+  | 'token_validation'
+  | 'profile_request'
+  | 'profile_validation';
+
 export class MicrosoftOAuthGatewayError extends Error {
-  public constructor(public readonly reason: MicrosoftOAuthFailureReason) {
+  public constructor(
+    public readonly reason: MicrosoftOAuthFailureReason,
+    public readonly stage?: MicrosoftOAuthFailureStage,
+  ) {
     super(reason);
     this.name = 'MicrosoftOAuthGatewayError';
   }

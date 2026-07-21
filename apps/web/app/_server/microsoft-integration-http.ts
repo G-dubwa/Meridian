@@ -4,6 +4,7 @@ import {
   microsoftDisconnectRequestV1Schema,
 } from '@meridian/api-contracts';
 import type { MicrosoftConnectionStatusView } from '@meridian/application';
+import { MicrosoftCallbackFailedError } from '@meridian/application';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import {
@@ -83,7 +84,13 @@ export async function getMicrosoftCallback(
     if (!state || !code || providerError) throw new Error('Callback rejected.');
     await authenticationRuntime().microsoft.completeConnection(state, code);
     destination.searchParams.set('microsoft', 'connected');
-  } catch {
+  } catch (error) {
+    if (error instanceof MicrosoftCallbackFailedError)
+      console.warn('Microsoft callback rejected safely.', error.diagnostic);
+    else
+      console.warn('Microsoft callback envelope rejected safely.', {
+        failureClass: 'callback_envelope_rejected',
+      });
     destination.searchParams.set('microsoft', 'failed');
   }
   const response = NextResponse.redirect(destination, 303);

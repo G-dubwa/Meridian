@@ -188,43 +188,84 @@ function canonicalGraphPermission(
   );
 }
 
+function isRequestedOidcMarker(
+  value: string,
+  requestedScopes: readonly MicrosoftRequestedScope[],
+): boolean {
+  return requestedScopes.some(
+    (scope) =>
+      ['openid', 'profile', 'offline_access'].includes(scope) &&
+      scope.toLowerCase() === value.toLowerCase(),
+  );
+}
+
 function validateGraphAccessTokenPermissions(
   accessToken: string,
   requestedScopes: readonly MicrosoftRequestedScope[],
 ): readonly MicrosoftGraphPermission[] {
   const parts = accessToken.split('.');
   if (parts.length !== 3 || !parts[1])
-    throw new MicrosoftOAuthGatewayError('authorization_failed');
+    throw new MicrosoftOAuthGatewayError(
+      'authorization_failed',
+      'token_validation',
+    );
   let payload: unknown;
   try {
     payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
   } catch {
-    throw new MicrosoftOAuthGatewayError('authorization_failed');
+    throw new MicrosoftOAuthGatewayError(
+      'authorization_failed',
+      'token_validation',
+    );
   }
   if (!payload || typeof payload !== 'object' || !('scp' in payload))
-    throw new MicrosoftOAuthGatewayError('authorization_failed');
+    throw new MicrosoftOAuthGatewayError(
+      'authorization_failed',
+      'token_validation',
+    );
   const scp = (payload as Readonly<Record<string, unknown>>).scp;
   if (typeof scp !== 'string')
-    throw new MicrosoftOAuthGatewayError('authorization_failed');
-  const canonical = scp
-    .split(/\s+/)
-    .filter(Boolean)
-    .map(canonicalGraphPermission);
-  if (canonical.some((permission) => permission === null))
-    throw new MicrosoftOAuthGatewayError('authorization_failed');
-  const parsed = microsoftGraphPermissionsV1Schema.parse(canonical);
+    throw new MicrosoftOAuthGatewayError(
+      'authorization_failed',
+      'token_validation',
+    );
+  const canonical: MicrosoftGraphPermission[] = [];
+  for (const claim of scp.split(/\s+/).filter(Boolean)) {
+    const permission = canonicalGraphPermission(claim);
+    if (permission) {
+      canonical.push(permission);
+      continue;
+    }
+    if (isRequestedOidcMarker(claim, requestedScopes)) continue;
+    throw new MicrosoftOAuthGatewayError(
+      'authorization_failed',
+      'token_validation',
+    );
+  }
+  const parsed = microsoftGraphPermissionsV1Schema.safeParse(canonical);
+  if (!parsed.success)
+    throw new MicrosoftOAuthGatewayError(
+      'authorization_failed',
+      'token_validation',
+    );
   const expected = expectedMicrosoftGraphPermissionsV1(requestedScopes);
   if (
-    parsed.length !== expected.length ||
-    expected.some((permission) => !parsed.includes(permission))
+    parsed.data.length !== expected.length ||
+    expected.some((permission) => !parsed.data.includes(permission))
   )
-    throw new MicrosoftOAuthGatewayError('authorization_failed');
+    throw new MicrosoftOAuthGatewayError(
+      'authorization_failed',
+      'token_validation',
+    );
   return expected;
 }
 
 function tokenResponse(value: unknown): TokenEndpointResponse {
   if (!value || typeof value !== 'object')
-    throw new MicrosoftOAuthGatewayError('provider_unavailable');
+    throw new MicrosoftOAuthGatewayError(
+      'provider_unavailable',
+      'token_validation',
+    );
   const candidate = value as Readonly<Record<string, unknown>>;
   if (
     typeof candidate.access_token !== 'string' ||
@@ -235,7 +276,10 @@ function tokenResponse(value: unknown): TokenEndpointResponse {
     candidate.expires_in <= 0 ||
     (candidate.scope !== undefined && typeof candidate.scope !== 'string')
   )
-    throw new MicrosoftOAuthGatewayError('provider_unavailable');
+    throw new MicrosoftOAuthGatewayError(
+      'provider_unavailable',
+      'token_validation',
+    );
   return {
     access_token: candidate.access_token,
     ...(candidate.refresh_token === undefined
@@ -277,7 +321,10 @@ export class MicrosoftOAuthHttpGateway implements MicrosoftOAuthGateway {
     requestedScopes: readonly MicrosoftRequestedScope[],
   ): Promise<MicrosoftTokenGrant> {
     if (redirectUri !== this.configuration.redirectUri)
-      throw new MicrosoftOAuthGatewayError('authorization_failed');
+      throw new MicrosoftOAuthGatewayError(
+        'authorization_failed',
+        'token_exchange',
+      );
     return this.requestToken(
       new URLSearchParams({
         client_id: this.configuration.clientId,
@@ -322,27 +369,43 @@ export class MicrosoftOAuthHttpGateway implements MicrosoftOAuthGateway {
         signal: AbortSignal.timeout(TOKEN_TIMEOUT_MS),
       });
     } catch {
-      throw new MicrosoftOAuthGatewayError('provider_unavailable');
+      throw new MicrosoftOAuthGatewayError(
+        'provider_unavailable',
+        'profile_request',
+      );
     }
     if (!response.ok)
       throw new MicrosoftOAuthGatewayError(
         response.status === 401 || response.status === 403
           ? 'consent_revoked'
           : 'provider_unavailable',
+        'profile_request',
       );
     let value: unknown;
     try {
       value = await response.json();
     } catch {
-      throw new MicrosoftOAuthGatewayError('provider_unavailable');
+      throw new MicrosoftOAuthGatewayError(
+        'provider_unavailable',
+        'profile_validation',
+      );
     }
     if (!value || typeof value !== 'object')
-      throw new MicrosoftOAuthGatewayError('provider_unavailable');
+      throw new MicrosoftOAuthGatewayError(
+        'provider_unavailable',
+        'profile_validation',
+      );
     const candidate = value as Readonly<Record<string, unknown>>;
-    return microsoftProfileV1Schema.parse({
+    const profile = microsoftProfileV1Schema.safeParse({
       displayName: candidate.displayName,
       providerSubjectId: candidate.id,
     });
+    if (!profile.success)
+      throw new MicrosoftOAuthGatewayError(
+        'authorization_failed',
+        'profile_validation',
+      );
+    return profile.data;
   }
 
   private async requestToken(
@@ -359,7 +422,10 @@ export class MicrosoftOAuthHttpGateway implements MicrosoftOAuthGateway {
         signal: AbortSignal.timeout(TOKEN_TIMEOUT_MS),
       });
     } catch {
-      throw new MicrosoftOAuthGatewayError('provider_unavailable');
+      throw new MicrosoftOAuthGatewayError(
+        'provider_unavailable',
+        'token_exchange',
+      );
     }
     if (!response.ok) {
       let errorCode: unknown;
@@ -377,18 +443,25 @@ export class MicrosoftOAuthHttpGateway implements MicrosoftOAuthGateway {
           : response.status >= 500
             ? 'provider_unavailable'
             : 'authorization_failed',
+        'token_exchange',
       );
     }
     let raw: unknown;
     try {
       raw = await response.json();
     } catch {
-      throw new MicrosoftOAuthGatewayError('provider_unavailable');
+      throw new MicrosoftOAuthGatewayError(
+        'provider_unavailable',
+        'token_validation',
+      );
     }
     const token = tokenResponse(raw);
     const refreshToken = token.refresh_token ?? priorRefreshToken;
     if (!refreshToken)
-      throw new MicrosoftOAuthGatewayError('authorization_failed');
+      throw new MicrosoftOAuthGatewayError(
+        'authorization_failed',
+        'token_validation',
+      );
     return {
       accessToken: token.access_token,
       expiresInSeconds: token.expires_in,

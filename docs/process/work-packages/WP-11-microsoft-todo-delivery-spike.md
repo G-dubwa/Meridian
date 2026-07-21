@@ -48,6 +48,21 @@ failure class. The correction makes guarded eligibility an authoritative
 content-free status-contract field shared by route policy and UI, displays both
 exact envelopes before redirect, and keeps five-scope validation unchanged.
 
+The first guarded six-scope callbacks on 21 July also failed closed. The newest
+content-free authorization-session evidence has correlation ID
+`e3dfb0e6-56e3-4e61-97cc-5e63aa3bdafd`, the exact six requested scopes, and a
+state consumed at 16:44:02 SAST. The account remained disconnected with only
+the 18 July five-scope grant/disconnect evidence; no list or task existed. The
+pre-correction callback did not retain a sanitized token/profile validation
+stage, so it cannot be reconstructed from discarded provider material. A
+mocked reproduction identified that the Graph `scp` parser rejected requested
+OIDC markers when Microsoft included them alongside the three Graph
+permissions. The correction ignores only requested `openid`, `profile`, and
+`offline_access` markers for the Graph-permission comparison, still requires
+exactly `User.Read Calendars.Read Tasks.ReadWrite`, rejects every unrequested or
+additional claim, and emits content-free correlation/failure-stage/validation
+results for future callback diagnosis.
+
 ## Verification and acceptance boundary
 
 Mocked tests must prove exact six-scope request construction; exact three-scope

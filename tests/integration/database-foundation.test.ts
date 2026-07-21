@@ -1264,7 +1264,15 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
       throw new Error('Rejected incremental state was not generated.');
     await expect(
       microsoft.completeConnection(rejectedIncrementalState, 'one-time-code'),
-    ).rejects.toMatchObject({ code: 'AUTHENTICATION_FAILED' });
+    ).rejects.toMatchObject({
+      code: 'AUTHENTICATION_FAILED',
+      diagnostic: {
+        failureClass: 'token_validation_failed',
+        profileValidation: 'not_reached',
+        requestedScopes: MICROSOFT_TODO_SPIKE_REQUESTED_SCOPES,
+        tokenValidation: 'rejected',
+      },
+    });
     expect(await microsoft.status(scopeA)).toMatchObject({
       account: { status: 'disconnected' },
       consentRecords: [{ action: 'granted' }, { action: 'disconnected' }],

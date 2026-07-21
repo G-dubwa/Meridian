@@ -223,7 +223,7 @@ describe('WP-07 Microsoft OAuth infrastructure', () => {
       return Promise.resolve(
         Response.json({
           access_token: graphAccessToken(
-            'Tasks.ReadWrite Calendars.Read User.Read',
+            'profile Tasks.ReadWrite openid Calendars.Read User.Read',
           ),
           expires_in: 3600,
           refresh_token: 'refresh-token',
@@ -277,6 +277,31 @@ describe('WP-07 Microsoft OAuth infrastructure', () => {
         MICROSOFT_TODO_SPIKE_REQUESTED_SCOPES,
       ),
     ).rejects.toMatchObject({ reason: 'authorization_failed' });
+
+    const unexpectedOidc: typeof fetch = () =>
+      Promise.resolve(
+        Response.json({
+          access_token: graphAccessToken(
+            'openid profile email User.Read Calendars.Read Tasks.ReadWrite',
+          ),
+          expires_in: 3600,
+          refresh_token: 'refresh-token',
+        }),
+      );
+    await expect(
+      new MicrosoftOAuthHttpGateway(
+        configuration,
+        unexpectedOidc,
+      ).exchangeAuthorizationCode(
+        'authorization-code',
+        'V'.repeat(64),
+        configuration.redirectUri,
+        MICROSOFT_TODO_SPIKE_REQUESTED_SCOPES,
+      ),
+    ).rejects.toMatchObject({
+      reason: 'authorization_failed',
+      stage: 'token_validation',
+    });
   });
 
   it('remains disabled until every local variable is present and never exposes tokens through the API contract', () => {

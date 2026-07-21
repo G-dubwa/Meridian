@@ -22,6 +22,10 @@ Calendars.Read` requested with exactly `User.Read Calendars.Read` in Graph
 Graph `scp`. OIDC scopes are not required to appear identically in the token or
 consent display. Missing, duplicate, mismatched, or additional Graph
 permissions fail closed before a grant is persisted.
+Requested `openid`, `profile`, or `offline_access` markers may be present or
+absent in access-token `scp`; they are excluded from the Graph-permission set
+comparison. Any unrequested marker or any additional Graph permission is still
+rejected.
 
 A grant row is appended only after code exchange, exact-scope validation,
 minimal profile retrieval, encrypted token persistence, domain event, and outbox
