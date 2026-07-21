@@ -37,6 +37,11 @@ set -a; source .env; set +a
 pnpm db:migrate
 ```
 
+Run migrations after every branch update and before starting or restarting the
+web process. WP-11 consent start requires migration `0010_wp11_oauth_nonce`;
+an older schema is rejected locally at `oauth_session_persistence` before any
+Microsoft redirect.
+
 The example credentials are development-only. Bootstrap the one local owner
 from the same private terminal:
 

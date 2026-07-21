@@ -23,7 +23,12 @@ Last updated: 21 July 2026
   validates the ID token plus nonce and account continuity. The account and
   ledger remain at the 18 July disconnected five-scope state; no retained
   candidate token, list, task, reconciliation, cleanup, or delivery activation
-  resulted. WP-11 remains open and To Do experimental.
+  resulted. A subsequent consent-start HTTP 500 was traced to the active local
+  database missing committed migration `0010_wp11_oauth_nonce`: PostgreSQL
+  rejected the new nonce-hash insert with `42703` before redirect. The local
+  database is now migrated with the historical account/ledger intact, and the
+  route correction passed the complete repository gate. WP-11 remains open and
+  To Do experimental.
 
 ## Completed packages
 
@@ -131,6 +136,12 @@ profile offline_access User.Read Calendars.Read` and no additional permission.
   callback failure, and callback log/request-line redaction. Microsoft was
   unconfigured during browser acceptance; no consent, Graph request, provider
   mutation, or external cost occurred.
+- WP-11 consent-start regression verification proves authenticated owner/CSRF
+  handling, literal confirmation, exact historical Stage-A eligibility, exact
+  six-scope authorization URL construction, and zero provider calls. A
+  disposable stale schema now returns correlated stage
+  `oauth_session_persistence` with HTTP 409 and inserts no session; unexpected
+  failures retain a value-free server stack and HTTP 500.
 
 ## Known risks
 

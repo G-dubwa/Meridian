@@ -21,6 +21,33 @@ export const microsoftTodoConsentRequestV1Schema = z
   .object({ confirmation: z.literal('ENABLE WP11 TODO CONSENT') })
   .strict();
 
+export const microsoftConsentStartFailureV1Schema = z
+  .object({
+    correlationId: uuidV1Schema,
+    error: z.enum([
+      'AUTHENTICATION_FAILED',
+      'CONFLICT',
+      'CSRF_INVALID',
+      'INTERNAL_ERROR',
+      'INTEGRATION_UNAVAILABLE',
+      'SESSION_INVALID',
+      'VALIDATION_FAILED',
+    ]),
+    stage: z.enum([
+      'configuration',
+      'confirmation',
+      'csrf',
+      'eligibility',
+      'internal',
+      'oauth_session_persistence',
+      'owner_session',
+    ]),
+  })
+  .strict();
+export type MicrosoftConsentStartFailureV1 = z.infer<
+  typeof microsoftConsentStartFailureV1Schema
+>;
+
 export const microsoftTodoFirstDayRequestV1Schema = z
   .object({
     confirmation: z.literal('CREATE WP11 FIRST-DAY TEST'),

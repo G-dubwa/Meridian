@@ -2,7 +2,10 @@ import { spawnSync } from 'node:child_process';
 import { expect, test } from '@playwright/test';
 import type { APIRequestContext } from '@playwright/test';
 import postgres from 'postgres';
-import { userIdV1Schema } from '../../packages/domain/src/index.js';
+import {
+  userIdV1Schema,
+  uuidV1Schema,
+} from '../../packages/domain/src/index.js';
 import { createDatabaseClient } from '../../packages/infrastructure-db/src/client.js';
 import { DrizzleTransactionManager } from '../../packages/infrastructure-db/src/transaction-manager.js';
 
@@ -43,7 +46,7 @@ async function login(
   });
 }
 
-test.describe.serial('WP-04 through WP-10 authenticated acceptance', () => {
+test.describe.serial('WP-04 through WP-11 authenticated acceptance', () => {
   test('bootstraps exactly one owner and stores only Argon2id/recovery hashes', async () => {
     const first = spawnSync(
       'pnpm',
@@ -280,7 +283,7 @@ test.describe.serial('WP-04 through WP-10 authenticated acceptance', () => {
     expect((await request.get('/api/auth/session')).status()).toBe(401);
   });
 
-  test('creates and revises Standard evidence while keeping Private evidence outside AI queries', async ({
+  test('keeps Private evidence outside AI and preflights guarded Microsoft consent locally', async ({
     request,
   }) => {
     expect((await request.get('/api/system/worker-health')).status()).toBe(401);
@@ -457,7 +460,7 @@ test.describe.serial('WP-04 through WP-10 authenticated acceptance', () => {
     expect(microsoftStatus.status()).toBe(200);
     expect(await microsoftStatus.json()).toMatchObject({
       account: null,
-      configured: false,
+      configured: true,
       consentRecords: [],
       requestedScopes: [
         'openid',
@@ -467,28 +470,197 @@ test.describe.serial('WP-04 through WP-10 authenticated acceptance', () => {
         'Calendars.Read',
       ],
     });
-    const connectWithoutEnvironment = await request.post(
-      '/api/integrations/microsoft',
-      {
-        data: {},
-        headers: { 'x-csrf-token': await csrfCookie(request) },
-      },
-    );
-    expect(connectWithoutEnvironment.status()).toBe(503);
-    expect(await connectWithoutEnvironment.json()).toEqual({
-      error: 'INTEGRATION_UNAVAILABLE',
+    const connectPreflight = await request.post('/api/integrations/microsoft', {
+      data: {},
+      headers: { 'x-csrf-token': await csrfCookie(request) },
     });
-    const todoWithoutEnvironment = await request.post(
+    expect(connectPreflight.status()).toBe(200);
+    const connectBody = (await connectPreflight.json()) as {
+      authorizationUrl?: unknown;
+    };
+    expect(typeof connectBody.authorizationUrl).toBe('string');
+    const connectUrl = new URL(String(connectBody.authorizationUrl));
+    expect(connectUrl.origin).toBe('https://login.microsoftonline.com');
+    expect(connectUrl.searchParams.get('scope')?.split(' ')).toEqual([
+      'openid',
+      'profile',
+      'offline_access',
+      'User.Read',
+      'Calendars.Read',
+    ]);
+    expect(connectUrl.searchParams.get('state')?.length).toBeGreaterThanOrEqual(
+      32,
+    );
+    expect(connectUrl.searchParams.get('nonce')?.length).toBeGreaterThanOrEqual(
+      32,
+    );
+
+    const ineligibleTodo = await request.post(
       '/api/integrations/microsoft/todo/consent',
       {
         data: { confirmation: 'ENABLE WP11 TODO CONSENT' },
         headers: { 'x-csrf-token': await csrfCookie(request) },
       },
     );
-    expect(todoWithoutEnvironment.status()).toBe(503);
-    expect(await todoWithoutEnvironment.json()).toEqual({
-      error: 'INTEGRATION_UNAVAILABLE',
+    expect(ineligibleTodo.status()).toBe(409);
+    expect(await ineligibleTodo.json()).toMatchObject({
+      error: 'CONFLICT',
+      stage: 'eligibility',
     });
+
+    const microsoftDatabase = createDatabaseClient(databaseUrl);
+    const microsoftSql = postgres(databaseUrl, { prepare: false });
+    try {
+      const [credential] = await microsoftSql<{ user_id: string }[]>`
+        select user_id from auth_credentials where identifier = 'owner'
+      `;
+      if (!credential) throw new Error('Owner fixture is missing.');
+      const scope = { userId: userIdV1Schema.parse(credential.user_id) };
+      const occurredAt = new Date('2026-07-18T20:21:08.715Z');
+      await new DrizzleTransactionManager(microsoftDatabase.database).run(
+        scope,
+        async (ports) => {
+          await ports.integrationAccounts.save({
+            accessTokenCiphertext: null,
+            connectedAt: occurredAt,
+            createdAt: occurredAt,
+            disconnectedAt: new Date('2026-07-18T20:22:55.067Z'),
+            displayName: 'Synthetic Microsoft Owner',
+            graphPermissions: ['User.Read', 'Calendars.Read'],
+            id: uuidV1Schema.parse('018f0f77-34f1-7ef2-8ca1-7a3bf7f01980'),
+            lastRefreshedAt: null,
+            provider: 'microsoft',
+            providerSubjectId: '018f0f77-34f1-7ef2-8ca1-7a3bf7f01981',
+            refreshTokenCiphertext: null,
+            requestedScopes: [
+              'openid',
+              'profile',
+              'offline_access',
+              'User.Read',
+              'Calendars.Read',
+            ],
+            scope,
+            status: 'disconnected',
+            tokenExpiresAt: null,
+            tokenKeyVersion: 1,
+            updatedAt: new Date('2026-07-18T20:22:55.067Z'),
+          });
+          await ports.consentRecords.append({
+            action: 'granted',
+            graphPermissions: ['User.Read', 'Calendars.Read'],
+            id: uuidV1Schema.parse('018f0f77-34f1-7ef2-8ca1-7a3bf7f01982'),
+            integrationAccountId: uuidV1Schema.parse(
+              '018f0f77-34f1-7ef2-8ca1-7a3bf7f01980',
+            ),
+            occurredAt,
+            provider: 'microsoft',
+            requestedScopes: [
+              'openid',
+              'profile',
+              'offline_access',
+              'User.Read',
+              'Calendars.Read',
+            ],
+            scope,
+          });
+        },
+      );
+
+      const missingCsrf = await request.post(
+        '/api/integrations/microsoft/todo/consent',
+        { data: { confirmation: 'ENABLE WP11 TODO CONSENT' } },
+      );
+      expect(missingCsrf.status()).toBe(403);
+      expect(await missingCsrf.json()).toMatchObject({
+        error: 'CSRF_INVALID',
+        stage: 'csrf',
+      });
+
+      const invalidConfirmation = await request.post(
+        '/api/integrations/microsoft/todo/consent',
+        {
+          data: { confirmation: 'CONNECT' },
+          headers: { 'x-csrf-token': await csrfCookie(request) },
+        },
+      );
+      expect(invalidConfirmation.status()).toBe(400);
+      expect(await invalidConfirmation.json()).toMatchObject({
+        error: 'VALIDATION_FAILED',
+        stage: 'confirmation',
+      });
+
+      const malformedConfirmation = await request.post(
+        '/api/integrations/microsoft/todo/consent',
+        {
+          data: '{',
+          headers: {
+            'content-type': 'application/json',
+            'x-csrf-token': await csrfCookie(request),
+          },
+        },
+      );
+      expect(malformedConfirmation.status()).toBe(400);
+      expect(await malformedConfirmation.json()).toMatchObject({
+        error: 'VALIDATION_FAILED',
+        stage: 'confirmation',
+      });
+
+      const todoPreflight = await request.post(
+        '/api/integrations/microsoft/todo/consent',
+        {
+          data: { confirmation: 'ENABLE WP11 TODO CONSENT' },
+          headers: { 'x-csrf-token': await csrfCookie(request) },
+        },
+      );
+      expect(todoPreflight.status()).toBe(200);
+      const todoBody = (await todoPreflight.json()) as {
+        authorizationUrl?: unknown;
+      };
+      expect(typeof todoBody.authorizationUrl).toBe('string');
+      const todoUrl = new URL(String(todoBody.authorizationUrl));
+      expect(todoUrl.origin).toBe('https://login.microsoftonline.com');
+      expect(todoUrl.searchParams.get('scope')?.split(' ')).toEqual([
+        'openid',
+        'profile',
+        'offline_access',
+        'User.Read',
+        'Calendars.Read',
+        'Tasks.ReadWrite',
+      ]);
+      expect(todoUrl.searchParams.get('response_mode')).toBe('form_post');
+      expect(todoUrl.searchParams.get('state')?.length).toBeGreaterThanOrEqual(
+        32,
+      );
+      expect(todoUrl.searchParams.get('nonce')?.length).toBeGreaterThanOrEqual(
+        32,
+      );
+
+      const [beforeStaleSchema] = await microsoftSql<{ count: string }[]>`
+        select count(*)::text as count from oauth_authorization_sessions
+      `;
+      await microsoftSql`
+        alter table oauth_authorization_sessions drop column nonce_hash
+      `;
+      const staleSchema = await request.post(
+        '/api/integrations/microsoft/todo/consent',
+        {
+          data: { confirmation: 'ENABLE WP11 TODO CONSENT' },
+          headers: { 'x-csrf-token': await csrfCookie(request) },
+        },
+      );
+      expect(staleSchema.status()).toBe(409);
+      expect(await staleSchema.json()).toMatchObject({
+        error: 'CONFLICT',
+        stage: 'oauth_session_persistence',
+      });
+      const [afterStaleSchema] = await microsoftSql<{ count: string }[]>`
+        select count(*)::text as count from oauth_authorization_sessions
+      `;
+      expect(afterStaleSchema?.count).toBe(beforeStaleSchema?.count);
+    } finally {
+      await microsoftDatabase.sql.end();
+      await microsoftSql.end();
+    }
     const integrationsPage = await request.get('/settings/integrations');
     expect(integrationsPage.status()).toBe(200);
     expect(await integrationsPage.text()).toContain('Integrations and consent');

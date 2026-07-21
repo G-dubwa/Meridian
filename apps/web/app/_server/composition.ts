@@ -17,6 +17,7 @@ import {
   NodeSecretService,
   SystemClock,
 } from '@meridian/infrastructure-auth';
+import { IntegrationConfigurationInvalidError } from '@meridian/domain';
 import {
   DrizzleAuthenticationTransactionManager,
   DrizzleOAuthAuthorizationSessionStore,
@@ -59,12 +60,17 @@ function createRuntime(): AuthenticationRuntime {
   const secrets = new NodeSecretService();
   const clock = new SystemClock();
   const transactions = new DrizzleTransactionManager(database.database);
-  const microsoftInfrastructure = createMicrosoftInfrastructure({
-    clientId: process.env.MICROSOFT_CLIENT_ID,
-    clientSecret: process.env.MICROSOFT_CLIENT_SECRET,
-    redirectUri: process.env.MICROSOFT_REDIRECT_URI,
-    tokenEncryptionKey: process.env.MICROSOFT_TOKEN_ENCRYPTION_KEY,
-  });
+  let microsoftInfrastructure;
+  try {
+    microsoftInfrastructure = createMicrosoftInfrastructure({
+      clientId: process.env.MICROSOFT_CLIENT_ID,
+      clientSecret: process.env.MICROSOFT_CLIENT_SECRET,
+      redirectUri: process.env.MICROSOFT_REDIRECT_URI,
+      tokenEncryptionKey: process.env.MICROSOFT_TOKEN_ENCRYPTION_KEY,
+    });
+  } catch {
+    throw new IntegrationConfigurationInvalidError('microsoft_configuration');
+  }
   const triage = new TriageService({
     clock,
     ids,

@@ -108,6 +108,22 @@ export class ConflictError extends DomainError {
   }
 }
 
+export type IntegrationConfigurationFailureStage =
+  'microsoft_configuration' | 'oauth_session_persistence';
+
+export class IntegrationConfigurationInvalidError extends ConflictError {
+  public constructor(
+    public readonly stage: IntegrationConfigurationFailureStage,
+    databaseCode?: string,
+  ) {
+    super('The integration configuration is not ready.', {
+      ...(databaseCode === undefined ? {} : { databaseCode }),
+      stage,
+    });
+    this.name = 'IntegrationConfigurationInvalidError';
+  }
+}
+
 export class DomainValidationError extends DomainError {
   public constructor(
     message: string,

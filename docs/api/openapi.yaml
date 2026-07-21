@@ -571,11 +571,11 @@ paths:
             application/json:
               schema:
                 { $ref: '#/components/schemas/MicrosoftConnectResponseV1' }
-        '400': { $ref: '#/components/responses/ValidationFailed' }
-        '401': { $ref: '#/components/responses/SessionInvalid' }
-        '403': { $ref: '#/components/responses/CsrfInvalid' }
-        '409': { $ref: '#/components/responses/Conflict' }
-        '503': { $ref: '#/components/responses/IntegrationUnavailable' }
+        '400': { $ref: '#/components/responses/MicrosoftConsentStartFailure' }
+        '401': { $ref: '#/components/responses/MicrosoftConsentStartFailure' }
+        '403': { $ref: '#/components/responses/MicrosoftConsentStartFailure' }
+        '409': { $ref: '#/components/responses/MicrosoftConsentStartFailure' }
+        '500': { $ref: '#/components/responses/MicrosoftConsentStartFailure' }
   /api/integrations/microsoft/todo/first-day:
     post:
       operationId: createMicrosoftTodoFirstDayTest
@@ -773,6 +773,36 @@ components:
       required: [confirmation]
       properties:
         confirmation: { type: string, const: ENABLE WP11 TODO CONSENT }
+    MicrosoftConsentStartFailureV1:
+      type: object
+      additionalProperties: false
+      required: [correlationId, error, stage]
+      properties:
+        correlationId: { type: string, format: uuid }
+        error:
+          type: string
+          enum:
+            [
+              AUTHENTICATION_FAILED,
+              CONFLICT,
+              CSRF_INVALID,
+              INTERNAL_ERROR,
+              INTEGRATION_UNAVAILABLE,
+              SESSION_INVALID,
+              VALIDATION_FAILED,
+            ]
+        stage:
+          type: string
+          enum:
+            [
+              configuration,
+              confirmation,
+              csrf,
+              eligibility,
+              internal,
+              oauth_session_persistence,
+              owner_session,
+            ]
     MicrosoftTodoFirstDayRequestV1:
       type: object
       additionalProperties: false
@@ -1614,6 +1644,12 @@ components:
       content:
         application/json:
           schema: { $ref: '#/components/schemas/MicrosoftTodoStatusV1' }
+    MicrosoftConsentStartFailure:
+      description: Content-free consent-start failure with a safe stage and correlation identity.
+      content:
+        application/json:
+          schema:
+            { $ref: '#/components/schemas/MicrosoftConsentStartFailureV1' }
     JournalEntry:
       description: Current entry state and complete immutable revision history.
       content:

@@ -60,13 +60,27 @@ from the token endpoint response's `scope` metadata, validates the signed ID
 token for authentication and continuity, and never decodes the Graph access
 token. Callback state, expiry, PKCE, and a hashed OIDC nonce remain mandatory.
 
+A later consent-start attempt returned HTTP 500 before redirect. The active
+database had migration `0009` but not `0010_wp11_oauth_nonce`, so Drizzle tried
+to insert the new nonce hash into a missing `oauth_authorization_sessions`
+column and PostgreSQL returned `42703`. Owner authentication, CSRF, literal
+confirmation, Stage-A eligibility, and exact six-scope construction had passed;
+no provider request or durable OAuth session resulted. The correction maps only
+missing authorization-session schema (`42703`/`42P01`) to a content-free HTTP
+409 at `oauth_session_persistence`, preserves unexpected failures as correlated
+500s with value-free stack frames, and leaves all exact scope and RLS controls
+unchanged. The local database was advanced through migration `0010` with its
+historical disconnected account and two consent rows intact.
+
 ## Verification and acceptance boundary
 
 Mocked tests must prove exact six-scope request construction; opaque and
 encrypted-looking access-token acceptance with exact three-permission response
 metadata; qualified-scope normalization; unexpected/missing/duplicate metadata
-rejection; signed ID-token and nonce failure; five-scope refusal
-before token access; atomic extension request; fallback/uncertain recovery; one
+rejection; signed ID-token and nonce failure; five-scope refusal before token
+access; successful authenticated consent-start without provider I/O;
+confirmation/CSRF/eligibility stages; stale-schema 409 with no inserted session;
+atomic extension request; fallback/uncertain recovery; one
 create despite a recovered lost response; owner/non-shared/list/marker
 containment; stored-list URL restriction; Johannesburg-to-Microsoft time-zone
 mapping; content-free events; forced RLS; migration upgrade; and no external

@@ -1,4 +1,5 @@
 import { spawn, spawnSync } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -89,10 +90,10 @@ try {
     ...process.env,
     AUTH_E2E_BASE_URL: baseUrl,
     DATABASE_URL: databaseUrl,
-    MICROSOFT_CLIENT_ID: '',
-    MICROSOFT_CLIENT_SECRET: '',
-    MICROSOFT_REDIRECT_URI: '',
-    MICROSOFT_TOKEN_ENCRYPTION_KEY: '',
+    MICROSOFT_CLIENT_ID: '018f0f77-34f1-7ef2-8ca1-7a3bf7f01976',
+    MICROSOFT_CLIENT_SECRET: randomBytes(32).toString('base64url'),
+    MICROSOFT_REDIRECT_URI: `${baseUrl}/api/integrations/microsoft/callback`,
+    MICROSOFT_TOKEN_ENCRYPTION_KEY: randomBytes(32).toString('base64'),
   };
   run('pnpm', ['db:migrate'], { env: environment });
   for (const packageName of [

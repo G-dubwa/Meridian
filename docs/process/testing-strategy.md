@@ -77,6 +77,11 @@ authentication boundary. Mocked Graph tests inspect only request shape,
 dedicated-list paths, ownership markers, deterministic time conversion, and
 sanitized failures. Application tests prove owner confirmation, five-scope
 refusal before token access, baseline recovery, and no blind duplicate POST.
+Authenticated browser acceptance uses runtime-generated synthetic Microsoft
+secrets to prove the exact consent-start redirect locally without following it
+or contacting Microsoft. It also deliberately removes the nonce column in its
+disposable database and requires a correlated
+`oauth_session_persistence` 409 with no additional authorization-session row.
 The local PostgreSQL suite applies the new forced-RLS bindings and verifies the
 scope-envelope migration. Live consent, Graph reads/writes, device delivery,
 completion observation, cleanup, and the seven-day scorecard are a separate

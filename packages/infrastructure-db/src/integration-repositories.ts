@@ -1,5 +1,6 @@
 import {
   consentActionV1Schema,
+  IntegrationConfigurationInvalidError,
   integrationAccountStatusV1Schema,
   microsoftGraphPermissionsV1Schema,
   microsoftRequestedScopesV1Schema,
@@ -23,6 +24,27 @@ import {
   integrationAccounts,
   oauthAuthorizationSessions,
 } from './schema.js';
+
+function databaseErrorCode(error: unknown): string | undefined {
+  let current = error;
+  for (let depth = 0; depth < 4; depth += 1) {
+    if (!current || typeof current !== 'object') return undefined;
+    if ('code' in current && typeof current.code === 'string')
+      return current.code;
+    current = 'cause' in current ? current.cause : undefined;
+  }
+  return undefined;
+}
+
+function oauthSessionPersistenceFailure(error: unknown): never {
+  const code = databaseErrorCode(error);
+  if (code === '42703' || code === '42P01')
+    throw new IntegrationConfigurationInvalidError(
+      'oauth_session_persistence',
+      code,
+    );
+  throw error;
+}
 
 function mapIntegrationAccount(
   row: typeof integrationAccounts.$inferSelect,
@@ -185,57 +207,61 @@ export class DrizzleOAuthAuthorizationSessionStore implements OAuthAuthorization
   public constructor(private readonly database: DatabaseClient) {}
 
   public create(record: OAuthAuthorizationSessionRecord): Promise<void> {
-    return this.database.transaction(async (transaction) => {
-      await transaction.insert(oauthAuthorizationSessions).values({
-        codeVerifierCiphertext: record.codeVerifierCiphertext,
-        consumedAt: record.consumedAt,
-        createdAt: record.createdAt,
-        expiresAt: record.expiresAt,
-        id: record.id,
-        nonceHash: record.nonceHash,
-        provider: record.provider,
-        redirectUri: record.redirectUri,
-        requestedScopes: [...record.requestedScopes],
-        stateHash: record.stateHash,
-        userId: record.userId,
-      });
-    });
+    return this.database
+      .transaction(async (transaction) => {
+        await transaction.insert(oauthAuthorizationSessions).values({
+          codeVerifierCiphertext: record.codeVerifierCiphertext,
+          consumedAt: record.consumedAt,
+          createdAt: record.createdAt,
+          expiresAt: record.expiresAt,
+          id: record.id,
+          nonceHash: record.nonceHash,
+          provider: record.provider,
+          redirectUri: record.redirectUri,
+          requestedScopes: [...record.requestedScopes],
+          stateHash: record.stateHash,
+          userId: record.userId,
+        });
+      })
+      .catch(oauthSessionPersistenceFailure);
   }
 
   public consume(
     stateHash: string,
     consumedAt: Date,
   ): Promise<OAuthAuthorizationSessionRecord | null> {
-    return this.database.transaction(async (transaction) => {
-      const [row] = await transaction
-        .select()
-        .from(oauthAuthorizationSessions)
-        .where(
-          and(
-            eq(oauthAuthorizationSessions.stateHash, stateHash),
-            isNull(oauthAuthorizationSessions.consumedAt),
-            gt(oauthAuthorizationSessions.expiresAt, consumedAt),
-          ),
-        )
-        .limit(1)
-        .for('update');
-      if (!row) return null;
-      const updated = await transaction
-        .update(oauthAuthorizationSessions)
-        .set({
-          codeVerifierCiphertext: 'v1.consumed',
-          consumedAt,
-        })
-        .where(
-          and(
-            eq(oauthAuthorizationSessions.id, row.id),
-            isNull(oauthAuthorizationSessions.consumedAt),
-          ),
-        )
-        .returning({ id: oauthAuthorizationSessions.id });
-      return updated.length === 1
-        ? { ...mapAuthorizationSession(row), consumedAt }
-        : null;
-    });
+    return this.database
+      .transaction(async (transaction) => {
+        const [row] = await transaction
+          .select()
+          .from(oauthAuthorizationSessions)
+          .where(
+            and(
+              eq(oauthAuthorizationSessions.stateHash, stateHash),
+              isNull(oauthAuthorizationSessions.consumedAt),
+              gt(oauthAuthorizationSessions.expiresAt, consumedAt),
+            ),
+          )
+          .limit(1)
+          .for('update');
+        if (!row) return null;
+        const updated = await transaction
+          .update(oauthAuthorizationSessions)
+          .set({
+            codeVerifierCiphertext: 'v1.consumed',
+            consumedAt,
+          })
+          .where(
+            and(
+              eq(oauthAuthorizationSessions.id, row.id),
+              isNull(oauthAuthorizationSessions.consumedAt),
+            ),
+          )
+          .returning({ id: oauthAuthorizationSessions.id });
+        return updated.length === 1
+          ? { ...mapAuthorizationSession(row), consumedAt }
+          : null;
+      })
+      .catch(oauthSessionPersistenceFailure);
   }
 }

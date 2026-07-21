@@ -49,3 +49,6 @@ related-docs: release.md
   content-free operation evidence, and a constrained Graph adapter. Live
   consent, Entra changes, provider requests, device testing, and activation
   remain behind the second gate.
+- WP-11 consent-start hardening classifies a stale OAuth-session schema before
+  redirect, returns content-free stage/correlation diagnostics instead of an
+  unhandled 500, and adds an authenticated no-provider redirect preflight.
