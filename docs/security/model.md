@@ -68,8 +68,13 @@ The confidential Web flow uses S256 PKCE, random state and nonce values stored
 only as hashes, atomic one-time consumption, a ten-minute expiry, and the fixed `consumers`
 authority. The exact allowed tuple is `openid profile offline_access User.Read
 Calendars.Read`; broader token-response scope metadata fails closed. Graph
-access tokens remain opaque. The signed ID token proves issuer, audience,
-expiry, nonce, and stable account identity.
+access tokens remain opaque. The signed ID token is verified with the issuer,
+JWKS URI, and signing algorithms fetched from the official `consumers`
+discovery document. JOSE validation requires the GUID consumer issuer, exact
+client audience, v2 token, signature, `exp`/`nbf`/`iat` with five-second clock
+tolerance, nonce binding, consumer `tid`, and stable `sub`/`oid` identity. The
+continuity key is `(consumer tid, oid)`, never display name or email;
+insufficient legacy identity stops for owner review.
 
 Access/refresh tokens and pending PKCE verifiers use AES-256-GCM envelopes with
 purpose-specific authenticated context. The 32-byte base64 key and client secret

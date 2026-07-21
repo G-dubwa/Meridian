@@ -11,6 +11,7 @@ import type {
   ConsentAction,
   IntegrationAccountStatus,
   MicrosoftGraphPermission,
+  MicrosoftIdentityValidationDiagnostic,
   MicrosoftRequestedScope,
 } from './integration.js';
 import type {
@@ -674,6 +675,7 @@ export interface MicrosoftAuthorizationIdentity {
   readonly displayName: string;
   readonly nonce: string;
   readonly providerSubjectId: string;
+  readonly validation: MicrosoftIdentityValidationDiagnostic;
 }
 
 export interface MicrosoftAuthorizationGrant extends MicrosoftTokenGrant {

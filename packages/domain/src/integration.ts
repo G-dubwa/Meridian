@@ -151,6 +151,12 @@ export const microsoftOidcNonceV1Schema = z
   .max(256)
   .regex(/^[A-Za-z0-9_-]+$/);
 
+export const microsoftProviderSubjectIdV1Schema = z
+  .string()
+  .min(1)
+  .max(255)
+  .regex(/^[A-Za-z0-9._~-]+$/);
+
 export const microsoftAuthorizationCodeV1Schema = z.string().min(1).max(8192);
 
 export const microsoftPkceVerifierV1Schema = z
@@ -190,10 +196,40 @@ export type MicrosoftOAuthFailureStage =
   | 'scope_validation'
   | 'identity_validation';
 
+export type MicrosoftIdentityValidationSubstage =
+  | 'id_token_presence'
+  | 'jwt_structure'
+  | 'signing_algorithm'
+  | 'kid_lookup'
+  | 'signature'
+  | 'issuer'
+  | 'audience'
+  | 'nonce'
+  | 'time_window'
+  | 'token_version'
+  | 'consumer_tenant'
+  | 'required_identity_claims'
+  | 'discovery_metadata';
+
+export interface MicrosoftIdentityValidationDiagnostic {
+  readonly algorithm: string;
+  readonly audienceMatch: boolean | null;
+  readonly issuerCategory:
+    'consumer_tenant_guid' | 'literal_consumers' | 'other' | 'not_reached';
+  readonly matchingKidFound: boolean | null;
+  readonly nonceMatch: boolean | null;
+  readonly requiredClaimsPresent: boolean | null;
+  readonly substage: MicrosoftIdentityValidationSubstage;
+  readonly tenantMatch: boolean | null;
+  readonly timeValid: boolean | null;
+  readonly tokenVersion: '2.0' | 'unexpected' | 'absent' | 'not_reached';
+}
+
 export class MicrosoftOAuthGatewayError extends Error {
   public constructor(
     public readonly reason: MicrosoftOAuthFailureReason,
     public readonly stage?: MicrosoftOAuthFailureStage,
+    public readonly identityDiagnostic?: MicrosoftIdentityValidationDiagnostic,
   ) {
     super(reason);
     this.name = 'MicrosoftOAuthGatewayError';

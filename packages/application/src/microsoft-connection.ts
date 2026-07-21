@@ -15,6 +15,7 @@ import {
   expectedMicrosoftGraphPermissionsV1,
   microsoftGraphPermissionsV1Schema,
   microsoftOidcNonceV1Schema,
+  microsoftProviderSubjectIdV1Schema,
   microsoftRequestedScopesV1Schema,
   microsoftTodoRequestedScopesV1Schema,
   microsoftDisconnectionEventPayloadV1Schema,
@@ -33,6 +34,7 @@ import type {
   IntegrationAccountRecord,
   MicrosoftAuthorizationGrant,
   MicrosoftGraphPermission,
+  MicrosoftIdentityValidationDiagnostic,
   MicrosoftRequestedScope,
   MicrosoftIntegrationEventType,
   MicrosoftOAuthGateway,
@@ -58,16 +60,18 @@ export type MicrosoftCallbackFailureClass =
   | 'scope_validation_failed'
   | 'identity_validation_failed'
   | 'account_continuity_failed'
+  | 'account_continuity_review_required'
   | 'persistence_failed';
 
 export type MicrosoftCallbackValidationResult =
-  'not_reached' | 'accepted' | 'rejected';
+  'not_reached' | 'accepted' | 'rejected' | 'owner_review_required';
 
 export interface MicrosoftCallbackFailureDiagnostic {
   readonly correlationId: Uuid;
   readonly accountContinuity: MicrosoftCallbackValidationResult;
   readonly failureClass: MicrosoftCallbackFailureClass;
   readonly identityValidation: MicrosoftCallbackValidationResult;
+  readonly identityValidationDetail: MicrosoftIdentityValidationDiagnostic | null;
   readonly scopeValidation: MicrosoftCallbackValidationResult;
 }
 
@@ -93,6 +97,7 @@ export function logMicrosoftCallbackFailure(
     correlationId: null,
     failureClass: 'callback_envelope_rejected',
     identityValidation: 'not_reached',
+    identityValidationDetail: null,
     path: MICROSOFT_CALLBACK_PATH,
     scopeValidation: 'not_reached',
   });
@@ -232,12 +237,14 @@ function callbackFailure(
   scopeValidation: MicrosoftCallbackValidationResult,
   identityValidation: MicrosoftCallbackValidationResult,
   accountContinuity: MicrosoftCallbackValidationResult,
+  identityValidationDetail: MicrosoftIdentityValidationDiagnostic | null = null,
 ): MicrosoftCallbackFailedError {
   return new MicrosoftCallbackFailedError({
     accountContinuity,
     correlationId: flow.id,
     failureClass,
     identityValidation,
+    identityValidationDetail,
     scopeValidation,
   });
 }
@@ -257,6 +264,9 @@ function gatewayCallbackFailure(
       'accepted',
       'rejected',
       'not_reached',
+      error instanceof MicrosoftOAuthGatewayError
+        ? (error.identityDiagnostic ?? null)
+        : null,
     );
   if (stage === 'scope_validation' || stage === undefined)
     return callbackFailure(
@@ -281,6 +291,27 @@ function gatewayCallbackFailure(
     'not_reached',
     'not_reached',
   );
+}
+
+class MicrosoftAccountContinuityReviewRequiredError extends AuthenticationFailedError {
+  public constructor() {
+    super();
+    this.name = 'MicrosoftAccountContinuityReviewRequiredError';
+  }
+}
+
+function accountContinuity(
+  account: IntegrationAccountRecord | null,
+  providerSubjectId: string,
+): 'accepted' | 'rejected' | 'owner_review_required' {
+  if (!account) return 'accepted';
+  const historicalObjectId = microsoftProviderSubjectIdV1Schema.safeParse(
+    account.providerSubjectId,
+  );
+  if (!historicalObjectId.success) return 'owner_review_required';
+  return historicalObjectId.data === providerSubjectId
+    ? 'accepted'
+    : 'rejected';
 }
 
 function summaryFor(
@@ -500,6 +531,11 @@ export class MicrosoftConnectionService {
         throw new MicrosoftOAuthGatewayError(
           'authorization_failed',
           'identity_validation',
+          {
+            ...grant.identity.validation,
+            nonceMatch: false,
+            substage: 'nonce',
+          },
         );
     } catch (error) {
       throw gatewayCallbackFailure(flow, error);
@@ -509,25 +545,43 @@ export class MicrosoftConnectionService {
       scope,
       (ports) => ports.integrationAccounts.findMicrosoft(scope),
     );
-    if (
-      priorAccount &&
-      priorAccount.providerSubjectId !== grant.identity.providerSubjectId
-    )
+    const priorContinuity = accountContinuity(
+      priorAccount,
+      grant.identity.providerSubjectId,
+    );
+    const acceptedIdentityDetail = {
+      ...grant.identity.validation,
+      nonceMatch: true,
+    };
+    if (priorContinuity === 'owner_review_required')
+      throw callbackFailure(
+        flow,
+        'account_continuity_review_required',
+        'accepted',
+        'accepted',
+        'owner_review_required',
+        acceptedIdentityDetail,
+      );
+    if (priorContinuity === 'rejected')
       throw callbackFailure(
         flow,
         'account_continuity_failed',
         'accepted',
         'accepted',
         'rejected',
+        acceptedIdentityDetail,
       );
 
     try {
       await this.dependencies.transactions.run(scope, async (ports) => {
         const existing = await ports.integrationAccounts.findMicrosoft(scope);
-        if (
-          existing &&
-          existing.providerSubjectId !== grant.identity.providerSubjectId
-        )
+        const transactionalContinuity = accountContinuity(
+          existing,
+          grant.identity.providerSubjectId,
+        );
+        if (transactionalContinuity === 'owner_review_required')
+          throw new MicrosoftAccountContinuityReviewRequiredError();
+        if (transactionalContinuity === 'rejected')
           throw new AuthenticationFailedError();
         const accountId = uuidV1Schema.parse(
           existing?.id ?? this.dependencies.ids.next(),
@@ -590,6 +644,15 @@ export class MicrosoftConnectionService {
         );
       });
     } catch (error) {
+      if (error instanceof MicrosoftAccountContinuityReviewRequiredError)
+        throw callbackFailure(
+          flow,
+          'account_continuity_review_required',
+          'accepted',
+          'accepted',
+          'owner_review_required',
+          acceptedIdentityDetail,
+        );
       if (error instanceof AuthenticationFailedError)
         throw callbackFailure(
           flow,
@@ -597,6 +660,7 @@ export class MicrosoftConnectionService {
           'accepted',
           'accepted',
           'rejected',
+          acceptedIdentityDetail,
         );
       throw callbackFailure(
         flow,
@@ -604,6 +668,7 @@ export class MicrosoftConnectionService {
         'accepted',
         'accepted',
         'accepted',
+        acceptedIdentityDetail,
       );
     }
     return scope;

@@ -196,7 +196,11 @@ not adopt by name or resume writes until ownership is reverified.
    needed. Meridian performs an in-place incremental upgrade under the same
    local integration account. The form-post callback validates state, expiry,
    PKCE, the signed ID token and nonce, exact token-response permission metadata,
-   and account continuity; it then encrypts replacement access and refresh tokens and only
+   and `(consumer tid, oid)` account continuity. ID-token verification fetches
+   the official consumers discovery metadata and uses its GUID issuer, JWKS URI,
+   and allowed algorithms with a five-second clock tolerance. Display name and
+   email are non-authoritative; an insufficient historical object ID produces a
+   specific owner-review failure. Meridian then encrypts replacement access and refresh tokens and only
    then atomically replaces the old token pair (or the cleared disconnected
    fields). Any validation/exchange failure retains no candidate token and does
    not enable To Do.

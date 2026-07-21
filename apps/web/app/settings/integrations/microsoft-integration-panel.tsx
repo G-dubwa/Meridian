@@ -57,9 +57,11 @@ export function MicrosoftIntegrationPanel() {
       setMessage(
         outcome === 'connected'
           ? 'Microsoft connected with the approved scope envelope.'
-          : outcome === 'failed'
-            ? 'Microsoft connection failed safely. No token was retained.'
-            : '',
+          : outcome === 'owner-review-required'
+            ? 'Microsoft identity continuity requires owner review. No token was retained.'
+            : outcome === 'failed'
+              ? 'Microsoft connection failed safely. No token was retained.'
+              : '',
       );
     } catch {
       setStatus(null);

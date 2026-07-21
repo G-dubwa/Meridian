@@ -72,8 +72,10 @@ exact six requested scopes are distinct from the exact three Graph permissions
 reported by token-response scope metadata. Opaque and encrypted-looking access
 tokens are accepted without inspection only when that metadata is exact;
 absent, malformed, duplicate, missing, or extra permissions fail closed. Signed
-ID-token, nonce, continuity, and callback-log redaction tests cover the
-authentication boundary. Mocked Graph tests inspect only request shape,
+ID-token tests cover discovery metadata, the consumers GUID issuer, algorithm
+and `kid`, signature, audience, nonce, time window, v2 token, consumer tenant,
+stable identity claims, continuity mismatch/owner review, and callback-log
+redaction. Mocked Graph tests inspect only request shape,
 dedicated-list paths, ownership markers, deterministic time conversion, and
 sanitized failures. Application tests prove owner confirmation, five-scope
 refusal before token access, baseline recovery, and no blind duplicate POST.

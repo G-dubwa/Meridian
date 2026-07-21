@@ -16,6 +16,7 @@ describe('Microsoft OAuth callback redaction', () => {
         correlationId: null,
         failureClass: 'callback_envelope_rejected',
         identityValidation: 'not_reached',
+        identityValidationDetail: null,
         path: '/api/integrations/microsoft/callback',
         scopeValidation: 'not_reached',
       },
@@ -41,6 +42,18 @@ describe('Microsoft OAuth callback redaction', () => {
         ),
         failureClass: 'identity_validation_failed',
         identityValidation: 'rejected',
+        identityValidationDetail: {
+          algorithm: 'RS256',
+          audienceMatch: true,
+          issuerCategory: 'consumer_tenant_guid',
+          matchingKidFound: true,
+          nonceMatch: null,
+          requiredClaimsPresent: false,
+          substage: 'required_identity_claims',
+          tenantMatch: true,
+          timeValid: true,
+          tokenVersion: '2.0',
+        },
         scopeValidation: 'accepted',
       },
     );
@@ -54,6 +67,18 @@ describe('Microsoft OAuth callback redaction', () => {
             correlationId: '018f0f77-34f1-7ef2-8ca1-7a3bf7f01976',
             failureClass: 'identity_validation_failed',
             identityValidation: 'rejected',
+            identityValidationDetail: {
+              algorithm: 'RS256',
+              audienceMatch: true,
+              issuerCategory: 'consumer_tenant_guid',
+              matchingKidFound: true,
+              nonceMatch: null,
+              requiredClaimsPresent: false,
+              substage: 'required_identity_claims',
+              tenantMatch: true,
+              timeValid: true,
+              tokenVersion: '2.0',
+            },
             scopeValidation: 'accepted',
           },
         ],
@@ -74,6 +99,14 @@ describe('Microsoft OAuth callback redaction', () => {
     );
     expect(handler).toContain('application/x-www-form-urlencoded');
     expect(handler).toContain('request.nextUrl.search.length > 0');
+    expect(handler).toContain('owner-review-required');
+    const panel = readFileSync(
+      'apps/web/app/settings/integrations/microsoft-integration-panel.tsx',
+      'utf8',
+    );
+    expect(panel).toContain(
+      'Microsoft identity continuity requires owner review. No token was retained.',
+    );
     const config = readFileSync('apps/web/next.config.ts', 'utf8');
     expect(config).toContain('incomingRequests');
     expect(config).toMatch(/api\\\/integrations\\\/microsoft\\\/callback/);

@@ -101,11 +101,17 @@ export async function postMicrosoftCallback(
     await authenticationRuntime().microsoft.completeConnection(state, code);
     destination.searchParams.set('microsoft', 'connected');
   } catch (error) {
+    const ownerReviewRequired =
+      error instanceof MicrosoftCallbackFailedError &&
+      error.diagnostic.failureClass === 'account_continuity_review_required';
     logMicrosoftCallbackFailure(
       console,
       error instanceof MicrosoftCallbackFailedError ? error.diagnostic : null,
     );
-    destination.searchParams.set('microsoft', 'failed');
+    destination.searchParams.set(
+      'microsoft',
+      ownerReviewRequired ? 'owner-review-required' : 'failed',
+    );
   }
   const response = NextResponse.redirect(destination, 303);
   response.headers.set('Cache-Control', 'no-store, max-age=0');

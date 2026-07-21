@@ -52,3 +52,7 @@ related-docs: release.md
 - WP-11 consent-start hardening classifies a stale OAuth-session schema before
   redirect, returns content-free stage/correlation diagnostics instead of an
   unhandled 500, and adds an authenticated no-provider redirect preflight.
+- WP-11 ID-token hardening now derives issuer/JWKS/algorithm policy from the
+  official consumers discovery document, reports bounded JOSE/claim substages,
+  enforces v2/time/tenant/stable-identity claims, and fails legacy continuity to
+  explicit owner review without retaining candidate credentials.

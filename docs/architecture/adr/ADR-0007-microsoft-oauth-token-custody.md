@@ -24,10 +24,17 @@ app registration. Fix the authority to `consumers`; organizational tenants are
 out of scope. Request exactly `openid profile offline_access User.Read
 Calendars.Read`. Reject token responses containing an unapproved scope and do
 not use `.default`. Treat Graph access tokens as opaque and derive granted
-permissions only from the token endpoint response's `scope` metadata. Validate
-the signed ID token for consumer issuer, audience, expiry, nonce, and stable
-account identity; no Graph request is needed during connection. WP-07 does not
-read calendar data.
+permissions only from the token endpoint response's `scope` metadata. Fetch the
+`consumers` OpenID discovery document, use its issuer, JWKS URI, and permitted
+signing algorithms with JOSE verification, and require a v2 token, exact client
+audience, five-second clock tolerance, nonce binding, consumer tenant, and
+stable identity claims. Account continuity is the `(tid, oid)` tuple: `tid` is
+the fixed consumer tenant and Microsoft documents ID-token `oid` as the same
+immutable identifier returned by Graph user `id`. Meridian treats that value
+as a bounded opaque Microsoft identifier rather than imposing RFC UUID bits.
+Display name and email are never continuity identifiers. An invalid historical object ID requires
+owner review instead of rebinding. No Graph request is needed during
+connection. WP-07 does not read calendar data.
 
 Store only SHA-256 hashes of the one-time state and OIDC nonce. Encrypt the PKCE verifier while
 it is pending and erase its ciphertext on atomic consumption. The callback may

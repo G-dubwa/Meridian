@@ -11,6 +11,7 @@ import {
   microsoftGraphPermissionV1Schema,
   microsoftGraphPermissionsV1Schema,
   microsoftOidcNonceV1Schema,
+  microsoftProviderSubjectIdV1Schema,
   microsoftRequestedScopesV1Schema,
   uuidV1Schema,
 } from '@meridian/domain';
@@ -19,6 +20,7 @@ import type {
   MicrosoftAuthorizationIdentity,
   MicrosoftAuthorizationRequest,
   MicrosoftGraphPermission,
+  MicrosoftIdentityValidationDiagnostic,
   MicrosoftRequestedScope,
   MicrosoftOAuthGateway,
   MicrosoftTokenGrant,
@@ -26,8 +28,8 @@ import type {
   PkcePair,
   TokenCipher,
 } from '@meridian/domain';
-import { createRemoteJWKSet, jwtVerify } from 'jose';
-import type { JWTVerifyGetKey } from 'jose';
+import { createRemoteJWKSet, decodeProtectedHeader, jwtVerify } from 'jose';
+import type { JWTPayload, JWTVerifyGetKey } from 'jose';
 
 export * from './todo.js';
 
@@ -36,71 +38,375 @@ const AUTHORIZE_ENDPOINT =
 const TOKEN_ENDPOINT =
   'https://login.microsoftonline.com/consumers/oauth2/v2.0/token';
 const MICROSOFT_ACCOUNT_TENANT_ID = '9188040d-6c67-4c5b-b112-36a304b66dad';
-const ID_TOKEN_ISSUER = `https://login.microsoftonline.com/${MICROSOFT_ACCOUNT_TENANT_ID}/v2.0`;
-const ID_TOKEN_JWKS_ENDPOINT =
-  'https://login.microsoftonline.com/consumers/discovery/v2.0/keys';
+const OIDC_DISCOVERY_ENDPOINT =
+  'https://login.microsoftonline.com/consumers/v2.0/.well-known/openid-configuration';
 const CALLBACK_PATH = '/api/integrations/microsoft/callback';
 const TOKEN_TIMEOUT_MS = 10_000;
+const ID_TOKEN_CLOCK_TOLERANCE_SECONDS = 5;
+const ID_TOKEN_MAX_AGE_SECONDS = 10 * 60;
+
+export interface MicrosoftConsumersOidcConfiguration {
+  readonly issuer: string;
+  readonly jwksUri: string;
+  readonly signingAlgorithms: readonly string[];
+}
+
+export interface MicrosoftIdTokenVerifierOptions {
+  readonly currentDate?: () => Date;
+  readonly keysFor?: (jwksUri: URL) => JWTVerifyGetKey;
+  readonly loadConfiguration?: () => Promise<MicrosoftConsumersOidcConfiguration>;
+}
+
+function identityDiagnostic(
+  substage: MicrosoftIdentityValidationDiagnostic['substage'],
+  overrides: Partial<MicrosoftIdentityValidationDiagnostic> = {},
+): MicrosoftIdentityValidationDiagnostic {
+  return {
+    algorithm: 'not_reached',
+    audienceMatch: null,
+    issuerCategory: 'not_reached',
+    matchingKidFound: null,
+    nonceMatch: null,
+    requiredClaimsPresent: null,
+    substage,
+    tenantMatch: null,
+    timeValid: null,
+    tokenVersion: 'not_reached',
+    ...overrides,
+  };
+}
+
+function identityValidationFailure(
+  diagnostic: MicrosoftIdentityValidationDiagnostic,
+): MicrosoftOAuthGatewayError {
+  return new MicrosoftOAuthGatewayError(
+    'authorization_failed',
+    'identity_validation',
+    diagnostic,
+  );
+}
+
+function safeAlgorithm(value: unknown): string {
+  return typeof value === 'string' && /^[A-Za-z0-9_-]{1,20}$/.test(value)
+    ? value
+    : 'other';
+}
+
+function issuerCategory(
+  value: unknown,
+): MicrosoftIdentityValidationDiagnostic['issuerCategory'] {
+  if (
+    value ===
+    `https://login.microsoftonline.com/${MICROSOFT_ACCOUNT_TENANT_ID}/v2.0`
+  )
+    return 'consumer_tenant_guid';
+  if (value === 'https://login.microsoftonline.com/consumers/v2.0')
+    return 'literal_consumers';
+  return typeof value === 'string' ? 'other' : 'not_reached';
+}
+
+function exactAudience(value: unknown, clientId: string): boolean {
+  return typeof value === 'string' && value === clientId;
+}
+
+function timeWindowValid(payload: JWTPayload, currentDate: Date): boolean {
+  if (
+    typeof payload.exp !== 'number' ||
+    typeof payload.nbf !== 'number' ||
+    typeof payload.iat !== 'number'
+  )
+    return false;
+  const now = currentDate.getTime() / 1000;
+  return (
+    payload.exp > now - ID_TOKEN_CLOCK_TOLERANCE_SECONDS &&
+    payload.nbf <= now + ID_TOKEN_CLOCK_TOLERANCE_SECONDS &&
+    payload.iat <= now + ID_TOKEN_CLOCK_TOLERANCE_SECONDS &&
+    now - payload.iat <=
+      ID_TOKEN_MAX_AGE_SECONDS + ID_TOKEN_CLOCK_TOLERANCE_SECONDS
+  );
+}
+
+function requiredIdentityClaimsPresent(payload: JWTPayload): boolean {
+  return (
+    typeof payload.name === 'string' &&
+    payload.name.length >= 1 &&
+    payload.name.length <= 255 &&
+    microsoftProviderSubjectIdV1Schema.safeParse(payload.oid).success &&
+    typeof payload.sub === 'string' &&
+    payload.sub.length >= 1 &&
+    payload.sub.length <= 255 &&
+    typeof payload.nonce === 'string' &&
+    payload.nonce.length >= 32 &&
+    payload.nonce.length <= 256 &&
+    /^[A-Za-z0-9_-]+$/.test(payload.nonce)
+  );
+}
+
+function diagnosticFromVerifiedPayload(
+  substage: MicrosoftIdentityValidationDiagnostic['substage'],
+  payload: JWTPayload,
+  clientId: string,
+  currentDate: Date,
+  algorithm: string,
+  matchingKidFound: boolean,
+): MicrosoftIdentityValidationDiagnostic {
+  return identityDiagnostic(substage, {
+    algorithm,
+    audienceMatch: exactAudience(payload.aud, clientId),
+    issuerCategory: issuerCategory(payload.iss),
+    matchingKidFound,
+    requiredClaimsPresent: requiredIdentityClaimsPresent(payload),
+    tenantMatch: payload.tid === MICROSOFT_ACCOUNT_TENANT_ID,
+    timeValid: timeWindowValid(payload, currentDate),
+    tokenVersion:
+      payload.ver === '2.0'
+        ? '2.0'
+        : typeof payload.ver === 'string'
+          ? 'unexpected'
+          : 'absent',
+  });
+}
+
+function joseErrorCode(error: unknown): string | undefined {
+  return error !== null &&
+    typeof error === 'object' &&
+    'code' in error &&
+    typeof error.code === 'string'
+    ? error.code
+    : undefined;
+}
+
+function joseClaim(error: unknown): string | undefined {
+  return error !== null &&
+    typeof error === 'object' &&
+    'claim' in error &&
+    typeof error.claim === 'string'
+    ? error.claim
+    : undefined;
+}
+
+function josePayload(error: unknown): JWTPayload | undefined {
+  return error !== null &&
+    typeof error === 'object' &&
+    'payload' in error &&
+    error.payload !== null &&
+    typeof error.payload === 'object'
+    ? (error.payload as JWTPayload)
+    : undefined;
+}
+
+export class MicrosoftConsumersOidcDiscovery {
+  private cached?: Promise<MicrosoftConsumersOidcConfiguration>;
+
+  public constructor(private readonly fetcher: typeof fetch = fetch) {}
+
+  public load(): Promise<MicrosoftConsumersOidcConfiguration> {
+    this.cached ??= this.fetchConfiguration();
+    return this.cached;
+  }
+
+  private async fetchConfiguration(): Promise<MicrosoftConsumersOidcConfiguration> {
+    const response = await this.fetcher(OIDC_DISCOVERY_ENDPOINT, {
+      headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(TOKEN_TIMEOUT_MS),
+    });
+    if (!response.ok) throw new Error('OIDC discovery unavailable.');
+    const value = (await response.json()) as unknown;
+    if (!value || typeof value !== 'object')
+      throw new Error('OIDC discovery invalid.');
+    const candidate = value as Readonly<Record<string, unknown>>;
+    const algorithms = candidate.id_token_signing_alg_values_supported;
+    if (
+      candidate.issuer !==
+        `https://login.microsoftonline.com/${MICROSOFT_ACCOUNT_TENANT_ID}/v2.0` ||
+      candidate.jwks_uri !==
+        'https://login.microsoftonline.com/consumers/discovery/v2.0/keys' ||
+      !Array.isArray(algorithms) ||
+      algorithms.length !== 1 ||
+      algorithms[0] !== 'RS256' ||
+      algorithms.some(
+        (algorithm) =>
+          typeof algorithm !== 'string' ||
+          !/^[A-Za-z0-9_-]{1,20}$/.test(algorithm),
+      )
+    )
+      throw new Error('OIDC discovery invalid.');
+    return {
+      issuer: candidate.issuer,
+      jwksUri: candidate.jwks_uri,
+      signingAlgorithms: algorithms as string[],
+    };
+  }
+}
 
 export interface MicrosoftIdTokenValidator {
   validate(idToken: string): Promise<MicrosoftAuthorizationIdentity>;
 }
 
 export class MicrosoftIdTokenVerifier implements MicrosoftIdTokenValidator {
+  private readonly currentDate: () => Date;
+  private readonly keysFor: (jwksUri: URL) => JWTVerifyGetKey;
+  private readonly loadConfiguration: () => Promise<MicrosoftConsumersOidcConfiguration>;
+
   public constructor(
     private readonly clientId: string,
-    private readonly keys: JWTVerifyGetKey = createRemoteJWKSet(
-      new URL(ID_TOKEN_JWKS_ENDPOINT),
-      { timeoutDuration: TOKEN_TIMEOUT_MS },
-    ),
-  ) {}
+    options: MicrosoftIdTokenVerifierOptions = {},
+  ) {
+    const discovery = new MicrosoftConsumersOidcDiscovery();
+    this.currentDate = options.currentDate ?? (() => new Date());
+    this.keysFor =
+      options.keysFor ??
+      ((jwksUri) =>
+        createRemoteJWKSet(jwksUri, { timeoutDuration: TOKEN_TIMEOUT_MS }));
+    this.loadConfiguration =
+      options.loadConfiguration ?? (() => discovery.load());
+  }
 
   public async validate(
     idToken: string,
   ): Promise<MicrosoftAuthorizationIdentity> {
+    let configuration: MicrosoftConsumersOidcConfiguration;
     try {
-      const { payload } = await jwtVerify(idToken, this.keys, {
-        algorithms: ['RS256'],
+      configuration = await this.loadConfiguration();
+    } catch {
+      throw identityValidationFailure(identityDiagnostic('discovery_metadata'));
+    }
+    let header: ReturnType<typeof decodeProtectedHeader>;
+    try {
+      header = decodeProtectedHeader(idToken);
+    } catch {
+      throw identityValidationFailure(identityDiagnostic('jwt_structure'));
+    }
+    const algorithm = safeAlgorithm(header.alg);
+    if (
+      typeof header.alg !== 'string' ||
+      !configuration.signingAlgorithms.includes(header.alg)
+    )
+      throw identityValidationFailure(
+        identityDiagnostic('signing_algorithm', { algorithm }),
+      );
+    if (typeof header.kid !== 'string' || header.kid.length < 1)
+      throw identityValidationFailure(
+        identityDiagnostic('kid_lookup', {
+          algorithm,
+          matchingKidFound: false,
+        }),
+      );
+
+    const currentDate = this.currentDate();
+    let matchingKidFound = false;
+    const keys = this.keysFor(new URL(configuration.jwksUri));
+    const trackedKeys: JWTVerifyGetKey = async (...arguments_) => {
+      const key = await keys(...arguments_);
+      matchingKidFound = true;
+      return key;
+    };
+    let payload: JWTPayload;
+    try {
+      ({ payload } = await jwtVerify(idToken, trackedKeys, {
+        algorithms: [...configuration.signingAlgorithms],
         audience: this.clientId,
-        clockTolerance: 5,
-        issuer: ID_TOKEN_ISSUER,
-        maxTokenAge: '10 minutes',
+        clockTolerance: ID_TOKEN_CLOCK_TOLERANCE_SECONDS,
+        currentDate,
+        issuer: configuration.issuer,
+        maxTokenAge: ID_TOKEN_MAX_AGE_SECONDS,
         requiredClaims: [
           'aud',
           'exp',
           'iat',
           'iss',
           'name',
+          'nbf',
           'nonce',
           'oid',
           'sub',
           'tid',
+          'ver',
         ],
-      });
-      const providerSubjectId = uuidV1Schema.safeParse(payload.oid);
-      if (
-        payload.tid !== MICROSOFT_ACCOUNT_TENANT_ID ||
-        !providerSubjectId.success ||
-        typeof payload.name !== 'string' ||
-        payload.name.length < 1 ||
-        payload.name.length > 255 ||
-        typeof payload.nonce !== 'string' ||
-        payload.nonce.length < 32 ||
-        payload.nonce.length > 256 ||
-        !/^[A-Za-z0-9_-]+$/.test(payload.nonce)
-      )
-        throw new Error('ID-token claims rejected.');
-      return {
-        displayName: payload.name,
-        nonce: payload.nonce,
-        providerSubjectId: providerSubjectId.data,
-      };
-    } catch {
-      throw new MicrosoftOAuthGatewayError(
-        'authorization_failed',
-        'identity_validation',
+      }));
+    } catch (error) {
+      const code = joseErrorCode(error);
+      const claim = joseClaim(error);
+      const verifiedPayload = josePayload(error);
+      const substage =
+        code === 'ERR_JWKS_NO_MATCHING_KEY'
+          ? 'kid_lookup'
+          : code === 'ERR_JWS_SIGNATURE_VERIFICATION_FAILED'
+            ? 'signature'
+            : code === 'ERR_JOSE_ALG_NOT_ALLOWED'
+              ? 'signing_algorithm'
+              : claim === 'iss'
+                ? 'issuer'
+                : claim === 'aud'
+                  ? 'audience'
+                  : ['exp', 'nbf', 'iat'].includes(claim ?? '')
+                    ? 'time_window'
+                    : claim === 'ver'
+                      ? 'token_version'
+                      : claim === 'tid'
+                        ? 'consumer_tenant'
+                        : claim === 'nonce'
+                          ? 'nonce'
+                          : code === 'ERR_JWT_INVALID' ||
+                              code === 'ERR_JWS_INVALID'
+                            ? 'jwt_structure'
+                            : 'required_identity_claims';
+      throw identityValidationFailure(
+        verifiedPayload
+          ? diagnosticFromVerifiedPayload(
+              substage,
+              verifiedPayload,
+              this.clientId,
+              currentDate,
+              algorithm,
+              matchingKidFound,
+            )
+          : identityDiagnostic(substage, {
+              algorithm,
+              matchingKidFound:
+                substage === 'kid_lookup' ? false : matchingKidFound,
+            }),
       );
     }
+    const verifiedDiagnostic = diagnosticFromVerifiedPayload(
+      'required_identity_claims',
+      payload,
+      this.clientId,
+      currentDate,
+      algorithm,
+      matchingKidFound,
+    );
+    if (payload.ver !== '2.0')
+      throw identityValidationFailure({
+        ...verifiedDiagnostic,
+        substage: 'token_version',
+      });
+    if (payload.tid !== MICROSOFT_ACCOUNT_TENANT_ID)
+      throw identityValidationFailure({
+        ...verifiedDiagnostic,
+        substage: 'consumer_tenant',
+      });
+    if (
+      typeof payload.nonce !== 'string' ||
+      payload.nonce.length < 32 ||
+      payload.nonce.length > 256 ||
+      !/^[A-Za-z0-9_-]+$/.test(payload.nonce)
+    )
+      throw identityValidationFailure({
+        ...verifiedDiagnostic,
+        substage: 'nonce',
+      });
+    if (!requiredIdentityClaimsPresent(payload))
+      throw identityValidationFailure(verifiedDiagnostic);
+    return {
+      displayName: payload.name as string,
+      nonce: payload.nonce,
+      providerSubjectId: microsoftProviderSubjectIdV1Schema.parse(payload.oid),
+      validation: {
+        ...verifiedDiagnostic,
+        nonceMatch: null,
+      },
+    };
   }
 }
 
@@ -500,10 +806,7 @@ export class MicrosoftOAuthHttpGateway implements MicrosoftOAuthGateway {
     };
     if (!identityRequired) return baseGrant;
     if (!token.id_token)
-      throw new MicrosoftOAuthGatewayError(
-        'authorization_failed',
-        'identity_validation',
-      );
+      throw identityValidationFailure(identityDiagnostic('id_token_presence'));
     return {
       ...baseGrant,
       identity: await this.idTokens.validate(token.id_token),

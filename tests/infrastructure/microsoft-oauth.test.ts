@@ -10,6 +10,7 @@ import {
 } from '../../packages/domain/src/index.js';
 import {
   Aes256GcmTokenCipher,
+  MicrosoftConsumersOidcDiscovery,
   MicrosoftIdTokenVerifier,
   MicrosoftOAuthHttpGateway,
   NodePkceGenerator,
@@ -27,10 +28,32 @@ const configuration = {
   redirectUri: 'http://localhost:3000/api/integrations/microsoft/callback',
 };
 const nonce = 'N'.repeat(43);
+const currentDate = new Date('2026-07-21T18:00:00.000Z');
+const currentTime = Math.floor(currentDate.getTime() / 1000);
+const consumerIssuer =
+  'https://login.microsoftonline.com/9188040d-6c67-4c5b-b112-36a304b66dad/v2.0';
+const oidcConfiguration = {
+  issuer: consumerIssuer,
+  jwksUri: 'https://login.microsoftonline.com/consumers/discovery/v2.0/keys',
+  signingAlgorithms: ['RS256'],
+} as const;
+const acceptedValidation = {
+  algorithm: 'RS256',
+  audienceMatch: true,
+  issuerCategory: 'consumer_tenant_guid' as const,
+  matchingKidFound: true,
+  nonceMatch: null,
+  requiredClaimsPresent: true,
+  substage: 'required_identity_claims' as const,
+  tenantMatch: true,
+  timeValid: true,
+  tokenVersion: '2.0' as const,
+};
 const identity = {
   displayName: 'Test Owner',
   nonce,
-  providerSubjectId: '018f0f77-34f1-7ef2-8ca1-7a3bf7f01977',
+  providerSubjectId: 'opaque-personal-account-object-id',
+  validation: acceptedValidation,
 };
 const idTokens = {
   validate: () => Promise.resolve(identity),
@@ -50,28 +73,37 @@ function tokenResponse(
   };
 }
 
-function signedIdToken(overrides: Readonly<Record<string, unknown>> = {}): {
+function signedIdToken(
+  overrides: Readonly<Record<string, unknown>> = {},
+  headerOverrides: Readonly<Record<string, unknown>> = {},
+): {
   readonly publicKey: KeyObject;
   readonly token: string;
 } {
   const { privateKey, publicKey } = generateKeyPairSync('rsa', {
     modulusLength: 2048,
   });
-  const now = Math.floor(Date.now() / 1000);
   const header = Buffer.from(
-    JSON.stringify({ alg: 'RS256', kid: 'local-test-key', typ: 'JWT' }),
+    JSON.stringify({
+      alg: 'RS256',
+      kid: 'local-test-key',
+      typ: 'JWT',
+      ...headerOverrides,
+    }),
   ).toString('base64url');
   const payload = Buffer.from(
     JSON.stringify({
       aud: configuration.clientId,
-      exp: now + 300,
-      iat: now,
-      iss: 'https://login.microsoftonline.com/9188040d-6c67-4c5b-b112-36a304b66dad/v2.0',
+      exp: currentTime + 300,
+      iat: currentTime,
+      iss: consumerIssuer,
       name: identity.displayName,
+      nbf: currentTime - 5,
       nonce,
       oid: identity.providerSubjectId,
       sub: 'synthetic-subject',
       tid: '9188040d-6c67-4c5b-b112-36a304b66dad',
+      ver: '2.0',
       ...overrides,
     }),
   ).toString('base64url');
@@ -82,7 +114,49 @@ function signedIdToken(overrides: Readonly<Record<string, unknown>> = {}): {
   return { publicKey, token: `${signingInput}.${signature}` };
 }
 
+function verifierFor(
+  signed: ReturnType<typeof signedIdToken>,
+  expectedKid = 'local-test-key',
+): MicrosoftIdTokenVerifier {
+  return new MicrosoftIdTokenVerifier(configuration.clientId, {
+    currentDate: () => currentDate,
+    keysFor: () => (header) => {
+      if (header.kid !== expectedKid)
+        throw Object.assign(new Error('No matching key.'), {
+          code: 'ERR_JWKS_NO_MATCHING_KEY',
+        });
+      return signed.publicKey;
+    },
+    loadConfiguration: () => Promise.resolve(oidcConfiguration),
+  });
+}
+
 describe('Microsoft OAuth infrastructure', () => {
+  it('loads the consumers GUID issuer, JWKS URI, and signing algorithms from discovery metadata', async () => {
+    const requests: string[] = [];
+    const discovery = new MicrosoftConsumersOidcDiscovery((input) => {
+      requests.push(
+        typeof input === 'string'
+          ? input
+          : input instanceof URL
+            ? input.toString()
+            : input.url,
+      );
+      return Promise.resolve(
+        Response.json({
+          id_token_signing_alg_values_supported: ['RS256'],
+          issuer: consumerIssuer,
+          jwks_uri: oidcConfiguration.jwksUri,
+        }),
+      );
+    });
+    await expect(discovery.load()).resolves.toEqual(oidcConfiguration);
+    await discovery.load();
+    expect(requests).toEqual([
+      'https://login.microsoftonline.com/consumers/v2.0/.well-known/openid-configuration',
+    ]);
+  });
+
   it('requires the exact approved Stage-A scope set', () => {
     expect(
       microsoftDelegatedScopesV1Schema.parse([
@@ -286,36 +360,181 @@ describe('Microsoft OAuth infrastructure', () => {
     },
   );
 
-  it('cryptographically validates the Microsoft consumer ID token', async () => {
+  it('keeps exact Graph scope validation independent from required ID-token presence', async () => {
+    const fetcher: typeof fetch = () =>
+      Promise.resolve(
+        Response.json({
+          access_token: 'opaque-access-token',
+          expires_in: 3600,
+          refresh_token: 'refresh-token',
+          scope: 'User.Read Calendars.Read Tasks.ReadWrite',
+          token_type: 'Bearer',
+        }),
+      );
+    await expect(
+      new MicrosoftOAuthHttpGateway(
+        configuration,
+        fetcher,
+        idTokens,
+      ).exchangeAuthorizationCode(
+        'authorization-code',
+        'V'.repeat(64),
+        configuration.redirectUri,
+        MICROSOFT_TODO_SPIKE_REQUESTED_SCOPES,
+      ),
+    ).rejects.toMatchObject({
+      identityDiagnostic: { substage: 'id_token_presence' },
+      reason: 'authorization_failed',
+      stage: 'identity_validation',
+    });
+  });
+
+  it('cryptographically validates the GUID-issuer Microsoft consumer ID token', async () => {
     const signed = signedIdToken();
-    const verifier = new MicrosoftIdTokenVerifier(
-      configuration.clientId,
-      () => signed.publicKey,
+    await expect(verifierFor(signed).validate(signed.token)).resolves.toEqual(
+      identity,
     );
-    await expect(verifier.validate(signed.token)).resolves.toEqual(identity);
 
     const wrongIssuer = signedIdToken({
-      iss: 'https://login.microsoftonline.com/unexpected/v2.0',
+      iss: 'https://login.microsoftonline.com/consumers/v2.0',
     });
     await expect(
-      new MicrosoftIdTokenVerifier(
-        configuration.clientId,
-        () => wrongIssuer.publicKey,
-      ).validate(wrongIssuer.token),
+      verifierFor(wrongIssuer).validate(wrongIssuer.token),
     ).rejects.toMatchObject({
+      identityDiagnostic: {
+        issuerCategory: 'literal_consumers',
+        substage: 'issuer',
+      },
       reason: 'authorization_failed',
       stage: 'identity_validation',
     });
 
     const wrongKey = signedIdToken();
     await expect(
-      new MicrosoftIdTokenVerifier(
-        configuration.clientId,
-        () => wrongKey.publicKey,
-      ).validate(signed.token),
+      verifierFor(wrongKey).validate(signed.token),
     ).rejects.toMatchObject({
+      identityDiagnostic: {
+        matchingKidFound: true,
+        substage: 'signature',
+      },
       reason: 'authorization_failed',
       stage: 'identity_validation',
+    });
+  });
+
+  it.each([
+    {
+      expected: { audienceMatch: false, substage: 'audience' },
+      label: 'wrong audience',
+      overrides: { aud: '018f0f77-34f1-7ef2-8ca1-7a3bf7f01999' },
+    },
+    {
+      expected: { requiredClaimsPresent: false, substage: 'nonce' },
+      label: 'missing nonce',
+      overrides: { nonce: undefined },
+    },
+    {
+      expected: { requiredClaimsPresent: false, substage: 'nonce' },
+      label: 'invalid nonce',
+      overrides: { nonce: 'not valid' },
+    },
+    {
+      expected: { substage: 'time_window', timeValid: false },
+      label: 'expired token',
+      overrides: { exp: currentTime - 30 },
+    },
+    {
+      expected: { substage: 'time_window', timeValid: false },
+      label: 'not-yet-valid token',
+      overrides: { nbf: currentTime + 30 },
+    },
+    {
+      expected: { substage: 'time_window', timeValid: false },
+      label: 'stale issued-at time',
+      overrides: { iat: currentTime - 700, nbf: currentTime - 700 },
+    },
+    {
+      expected: { substage: 'consumer_tenant', tenantMatch: false },
+      label: 'incorrect consumer tenant',
+      overrides: { tid: '018f0f77-34f1-7ef2-8ca1-7a3bf7f01998' },
+    },
+    {
+      expected: { substage: 'token_version', tokenVersion: 'unexpected' },
+      label: 'incorrect token version',
+      overrides: { ver: '1.0' },
+    },
+    {
+      expected: {
+        requiredClaimsPresent: false,
+        substage: 'required_identity_claims',
+      },
+      label: 'missing stable object ID',
+      overrides: { oid: undefined },
+    },
+    {
+      expected: {
+        requiredClaimsPresent: false,
+        substage: 'required_identity_claims',
+      },
+      label: 'missing pairwise subject',
+      overrides: { sub: undefined },
+    },
+    {
+      expected: {
+        requiredClaimsPresent: false,
+        substage: 'required_identity_claims',
+      },
+      label: 'missing display claim',
+      overrides: { name: undefined },
+    },
+  ])(
+    'fails closed at the exact $label substage',
+    async ({ expected, overrides }) => {
+      const signed = signedIdToken(overrides);
+      await expect(
+        verifierFor(signed).validate(signed.token),
+      ).rejects.toMatchObject({
+        identityDiagnostic: expected,
+        reason: 'authorization_failed',
+        stage: 'identity_validation',
+      });
+    },
+  );
+
+  it('rejects malformed JWTs, unapproved algorithms, and unknown key identifiers distinctly', async () => {
+    const valid = signedIdToken();
+    await expect(
+      new MicrosoftIdTokenVerifier(configuration.clientId, {
+        loadConfiguration: () =>
+          Promise.reject(new Error('synthetic discovery failure')),
+      }).validate(valid.token),
+    ).rejects.toMatchObject({
+      identityDiagnostic: { substage: 'discovery_metadata' },
+    });
+    await expect(
+      verifierFor(valid).validate('not-a-jwt'),
+    ).rejects.toMatchObject({
+      identityDiagnostic: { substage: 'jwt_structure' },
+    });
+
+    const wrongAlgorithm = signedIdToken({}, { alg: 'HS256' });
+    await expect(
+      verifierFor(wrongAlgorithm).validate(wrongAlgorithm.token),
+    ).rejects.toMatchObject({
+      identityDiagnostic: {
+        algorithm: 'HS256',
+        substage: 'signing_algorithm',
+      },
+    });
+
+    const unknownKid = signedIdToken({}, { kid: 'unknown-key' });
+    await expect(
+      verifierFor(unknownKid).validate(unknownKid.token),
+    ).rejects.toMatchObject({
+      identityDiagnostic: {
+        matchingKidFound: false,
+        substage: 'kid_lookup',
+      },
     });
   });
 

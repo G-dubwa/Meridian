@@ -28,7 +28,13 @@ Last updated: 21 July 2026
   rejected the new nonce-hash insert with `42703` before redirect. The local
   database is now migrated with the historical account/ledger intact, and the
   route correction passed the complete repository gate. WP-11 remains open and
-  To Do experimental.
+  To Do experimental. A later callback accepted the exact Graph permission
+  metadata but rejected ID-token identity at correlation
+  `9b5bb9f4-ee28-4595-a05e-4465c41ce59c`; no token or grant was retained. The
+  former validator erased the JOSE substage, so that historical substage cannot
+  be reconstructed. The correction now uses official consumers discovery
+  metadata, bounded JOSE/claim diagnostics, complete v2/time/tenant/identity
+  checks, and explicit owner review for insufficient historical continuity.
 
 ## Completed packages
 
@@ -126,8 +132,8 @@ profile offline_access User.Read Calendars.Read` and no additional permission.
   mutation occurred. Local-server acceptance proves unauthenticated rejection
   and no-configuration refusal before provider access.
 - WP-11 callback-correction verification is green for formatting, lint, strict
-  typecheck, 129 modules/251 dependencies and the negative fixture, Drizzle
-  consistency, 19 unit files/96 tests, one disposable local-PostgreSQL file/9
+  typecheck, 129 modules/252 dependencies and the negative fixture, Drizzle
+  consistency, 20 unit files/113 tests, one disposable local-PostgreSQL file/9
   tests, all 9 authenticated browser journeys, 99 governed Markdown
   documents/current dictionary, and every workspace production build. Mocked
   fixtures prove opaque and encrypted-looking Graph credentials, exact and

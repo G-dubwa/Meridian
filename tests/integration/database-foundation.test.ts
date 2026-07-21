@@ -1151,6 +1151,18 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
             displayName: 'Meridian Test Owner',
             nonce: identityNonce,
             providerSubjectId,
+            validation: {
+              algorithm: 'RS256',
+              audienceMatch: true,
+              issuerCategory: 'consumer_tenant_guid',
+              matchingKidFound: true,
+              nonceMatch: null,
+              requiredClaimsPresent: true,
+              substage: 'required_identity_claims',
+              tenantMatch: true,
+              timeValid: true,
+              tokenVersion: '2.0',
+            },
           },
           refreshToken: 'initial-refresh-token',
         });
@@ -1358,6 +1370,37 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
       account: { status: 'disconnected' },
       consentRecords: [{ action: 'granted' }, { action: 'disconnected' }],
     });
+
+    await admin.sql`
+      update integration_accounts
+      set provider_subject_id = 'legacy identity without stable object id'
+      where user_id = ${scopeA.userId}
+    `;
+    const reviewUrl = await microsoft.beginTodoIncrementalConsent(scopeA);
+    const reviewState = reviewUrl.searchParams.get('state');
+    if (!reviewState)
+      throw new Error('Owner-review authorization state was not generated.');
+    await expect(
+      microsoft.completeConnection(reviewState, 'one-time-code'),
+    ).rejects.toMatchObject({
+      code: 'AUTHENTICATION_FAILED',
+      diagnostic: {
+        accountContinuity: 'owner_review_required',
+        failureClass: 'account_continuity_review_required',
+        identityValidation: 'accepted',
+        identityValidationDetail: { nonceMatch: true },
+        scopeValidation: 'accepted',
+      },
+    });
+    expect(await microsoft.status(scopeA)).toMatchObject({
+      account: { status: 'disconnected' },
+      consentRecords: [{ action: 'granted' }, { action: 'disconnected' }],
+    });
+    await admin.sql`
+      update integration_accounts
+      set provider_subject_id = '018f0f77-34f1-7ef2-8ca1-7a3bf7f01977'
+      where user_id = ${scopeA.userId}
+    `;
 
     const incrementalUrl = await microsoft.beginTodoIncrementalConsent(scopeA);
     expect(incrementalUrl.searchParams.get('scope')?.split(' ')).toEqual(
