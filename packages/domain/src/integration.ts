@@ -98,7 +98,7 @@ export const microsoftGraphPermissionsV1Schema = z
     )
       context.addIssue({
         code: 'custom',
-        message: 'The Microsoft Graph token permission set is not approved.',
+        message: 'The Microsoft granted Graph permission set is not approved.',
       });
   });
 
@@ -145,6 +145,12 @@ export const microsoftAuthorizationStateV1Schema = z
   .max(256)
   .regex(/^[A-Za-z0-9_-]+$/);
 
+export const microsoftOidcNonceV1Schema = z
+  .string()
+  .min(32)
+  .max(256)
+  .regex(/^[A-Za-z0-9_-]+$/);
+
 export const microsoftAuthorizationCodeV1Schema = z.string().min(1).max(8192);
 
 export const microsoftPkceVerifierV1Schema = z
@@ -157,14 +163,6 @@ export const microsoftPkceChallengeV1Schema = z
   .string()
   .length(43)
   .regex(/^[A-Za-z0-9_-]+$/);
-
-export const microsoftProfileV1Schema = z
-  .object({
-    providerSubjectId: z.string().min(1).max(255),
-    displayName: z.string().min(1).max(255),
-  })
-  .strict();
-export type MicrosoftProfile = z.infer<typeof microsoftProfileV1Schema>;
 
 export const microsoftConnectionEventPayloadV1Schema = z
   .object({
@@ -188,9 +186,9 @@ export type MicrosoftOAuthFailureReason =
 
 export type MicrosoftOAuthFailureStage =
   | 'token_exchange'
-  | 'token_validation'
-  | 'profile_request'
-  | 'profile_validation';
+  | 'token_response_validation'
+  | 'scope_validation'
+  | 'identity_validation';
 
 export class MicrosoftOAuthGatewayError extends Error {
   public constructor(

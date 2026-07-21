@@ -11,7 +11,6 @@ import type {
   ConsentAction,
   IntegrationAccountStatus,
   MicrosoftGraphPermission,
-  MicrosoftProfile,
   MicrosoftRequestedScope,
 } from './integration.js';
 import type {
@@ -616,6 +615,7 @@ export interface OAuthAuthorizationSessionRecord {
   readonly provider: 'microsoft';
   readonly stateHash: string;
   readonly codeVerifierCiphertext: string;
+  readonly nonceHash: string;
   readonly redirectUri: string;
   readonly requestedScopes: readonly MicrosoftRequestedScope[];
   readonly createdAt: Date;
@@ -658,6 +658,7 @@ export interface TokenCipher {
 export interface MicrosoftAuthorizationRequest {
   readonly state: string;
   readonly codeChallenge: string;
+  readonly nonce: string;
   readonly scopes: readonly MicrosoftRequestedScope[];
   readonly redirectUri: string;
 }
@@ -669,6 +670,16 @@ export interface MicrosoftTokenGrant {
   readonly graphPermissions: readonly MicrosoftGraphPermission[];
 }
 
+export interface MicrosoftAuthorizationIdentity {
+  readonly displayName: string;
+  readonly nonce: string;
+  readonly providerSubjectId: string;
+}
+
+export interface MicrosoftAuthorizationGrant extends MicrosoftTokenGrant {
+  readonly identity: MicrosoftAuthorizationIdentity;
+}
+
 export interface MicrosoftOAuthGateway {
   authorizationUrl(request: MicrosoftAuthorizationRequest): URL;
   exchangeAuthorizationCode(
@@ -676,12 +687,11 @@ export interface MicrosoftOAuthGateway {
     codeVerifier: string,
     redirectUri: string,
     requestedScopes: readonly MicrosoftRequestedScope[],
-  ): Promise<MicrosoftTokenGrant>;
+  ): Promise<MicrosoftAuthorizationGrant>;
   refresh(
     refreshToken: string,
     requestedScopes: readonly MicrosoftRequestedScope[],
   ): Promise<MicrosoftTokenGrant>;
-  readProfile(accessToken: string): Promise<MicrosoftProfile>;
 }
 
 export interface MicrosoftTodoListBindingRepository {

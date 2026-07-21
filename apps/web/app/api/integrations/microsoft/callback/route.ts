@@ -1,1 +1,1 @@
-export { getMicrosoftCallback as GET } from '../../../../_server/microsoft-integration-http';
+export { postMicrosoftCallback as POST } from '../../../../_server/microsoft-integration-http';

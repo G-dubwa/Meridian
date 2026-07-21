@@ -22,9 +22,12 @@ time-zone presentation create material containment risks.
 ## Decision
 
 Request exactly `openid profile offline_access User.Read Calendars.Read
-Tasks.ReadWrite` only through a separately gated incremental flow. Validate the
-Graph token's exact `scp` set independently as `User.Read Calendars.Read
-Tasks.ReadWrite`; reject missing and additional permissions. Keep the current
+Tasks.ReadWrite` only through a separately gated incremental flow. Treat the
+Graph access token as opaque. Validate the token endpoint response's exact
+granted-scope metadata independently as `User.Read Calendars.Read
+Tasks.ReadWrite`; reject absent, malformed, duplicate, missing, and additional
+permissions. Cryptographically validate the ID token and bind its nonce and
+stable account identity to the consumed authorization session. Keep the current
 five-scope route unchanged until live approval.
 
 Create a dedicated normal list named `Meridian` with an opaque open-extension

@@ -18,8 +18,8 @@ related-docs: ../../integrations/microsoft-todo-spike.md
 
 ## Implemented guarded boundary
 
-WP-11 adds exact requested-scope and Graph-token permission envelopes, local
-`scp` validation, dormant incremental-consent orchestration, a provider-neutral
+WP-11 adds exact requested-scope and token-response permission envelopes,
+opaque Graph access-token custody, dormant incremental-consent orchestration, a provider-neutral
 To Do gateway port, a constrained `/me/todo/lists` Microsoft adapter, atomic
 list-plus-extension attempt with baseline recovery, list/task ownership
 markers, canonical occurrence projection, uncertain-create duplicate recovery,
@@ -48,25 +48,24 @@ failure class. The correction makes guarded eligibility an authoritative
 content-free status-contract field shared by route policy and UI, displays both
 exact envelopes before redirect, and keeps five-scope validation unchanged.
 
-The first guarded six-scope callbacks on 21 July also failed closed. The newest
-content-free authorization-session evidence has correlation ID
-`e3dfb0e6-56e3-4e61-97cc-5e63aa3bdafd`, the exact six requested scopes, and a
-state consumed at 16:44:02 SAST. The account remained disconnected with only
-the 18 July five-scope grant/disconnect evidence; no list or task existed. The
-pre-correction callback did not retain a sanitized token/profile validation
-stage, so it cannot be reconstructed from discarded provider material. A
-mocked reproduction identified that the Graph `scp` parser rejected requested
-OIDC markers when Microsoft included them alongside the three Graph
-permissions. The correction ignores only requested `openid`, `profile`, and
-`offline_access` markers for the Graph-permission comparison, still requires
-exactly `User.Read Calendars.Read Tasks.ReadWrite`, rejects every unrequested or
-additional claim, and emits content-free correlation/failure-stage/validation
-results for future callback diagnosis.
+The latest guarded callback on 21 July failed closed with content-free
+correlation `ada00d05-ad49-4ac3-a86e-6709aa8786bb` at the former
+`token_validation_failed` stage; identity validation was not reached. The
+account remained disconnected with only the 18 July five-scope
+grant/disconnect evidence; no candidate token, grant, list, or task was
+retained. The root cause was architectural: Graph access tokens for Microsoft
+services, especially consumer accounts, may be encrypted or non-JWT and must be
+treated as opaque by clients. The correction validates exact Graph permissions
+from the token endpoint response's `scope` metadata, validates the signed ID
+token for authentication and continuity, and never decodes the Graph access
+token. Callback state, expiry, PKCE, and a hashed OIDC nonce remain mandatory.
 
 ## Verification and acceptance boundary
 
-Mocked tests must prove exact six-scope request construction; exact three-scope
-Graph `scp` acceptance; unexpected/missing scope rejection; five-scope refusal
+Mocked tests must prove exact six-scope request construction; opaque and
+encrypted-looking access-token acceptance with exact three-permission response
+metadata; qualified-scope normalization; unexpected/missing/duplicate metadata
+rejection; signed ID-token and nonce failure; five-scope refusal
 before token access; atomic extension request; fallback/uncertain recovery; one
 create despite a recovered lost response; owner/non-shared/list/marker
 containment; stored-list URL restriction; Johannesburg-to-Microsoft time-zone
@@ -79,15 +78,17 @@ proceed independently during observation, but To Do remains experimental and
 must not be selected as the active channel prematurely.
 
 `pnpm check` passed on Node.js 24.18.0 and pnpm 11.14.0: formatting, lint,
-strict typecheck, 129 modules/250 dependencies plus the negative fixture,
-Drizzle consistency, 18 unit files/86 tests, one isolated PostgreSQL file/9
+strict typecheck, 129 modules/251 dependencies plus the negative fixture,
+Drizzle consistency, 19 unit files/96 tests, one isolated PostgreSQL file/9
 tests, 9 local live-server owner journeys, 99 governed Markdown documents with
 a current generated dictionary, and all workspace production builds. Focused
-tests additionally prove completion read-back, valid canonical advancement,
-marker-bounded cleanup, unauthenticated rejection, and no-configuration refusal
-before provider access. Microsoft was unconfigured in live-server acceptance,
-and all provider fixtures were mocked/synthetic; cost and external requests
-were USD 0.00/zero.
+tests additionally prove opaque/encrypted-looking Graph credentials, exact and
+qualified response-scope metadata, signed ID-token authentication, hashed nonce
+binding, callback log redaction, completion read-back, valid canonical
+advancement, marker-bounded cleanup, unauthenticated rejection, and
+no-configuration refusal before provider access. Microsoft was unconfigured in
+live-server acceptance, and all provider fixtures were mocked/synthetic; cost
+and external requests were USD 0.00/zero.
 
 ## Rollback
 

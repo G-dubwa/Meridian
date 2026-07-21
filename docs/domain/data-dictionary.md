@@ -322,6 +322,7 @@ Indexes: `microsoft_todo_tasks_user_status_idx`.
 | `provider` | `text` | no | no | no |
 | `state_hash` | `text` | no | no | no |
 | `code_verifier_ciphertext` | `text` | no | no | no |
+| `nonce_hash` | `text` | no | no | no |
 | `redirect_uri` | `text` | no | no | no |
 | `requested_scopes` | `text[]` | no | no | no |
 | `created_at` | `timestamp with time zone` | no | no | no |

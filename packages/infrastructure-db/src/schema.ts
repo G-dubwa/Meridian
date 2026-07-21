@@ -203,6 +203,7 @@ export const oauthAuthorizationSessions = pgTable(
     provider: text('provider').notNull(),
     stateHash: text('state_hash').notNull().unique(),
     codeVerifierCiphertext: text('code_verifier_ciphertext').notNull(),
+    nonceHash: text('nonce_hash').notNull(),
     redirectUri: text('redirect_uri').notNull(),
     requestedScopes: text('requested_scopes').array().notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
@@ -217,6 +218,10 @@ export const oauthAuthorizationSessions = pgTable(
     check(
       'oauth_authorization_sessions_state_hash',
       sql`length(${table.stateHash}) = 64`,
+    ),
+    check(
+      'oauth_authorization_sessions_nonce_hash',
+      sql`length(${table.nonceHash}) = 64`,
     ),
     check(
       'oauth_authorization_sessions_ciphertext',

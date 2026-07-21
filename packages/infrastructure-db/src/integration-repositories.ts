@@ -170,6 +170,7 @@ function mapAuthorizationSession(
     createdAt: row.createdAt,
     expiresAt: row.expiresAt,
     id: uuidV1Schema.parse(row.id),
+    nonceHash: row.nonceHash,
     provider: 'microsoft',
     redirectUri: row.redirectUri,
     requestedScopes: microsoftRequestedScopesV1Schema.parse(
@@ -191,6 +192,7 @@ export class DrizzleOAuthAuthorizationSessionStore implements OAuthAuthorization
         createdAt: record.createdAt,
         expiresAt: record.expiresAt,
         id: record.id,
+        nonceHash: record.nonceHash,
         provider: record.provider,
         redirectUri: record.redirectUri,
         requestedScopes: [...record.requestedScopes],

@@ -31,7 +31,7 @@ identity for Meridian login, scheduling, notifications, and external writes.
 ## Acceptance evidence
 
 - Strict unit tests cover exact-scope rejection, consumers-only URLs, S256 PKCE,
-  context-bound AES-256-GCM, sanitized token failures, minimal profile reads,
+  context-bound AES-256-GCM, sanitized token failures, signed ID-token identity basics,
   local configuration, API non-disclosure, and environment-file policy.
 - Eight live PostgreSQL tests cover empty/seeded migration, one-time state and
   verifier erasure, encrypted tokens, RLS, consent append-only enforcement,

@@ -14,14 +14,16 @@ Last updated: 21 July 2026
 
 - WP-11 — Microsoft To Do delivery spike has a separate guarded-enablement
   checkpoint in progress on `wp-11-microsoft-todo-delivery-spike`. The guarded
-  exact-six-scope callback was attempted after approval and failed closed before
-  account/token/consent commit. Its latest authorization session used the exact
-  requested envelope and consumed state, while the account and consent ledger
-  remained at the 18 July disconnected five-scope state. Mocked reproduction
-  found that requested OIDC markers in access-token `scp` were incorrectly
-  treated as additional Graph permissions. A separate correction checkpoint is
-  in progress; no retained token, list, task, reconciliation, cleanup, or
-  delivery activation resulted. WP-11 remains open and To Do experimental.
+  exact-six-scope callback with correlation
+  `ada00d05-ad49-4ac3-a86e-6709aa8786bb` failed closed at the former access-token
+  validation stage before identity/account/token/consent commit. Microsoft
+  Graph access tokens are not client-verifiable artifacts and may be encrypted
+  or non-JWT. The correction now treats them as opaque, validates exact granted
+  permissions from token-response `scope` metadata, and cryptographically
+  validates the ID token plus nonce and account continuity. The account and
+  ledger remain at the 18 July disconnected five-scope state; no retained
+  candidate token, list, task, reconciliation, cleanup, or delivery activation
+  resulted. WP-11 remains open and To Do experimental.
 
 ## Completed packages
 
@@ -59,8 +61,8 @@ Last updated: 21 July 2026
 - `wp-10-tasks-canonical-reminders` — complete, pushed, and integrated at
   `718bc897939017a641e6c3ee20f593c9c7c35516`.
 - `wp-11-microsoft-todo-delivery-spike` — guarded enablement implementation;
-  pushed through `99052ebf88caddb352ab13db6d8c7c5cc4bbacae`, with the callback
-  correction in local verification and stopped before another live attempt.
+  pushed through `c2fb14cb4a3a960783f3c64e9f04c7699094f6c3`, with the opaque-token
+  callback correction in local verification and stopped before another live attempt.
 - Integration branch: remote `main` ends at
   `718bc897939017a641e6c3ee20f593c9c7c35516` after exact verification.
 
@@ -120,14 +122,15 @@ profile offline_access User.Read Calendars.Read` and no additional permission.
   and no-configuration refusal before provider access.
 - WP-11 callback-correction verification is green for formatting, lint, strict
   typecheck, 129 modules/251 dependencies and the negative fixture, Drizzle
-  consistency, 18 unit files/86 tests, one disposable local-PostgreSQL file/9
-  tests, 99 governed Markdown documents/current dictionary, and every non-web
-  workspace build. The focused mocked token fixture proves requested OIDC
-  markers are excluded from the exact Graph comparison while an unrequested
-  marker or broader permission still fails closed. The live development server
-  held Next's project lock, so the unchanged nine-journey browser suite and web
-  production build were not rerun for this checkpoint; the prior WP-11 gate for
-  both remains green.
+  consistency, 19 unit files/96 tests, one disposable local-PostgreSQL file/9
+  tests, all 9 authenticated browser journeys, 99 governed Markdown
+  documents/current dictionary, and every workspace production build. Mocked
+  fixtures prove opaque and encrypted-looking Graph credentials, exact and
+  qualified token-response scopes, missing/duplicate/unexpected fail-closed
+  behavior, signed ID-token rejection, nonce binding, atomic non-persistence on
+  callback failure, and callback log/request-line redaction. Microsoft was
+  unconfigured during browser acceptance; no consent, Graph request, provider
+  mutation, or external cost occurred.
 
 ## Known risks
 
@@ -166,7 +169,7 @@ Calendars.Read`; no write, To Do, mail, shared-calendar, or application
   dedicated list, every Graph read/write, device testing, cleanup, and any
   delivery decision remain unapproved. The OAuth/OIDC request
   is exactly `openid profile offline_access User.Read Calendars.Read
-Tasks.ReadWrite`; the expected Graph token `scp` set is separately exactly
+Tasks.ReadWrite`; the expected token-response Graph permission set is separately exactly
   `User.Read Calendars.Read Tasks.ReadWrite`. The broader technical access of
   delegated `Tasks.ReadWrite`, including shared tasks, is acknowledged and
   constrained at application level.

@@ -43,7 +43,8 @@ related-docs: release.md
   compact Edit/Undo receipts, occurrence history, content-free audit, and no
   external delivery adapter or permission.
 - WP-11 mocked Microsoft To Do spike with separately validated OAuth/OIDC and
-  Graph-token scope envelopes, dormant incremental consent, a dedicated-list
+  token-response Graph-permission envelopes, opaque access-token custody,
+  signed ID-token authentication, dormant incremental consent, a dedicated-list
   ownership marker, bounded uncertain-write recovery, owner-RLS bindings,
   content-free operation evidence, and a constrained Graph adapter. Live
   consent, Entra changes, provider requests, device testing, and activation

@@ -23,10 +23,13 @@ Use the OAuth 2.0 authorization-code flow with S256 PKCE and a confidential Web
 app registration. Fix the authority to `consumers`; organizational tenants are
 out of scope. Request exactly `openid profile offline_access User.Read
 Calendars.Read`. Reject token responses containing an unapproved scope and do
-not use `.default`. Read only Graph `/me?$select=id,displayName` during
-connection; WP-07 does not read calendar data.
+not use `.default`. Treat Graph access tokens as opaque and derive granted
+permissions only from the token endpoint response's `scope` metadata. Validate
+the signed ID token for consumer issuer, audience, expiry, nonce, and stable
+account identity; no Graph request is needed during connection. WP-07 does not
+read calendar data.
 
-Store only a SHA-256 hash of the one-time state. Encrypt the PKCE verifier while
+Store only SHA-256 hashes of the one-time state and OIDC nonce. Encrypt the PKCE verifier while
 it is pending and erase its ciphertext on atomic consumption. The callback may
 complete without Meridian's Strict SameSite session cookie because the random,
 single-use, ten-minute state binds it to an owner and exact redirect URI.
@@ -35,7 +38,7 @@ Encrypt access tokens, refresh tokens, and pending PKCE verifiers with
 AES-256-GCM. A distinct authenticated-data context binds each envelope to its
 owner, purpose, and integration/session identity. The 32-byte base64 encryption
 key and Microsoft client secret stay outside PostgreSQL and source control.
-Profile basics, granted scope tuple, expiry, status, and consent history remain
+ID-token display-name basics, granted scope tuple, expiry, status, and consent history remain
 owner-scoped data protected by forced RLS.
 
 Refresh shortly before access-token expiry. Persist a rotated refresh token

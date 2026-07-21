@@ -490,28 +490,26 @@ paths:
         '409': { $ref: '#/components/responses/Conflict' }
         '503': { $ref: '#/components/responses/IntegrationUnavailable' }
   /api/integrations/microsoft/callback:
-    get:
+    post:
       operationId: completeMicrosoftConnection
-      summary: Consume one authorization code and one-time state, then redirect safely.
-      parameters:
-        - name: code
-          in: query
-          required: false
-          schema: { type: string, minLength: 1, maxLength: 8192 }
-        - name: state
-          in: query
-          required: false
-          schema:
-            {
-              type: string,
-              minLength: 32,
-              maxLength: 256,
-              pattern: '^[A-Za-z0-9_-]+$',
-            }
-        - name: error
-          in: query
-          required: false
-          schema: { type: string }
+      summary: Consume one form-post authorization code and one-time state, then redirect safely.
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [code, state]
+              properties:
+                code: { type: string, minLength: 1, maxLength: 8192 }
+                state:
+                  {
+                    type: string,
+                    minLength: 32,
+                    maxLength: 256,
+                    pattern: '^[A-Za-z0-9_-]+$',
+                  }
+                error: { type: string }
       responses:
         '303':
           description: Redirect to Settings with only a generic connected or failed outcome.

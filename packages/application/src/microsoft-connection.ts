@@ -14,12 +14,12 @@ import {
   microsoftConnectionEventPayloadV1Schema,
   expectedMicrosoftGraphPermissionsV1,
   microsoftGraphPermissionsV1Schema,
+  microsoftOidcNonceV1Schema,
   microsoftRequestedScopesV1Schema,
   microsoftTodoRequestedScopesV1Schema,
   microsoftDisconnectionEventPayloadV1Schema,
   microsoftPkceChallengeV1Schema,
   microsoftPkceVerifierV1Schema,
-  microsoftProfileV1Schema,
   outboxMessageIdV1Schema,
   userIdV1Schema,
   uuidV1Schema,
@@ -31,8 +31,8 @@ import type {
   DomainEventEnvelopeV1,
   IdGenerator,
   IntegrationAccountRecord,
+  MicrosoftAuthorizationGrant,
   MicrosoftGraphPermission,
-  MicrosoftProfile,
   MicrosoftRequestedScope,
   MicrosoftIntegrationEventType,
   MicrosoftOAuthGateway,
@@ -54,9 +54,10 @@ const ACCESS_TOKEN_REFRESH_WINDOW_MS = 5 * 60 * 1000;
 
 export type MicrosoftCallbackFailureClass =
   | 'token_exchange_failed'
-  | 'token_validation_failed'
-  | 'profile_request_failed'
-  | 'profile_validation_failed'
+  | 'token_response_validation_failed'
+  | 'scope_validation_failed'
+  | 'identity_validation_failed'
+  | 'account_continuity_failed'
   | 'persistence_failed';
 
 export type MicrosoftCallbackValidationResult =
@@ -64,10 +65,37 @@ export type MicrosoftCallbackValidationResult =
 
 export interface MicrosoftCallbackFailureDiagnostic {
   readonly correlationId: Uuid;
+  readonly accountContinuity: MicrosoftCallbackValidationResult;
   readonly failureClass: MicrosoftCallbackFailureClass;
-  readonly profileValidation: MicrosoftCallbackValidationResult;
-  readonly requestedScopes: readonly MicrosoftRequestedScope[];
-  readonly tokenValidation: MicrosoftCallbackValidationResult;
+  readonly identityValidation: MicrosoftCallbackValidationResult;
+  readonly scopeValidation: MicrosoftCallbackValidationResult;
+}
+
+export interface MicrosoftCallbackLogger {
+  warn(message: string, fields: Readonly<Record<string, unknown>>): void;
+}
+
+const MICROSOFT_CALLBACK_PATH = '/api/integrations/microsoft/callback';
+
+export function logMicrosoftCallbackFailure(
+  logger: MicrosoftCallbackLogger,
+  diagnostic: MicrosoftCallbackFailureDiagnostic | null,
+): void {
+  if (diagnostic) {
+    logger.warn('Microsoft callback rejected safely.', {
+      path: MICROSOFT_CALLBACK_PATH,
+      ...diagnostic,
+    });
+    return;
+  }
+  logger.warn('Microsoft callback envelope rejected safely.', {
+    accountContinuity: 'not_reached',
+    correlationId: null,
+    failureClass: 'callback_envelope_rejected',
+    identityValidation: 'not_reached',
+    path: MICROSOFT_CALLBACK_PATH,
+    scopeValidation: 'not_reached',
+  });
 }
 
 export class MicrosoftCallbackFailedError extends AuthenticationFailedError {
@@ -201,30 +229,58 @@ function isConsentRevoked(error: unknown): boolean {
 function callbackFailure(
   flow: OAuthAuthorizationSessionRecord,
   failureClass: MicrosoftCallbackFailureClass,
-  tokenValidation: MicrosoftCallbackValidationResult,
-  profileValidation: MicrosoftCallbackValidationResult,
+  scopeValidation: MicrosoftCallbackValidationResult,
+  identityValidation: MicrosoftCallbackValidationResult,
+  accountContinuity: MicrosoftCallbackValidationResult,
 ): MicrosoftCallbackFailedError {
   return new MicrosoftCallbackFailedError({
+    accountContinuity,
     correlationId: flow.id,
     failureClass,
-    profileValidation,
-    requestedScopes: flow.requestedScopes,
-    tokenValidation,
+    identityValidation,
+    scopeValidation,
   });
 }
 
-function tokenFailureClass(error: unknown): MicrosoftCallbackFailureClass {
-  return error instanceof MicrosoftOAuthGatewayError &&
-    error.stage !== 'token_validation'
-    ? 'token_exchange_failed'
-    : 'token_validation_failed';
-}
-
-function profileFailureClass(error: unknown): MicrosoftCallbackFailureClass {
-  return error instanceof MicrosoftOAuthGatewayError &&
-    error.stage !== 'profile_validation'
-    ? 'profile_request_failed'
-    : 'profile_validation_failed';
+function gatewayCallbackFailure(
+  flow: OAuthAuthorizationSessionRecord,
+  error: unknown,
+): MicrosoftCallbackFailedError {
+  const stage =
+    error instanceof MicrosoftOAuthGatewayError
+      ? error.stage
+      : 'scope_validation';
+  if (stage === 'identity_validation')
+    return callbackFailure(
+      flow,
+      'identity_validation_failed',
+      'accepted',
+      'rejected',
+      'not_reached',
+    );
+  if (stage === 'scope_validation' || stage === undefined)
+    return callbackFailure(
+      flow,
+      'scope_validation_failed',
+      'rejected',
+      'not_reached',
+      'not_reached',
+    );
+  if (stage === 'token_response_validation')
+    return callbackFailure(
+      flow,
+      'token_response_validation_failed',
+      'not_reached',
+      'not_reached',
+      'not_reached',
+    );
+  return callbackFailure(
+    flow,
+    'token_exchange_failed',
+    'not_reached',
+    'not_reached',
+    'not_reached',
+  );
 }
 
 function summaryFor(
@@ -336,6 +392,9 @@ export class MicrosoftConnectionService {
     const state = microsoftAuthorizationStateV1Schema.parse(
       this.dependencies.secrets.generate(32),
     );
+    const nonce = microsoftOidcNonceV1Schema.parse(
+      this.dependencies.secrets.generate(32),
+    );
     const pkce = authorization.pkce.generate();
     const verifier = microsoftPkceVerifierV1Schema.parse(pkce.verifier);
     const challenge = microsoftPkceChallengeV1Schema.parse(pkce.challenge);
@@ -349,6 +408,7 @@ export class MicrosoftConnectionService {
       createdAt: now,
       expiresAt: new Date(now.getTime() + AUTHORIZATION_SESSION_LIFETIME_MS),
       id: flowId,
+      nonceHash: this.dependencies.secrets.hash(nonce),
       provider: 'microsoft',
       redirectUri: authorization.redirectUri,
       requestedScopes: scopes,
@@ -357,6 +417,7 @@ export class MicrosoftConnectionService {
     });
     return authorization.gateway.authorizationUrl({
       codeChallenge: challenge,
+      nonce,
       redirectUri: authorization.redirectUri,
       scopes,
       state,
@@ -395,13 +456,24 @@ export class MicrosoftConnectionService {
     if (flow.redirectUri !== authorization.redirectUri)
       throw new AuthenticationFailedError();
 
-    const verifier = microsoftPkceVerifierV1Schema.parse(
-      authorization.cipher.open(
-        flow.codeVerifierCiphertext,
-        flowContext(flow.id),
-      ),
-    );
-    let grant: MicrosoftTokenGrant;
+    let verifier: string;
+    try {
+      verifier = microsoftPkceVerifierV1Schema.parse(
+        authorization.cipher.open(
+          flow.codeVerifierCiphertext,
+          flowContext(flow.id),
+        ),
+      );
+    } catch {
+      throw callbackFailure(
+        flow,
+        'token_exchange_failed',
+        'not_reached',
+        'not_reached',
+        'not_reached',
+      );
+    }
+    let grant: MicrosoftAuthorizationGrant;
     let requestedScopes: readonly MicrosoftRequestedScope[];
     let graphPermissions: readonly MicrosoftGraphPermission[];
     try {
@@ -422,36 +494,41 @@ export class MicrosoftConnectionService {
         )
       )
         throw new AuthenticationFailedError();
+      if (
+        this.dependencies.secrets.hash(grant.identity.nonce) !== flow.nonceHash
+      )
+        throw new MicrosoftOAuthGatewayError(
+          'authorization_failed',
+          'identity_validation',
+        );
     } catch (error) {
-      const failureClass = tokenFailureClass(error);
-      throw callbackFailure(
-        flow,
-        failureClass,
-        failureClass === 'token_validation_failed' ? 'rejected' : 'not_reached',
-        'not_reached',
-      );
-    }
-    let profile: MicrosoftProfile;
-    try {
-      profile = microsoftProfileV1Schema.parse(
-        await authorization.gateway.readProfile(grant.accessToken),
-      );
-    } catch (error) {
-      const failureClass = profileFailureClass(error);
-      throw callbackFailure(
-        flow,
-        failureClass,
-        'accepted',
-        failureClass === 'profile_validation_failed'
-          ? 'rejected'
-          : 'not_reached',
-      );
+      throw gatewayCallbackFailure(flow, error);
     }
     const scope = { userId: userIdV1Schema.parse(flow.userId) };
+    const priorAccount = await this.dependencies.transactions.run(
+      scope,
+      (ports) => ports.integrationAccounts.findMicrosoft(scope),
+    );
+    if (
+      priorAccount &&
+      priorAccount.providerSubjectId !== grant.identity.providerSubjectId
+    )
+      throw callbackFailure(
+        flow,
+        'account_continuity_failed',
+        'accepted',
+        'accepted',
+        'rejected',
+      );
 
     try {
       await this.dependencies.transactions.run(scope, async (ports) => {
         const existing = await ports.integrationAccounts.findMicrosoft(scope);
+        if (
+          existing &&
+          existing.providerSubjectId !== grant.identity.providerSubjectId
+        )
+          throw new AuthenticationFailedError();
         const accountId = uuidV1Schema.parse(
           existing?.id ?? this.dependencies.ids.next(),
         );
@@ -463,12 +540,12 @@ export class MicrosoftConnectionService {
           connectedAt: now,
           createdAt: existing?.createdAt ?? now,
           disconnectedAt: null,
-          displayName: profile.displayName,
+          displayName: grant.identity.displayName,
           graphPermissions,
           id: accountId,
           lastRefreshedAt: null,
           provider: 'microsoft',
-          providerSubjectId: profile.providerSubjectId,
+          providerSubjectId: grant.identity.providerSubjectId,
           requestedScopes,
           refreshTokenCiphertext: authorization.cipher.seal(
             grant.refreshToken,
@@ -512,8 +589,22 @@ export class MicrosoftConnectionService {
           now,
         );
       });
-    } catch {
-      throw callbackFailure(flow, 'persistence_failed', 'accepted', 'accepted');
+    } catch (error) {
+      if (error instanceof AuthenticationFailedError)
+        throw callbackFailure(
+          flow,
+          'account_continuity_failed',
+          'accepted',
+          'accepted',
+          'rejected',
+        );
+      throw callbackFailure(
+        flow,
+        'persistence_failed',
+        'accepted',
+        'accepted',
+        'accepted',
+      );
     }
     return scope;
   }

@@ -64,10 +64,12 @@ credentials out of request processes. User content remains behind forced RLS.
 ## Microsoft integration boundary
 
 Microsoft is a separately consented integration, never Meridian authentication.
-The confidential Web flow uses S256 PKCE, a random state stored only as a hash,
-atomic one-time consumption, a ten-minute expiry, and the fixed `consumers`
+The confidential Web flow uses S256 PKCE, random state and nonce values stored
+only as hashes, atomic one-time consumption, a ten-minute expiry, and the fixed `consumers`
 authority. The exact allowed tuple is `openid profile offline_access User.Read
-Calendars.Read`; broader returned scopes fail closed.
+Calendars.Read`; broader token-response scope metadata fails closed. Graph
+access tokens remain opaque. The signed ID token proves issuer, audience,
+expiry, nonce, and stable account identity.
 
 Access/refresh tokens and pending PKCE verifiers use AES-256-GCM envelopes with
 purpose-specific authenticated context. The 32-byte base64 key and client secret

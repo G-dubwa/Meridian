@@ -29,7 +29,7 @@ adapters. Web route handlers depend on an application service facade; worker
 runtime handlers do the same. Client components and non-composition runtime code
 cannot import infrastructure modules.
 
-`packages/infrastructure-ms-graph` implements WP-07 OAuth, minimal profile,
+`packages/infrastructure-ms-graph` implements WP-07 OAuth, signed ID-token identity,
 PKCE/token custody, and WP-11's dormant constrained To Do adapter. The adapter
 has only `/me/todo/lists` list/task paths; application policy owns authority,
 stored-ID/marker containment, and duplicate recovery. No web route composes the

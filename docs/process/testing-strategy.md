@@ -42,7 +42,7 @@ matching Meridian/pg-boss dead-letter state. Playwright proves health is denied
 without a session and presents content-free owner state after journal writes.
 
 WP-07 unit tests use a synthetic HTTP adapter to prove consumers-only exact
-scopes, S256 PKCE, AES-256-GCM context binding, minimal profile reads, sanitized
+scopes, S256 PKCE, AES-256-GCM context binding, signed ID-token identity basics, sanitized
 failures, environment policy, and API token non-disclosure. Live PostgreSQL
 tests prove state replay rejection/verifier erasure, ciphertext custody, RLS,
 append-only consent, refresh rotation, disconnect, reauthorization, and atomic
@@ -68,8 +68,12 @@ path. Playwright proves unauthenticated Triage rejection and the authenticated
 empty Triage API/UI through the live server.
 
 WP-11 automated tests remain provider-free. Synthetic OAuth responses prove the
-exact six requested scopes are distinct from the exact three Graph `scp`
-permissions and reject extras. Mocked Graph tests inspect only request shape,
+exact six requested scopes are distinct from the exact three Graph permissions
+reported by token-response scope metadata. Opaque and encrypted-looking access
+tokens are accepted without inspection only when that metadata is exact;
+absent, malformed, duplicate, missing, or extra permissions fail closed. Signed
+ID-token, nonce, continuity, and callback-log redaction tests cover the
+authentication boundary. Mocked Graph tests inspect only request shape,
 dedicated-list paths, ownership markers, deterministic time conversion, and
 sanitized failures. Application tests prove owner confirmation, five-scope
 refusal before token access, baseline recovery, and no blind duplicate POST.

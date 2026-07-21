@@ -35,8 +35,9 @@ creation. Attempt counts increase monotonically. Succeeded requires
 
 ## Microsoft connection
 
-No account becomes `connected` until code exchange, exact-scope validation,
-minimal profile read, encrypted token storage, grant consent row, domain event,
+No account becomes `connected` until code exchange, exact token-response scope
+validation, signed ID-token/nonce/account-continuity validation, encrypted token
+storage, grant consent row, domain event,
 and outbox row commit atomically. `connected → disconnected` occurs only after
 owner confirmation and clears token ciphertext. A revoked refresh produces
 `connected → reauthorization_required` and also clears tokens. Either terminal
@@ -45,6 +46,7 @@ local state can return to connected only through a fresh one-time authorization.
 OAuth authorization sessions are `pending → consumed` or expire. Consumption
 atomically matches the SHA-256 state hash, returns the encrypted verifier to the
 server process once, and overwrites its stored ciphertext with `v1.consumed`.
+The stored nonce hash binds the signed ID-token nonce to that consumed session.
 Consent records have no mutable state; each transition appends a new row.
 
 ## Proposal

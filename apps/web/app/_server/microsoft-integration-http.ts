@@ -4,7 +4,10 @@ import {
   microsoftDisconnectRequestV1Schema,
 } from '@meridian/api-contracts';
 import type { MicrosoftConnectionStatusView } from '@meridian/application';
-import { MicrosoftCallbackFailedError } from '@meridian/application';
+import {
+  MicrosoftCallbackFailedError,
+  logMicrosoftCallbackFailure,
+} from '@meridian/application';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import {
@@ -73,29 +76,41 @@ export async function postMicrosoftConnect(
   }
 }
 
-export async function getMicrosoftCallback(
+function singleFormValue(form: FormData, key: string): string | null {
+  const values = form.getAll(key);
+  return values.length === 1 && typeof values[0] === 'string'
+    ? values[0]
+    : null;
+}
+
+export async function postMicrosoftCallback(
   request: NextRequest,
 ): Promise<NextResponse> {
   const destination = new URL('/settings/integrations', request.url);
   try {
-    const state = request.nextUrl.searchParams.get('state');
-    const code = request.nextUrl.searchParams.get('code');
-    const providerError = request.nextUrl.searchParams.get('error');
+    if (request.nextUrl.search.length > 0)
+      throw new Error('Callback rejected.');
+    const contentType = request.headers.get('content-type') ?? '';
+    if (!contentType.startsWith('application/x-www-form-urlencoded'))
+      throw new Error('Callback rejected.');
+    const form = await request.formData();
+    const state = singleFormValue(form, 'state');
+    const code = singleFormValue(form, 'code');
+    const providerError = singleFormValue(form, 'error');
     if (!state || !code || providerError) throw new Error('Callback rejected.');
     await authenticationRuntime().microsoft.completeConnection(state, code);
     destination.searchParams.set('microsoft', 'connected');
   } catch (error) {
-    if (error instanceof MicrosoftCallbackFailedError)
-      console.warn('Microsoft callback rejected safely.', error.diagnostic);
-    else
-      console.warn('Microsoft callback envelope rejected safely.', {
-        failureClass: 'callback_envelope_rejected',
-      });
+    logMicrosoftCallbackFailure(
+      console,
+      error instanceof MicrosoftCallbackFailedError ? error.diagnostic : null,
+    );
     destination.searchParams.set('microsoft', 'failed');
   }
   const response = NextResponse.redirect(destination, 303);
   response.headers.set('Cache-Control', 'no-store, max-age=0');
   response.headers.set('Pragma', 'no-cache');
+  response.headers.set('Referrer-Policy', 'no-referrer');
   return response;
 }
 

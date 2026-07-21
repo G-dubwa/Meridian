@@ -10,21 +10,24 @@ import {
   expectedMicrosoftGraphPermissionsV1,
   microsoftGraphPermissionV1Schema,
   microsoftGraphPermissionsV1Schema,
-  microsoftProfileV1Schema,
+  microsoftOidcNonceV1Schema,
   microsoftRequestedScopesV1Schema,
   uuidV1Schema,
 } from '@meridian/domain';
 import type {
+  MicrosoftAuthorizationGrant,
+  MicrosoftAuthorizationIdentity,
   MicrosoftAuthorizationRequest,
   MicrosoftGraphPermission,
   MicrosoftRequestedScope,
   MicrosoftOAuthGateway,
-  MicrosoftProfile,
   MicrosoftTokenGrant,
   PkceGenerator,
   PkcePair,
   TokenCipher,
 } from '@meridian/domain';
+import { createRemoteJWKSet, jwtVerify } from 'jose';
+import type { JWTVerifyGetKey } from 'jose';
 
 export * from './todo.js';
 
@@ -32,10 +35,74 @@ const AUTHORIZE_ENDPOINT =
   'https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize';
 const TOKEN_ENDPOINT =
   'https://login.microsoftonline.com/consumers/oauth2/v2.0/token';
-const PROFILE_ENDPOINT =
-  'https://graph.microsoft.com/v1.0/me?$select=id,displayName';
+const MICROSOFT_ACCOUNT_TENANT_ID = '9188040d-6c67-4c5b-b112-36a304b66dad';
+const ID_TOKEN_ISSUER = `https://login.microsoftonline.com/${MICROSOFT_ACCOUNT_TENANT_ID}/v2.0`;
+const ID_TOKEN_JWKS_ENDPOINT =
+  'https://login.microsoftonline.com/consumers/discovery/v2.0/keys';
 const CALLBACK_PATH = '/api/integrations/microsoft/callback';
 const TOKEN_TIMEOUT_MS = 10_000;
+
+export interface MicrosoftIdTokenValidator {
+  validate(idToken: string): Promise<MicrosoftAuthorizationIdentity>;
+}
+
+export class MicrosoftIdTokenVerifier implements MicrosoftIdTokenValidator {
+  public constructor(
+    private readonly clientId: string,
+    private readonly keys: JWTVerifyGetKey = createRemoteJWKSet(
+      new URL(ID_TOKEN_JWKS_ENDPOINT),
+      { timeoutDuration: TOKEN_TIMEOUT_MS },
+    ),
+  ) {}
+
+  public async validate(
+    idToken: string,
+  ): Promise<MicrosoftAuthorizationIdentity> {
+    try {
+      const { payload } = await jwtVerify(idToken, this.keys, {
+        algorithms: ['RS256'],
+        audience: this.clientId,
+        clockTolerance: 5,
+        issuer: ID_TOKEN_ISSUER,
+        maxTokenAge: '10 minutes',
+        requiredClaims: [
+          'aud',
+          'exp',
+          'iat',
+          'iss',
+          'name',
+          'nonce',
+          'oid',
+          'sub',
+          'tid',
+        ],
+      });
+      const providerSubjectId = uuidV1Schema.safeParse(payload.oid);
+      if (
+        payload.tid !== MICROSOFT_ACCOUNT_TENANT_ID ||
+        !providerSubjectId.success ||
+        typeof payload.name !== 'string' ||
+        payload.name.length < 1 ||
+        payload.name.length > 255 ||
+        typeof payload.nonce !== 'string' ||
+        payload.nonce.length < 32 ||
+        payload.nonce.length > 256 ||
+        !/^[A-Za-z0-9_-]+$/.test(payload.nonce)
+      )
+        throw new Error('ID-token claims rejected.');
+      return {
+        displayName: payload.name,
+        nonce: payload.nonce,
+        providerSubjectId: providerSubjectId.data,
+      };
+    } catch {
+      throw new MicrosoftOAuthGatewayError(
+        'authorization_failed',
+        'identity_validation',
+      );
+    }
+  }
+}
 
 export interface MicrosoftOAuthConfiguration {
   readonly clientId: string;
@@ -168,6 +235,7 @@ export class Aes256GcmTokenCipher implements TokenCipher {
 
 interface TokenEndpointResponse {
   readonly access_token: string;
+  readonly id_token?: string;
   readonly refresh_token?: string;
   readonly expires_in: number;
   readonly scope?: string;
@@ -199,38 +267,17 @@ function isRequestedOidcMarker(
   );
 }
 
-function validateGraphAccessTokenPermissions(
-  accessToken: string,
+function validateGrantedGraphPermissions(
+  scopeMetadata: string | undefined,
   requestedScopes: readonly MicrosoftRequestedScope[],
 ): readonly MicrosoftGraphPermission[] {
-  const parts = accessToken.split('.');
-  if (parts.length !== 3 || !parts[1])
+  if (scopeMetadata === undefined || scopeMetadata.trim().length === 0)
     throw new MicrosoftOAuthGatewayError(
       'authorization_failed',
-      'token_validation',
-    );
-  let payload: unknown;
-  try {
-    payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
-  } catch {
-    throw new MicrosoftOAuthGatewayError(
-      'authorization_failed',
-      'token_validation',
-    );
-  }
-  if (!payload || typeof payload !== 'object' || !('scp' in payload))
-    throw new MicrosoftOAuthGatewayError(
-      'authorization_failed',
-      'token_validation',
-    );
-  const scp = (payload as Readonly<Record<string, unknown>>).scp;
-  if (typeof scp !== 'string')
-    throw new MicrosoftOAuthGatewayError(
-      'authorization_failed',
-      'token_validation',
+      'scope_validation',
     );
   const canonical: MicrosoftGraphPermission[] = [];
-  for (const claim of scp.split(/\s+/).filter(Boolean)) {
+  for (const claim of scopeMetadata.split(/\s+/).filter(Boolean)) {
     const permission = canonicalGraphPermission(claim);
     if (permission) {
       canonical.push(permission);
@@ -239,14 +286,14 @@ function validateGraphAccessTokenPermissions(
     if (isRequestedOidcMarker(claim, requestedScopes)) continue;
     throw new MicrosoftOAuthGatewayError(
       'authorization_failed',
-      'token_validation',
+      'scope_validation',
     );
   }
   const parsed = microsoftGraphPermissionsV1Schema.safeParse(canonical);
   if (!parsed.success)
     throw new MicrosoftOAuthGatewayError(
       'authorization_failed',
-      'token_validation',
+      'scope_validation',
     );
   const expected = expectedMicrosoftGraphPermissionsV1(requestedScopes);
   if (
@@ -255,7 +302,7 @@ function validateGraphAccessTokenPermissions(
   )
     throw new MicrosoftOAuthGatewayError(
       'authorization_failed',
-      'token_validation',
+      'scope_validation',
     );
   return expected;
 }
@@ -264,11 +311,15 @@ function tokenResponse(value: unknown): TokenEndpointResponse {
   if (!value || typeof value !== 'object')
     throw new MicrosoftOAuthGatewayError(
       'provider_unavailable',
-      'token_validation',
+      'token_response_validation',
     );
   const candidate = value as Readonly<Record<string, unknown>>;
   if (
     typeof candidate.access_token !== 'string' ||
+    candidate.access_token.length < 1 ||
+    candidate.access_token.length > 16_384 ||
+    (candidate.id_token !== undefined &&
+      typeof candidate.id_token !== 'string') ||
     (candidate.refresh_token !== undefined &&
       typeof candidate.refresh_token !== 'string') ||
     typeof candidate.expires_in !== 'number' ||
@@ -278,10 +329,13 @@ function tokenResponse(value: unknown): TokenEndpointResponse {
   )
     throw new MicrosoftOAuthGatewayError(
       'provider_unavailable',
-      'token_validation',
+      'token_response_validation',
     );
   return {
     access_token: candidate.access_token,
+    ...(candidate.id_token === undefined
+      ? {}
+      : { id_token: candidate.id_token }),
     ...(candidate.refresh_token === undefined
       ? {}
       : { refresh_token: candidate.refresh_token }),
@@ -294,6 +348,9 @@ export class MicrosoftOAuthHttpGateway implements MicrosoftOAuthGateway {
   public constructor(
     private readonly configuration: MicrosoftOAuthConfiguration,
     private readonly fetcher: typeof fetch = fetch,
+    private readonly idTokens: MicrosoftIdTokenValidator = new MicrosoftIdTokenVerifier(
+      configuration.clientId,
+    ),
   ) {}
 
   public authorizationUrl(request: MicrosoftAuthorizationRequest): URL {
@@ -305,8 +362,9 @@ export class MicrosoftOAuthHttpGateway implements MicrosoftOAuthGateway {
       client_id: this.configuration.clientId,
       code_challenge: request.codeChallenge,
       code_challenge_method: 'S256',
+      nonce: microsoftOidcNonceV1Schema.parse(request.nonce),
       redirect_uri: request.redirectUri,
-      response_mode: 'query',
+      response_mode: 'form_post',
       response_type: 'code',
       scope: scopes.join(' '),
       state: request.state,
@@ -319,7 +377,7 @@ export class MicrosoftOAuthHttpGateway implements MicrosoftOAuthGateway {
     codeVerifier: string,
     redirectUri: string,
     requestedScopes: readonly MicrosoftRequestedScope[],
-  ): Promise<MicrosoftTokenGrant> {
+  ): Promise<MicrosoftAuthorizationGrant> {
     if (redirectUri !== this.configuration.redirectUri)
       throw new MicrosoftOAuthGatewayError(
         'authorization_failed',
@@ -339,6 +397,7 @@ export class MicrosoftOAuthHttpGateway implements MicrosoftOAuthGateway {
       }),
       undefined,
       requestedScopes,
+      true,
     );
   }
 
@@ -358,61 +417,28 @@ export class MicrosoftOAuthHttpGateway implements MicrosoftOAuthGateway {
       }),
       refreshToken,
       requestedScopes,
+      false,
     );
   }
 
-  public async readProfile(accessToken: string): Promise<MicrosoftProfile> {
-    let response: Response;
-    try {
-      response = await this.fetcher(PROFILE_ENDPOINT, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-        signal: AbortSignal.timeout(TOKEN_TIMEOUT_MS),
-      });
-    } catch {
-      throw new MicrosoftOAuthGatewayError(
-        'provider_unavailable',
-        'profile_request',
-      );
-    }
-    if (!response.ok)
-      throw new MicrosoftOAuthGatewayError(
-        response.status === 401 || response.status === 403
-          ? 'consent_revoked'
-          : 'provider_unavailable',
-        'profile_request',
-      );
-    let value: unknown;
-    try {
-      value = await response.json();
-    } catch {
-      throw new MicrosoftOAuthGatewayError(
-        'provider_unavailable',
-        'profile_validation',
-      );
-    }
-    if (!value || typeof value !== 'object')
-      throw new MicrosoftOAuthGatewayError(
-        'provider_unavailable',
-        'profile_validation',
-      );
-    const candidate = value as Readonly<Record<string, unknown>>;
-    const profile = microsoftProfileV1Schema.safeParse({
-      displayName: candidate.displayName,
-      providerSubjectId: candidate.id,
-    });
-    if (!profile.success)
-      throw new MicrosoftOAuthGatewayError(
-        'authorization_failed',
-        'profile_validation',
-      );
-    return profile.data;
-  }
-
+  private requestToken(
+    form: URLSearchParams,
+    priorRefreshToken: string | undefined,
+    requestedScopes: readonly MicrosoftRequestedScope[],
+    identityRequired: true,
+  ): Promise<MicrosoftAuthorizationGrant>;
+  private requestToken(
+    form: URLSearchParams,
+    priorRefreshToken: string | undefined,
+    requestedScopes: readonly MicrosoftRequestedScope[],
+    identityRequired: false,
+  ): Promise<MicrosoftTokenGrant>;
   private async requestToken(
     form: URLSearchParams,
-    priorRefreshToken?: string,
-    requestedScopes: readonly MicrosoftRequestedScope[] = MICROSOFT_STAGE_A_REQUESTED_SCOPES,
-  ): Promise<MicrosoftTokenGrant> {
+    priorRefreshToken: string | undefined,
+    requestedScopes: readonly MicrosoftRequestedScope[],
+    identityRequired: boolean,
+  ): Promise<MicrosoftTokenGrant | MicrosoftAuthorizationGrant> {
     let response: Response;
     try {
       response = await this.fetcher(TOKEN_ENDPOINT, {
@@ -452,7 +478,7 @@ export class MicrosoftOAuthHttpGateway implements MicrosoftOAuthGateway {
     } catch {
       throw new MicrosoftOAuthGatewayError(
         'provider_unavailable',
-        'token_validation',
+        'token_response_validation',
       );
     }
     const token = tokenResponse(raw);
@@ -460,16 +486,27 @@ export class MicrosoftOAuthHttpGateway implements MicrosoftOAuthGateway {
     if (!refreshToken)
       throw new MicrosoftOAuthGatewayError(
         'authorization_failed',
-        'token_validation',
+        'token_response_validation',
       );
-    return {
+    const graphPermissions = validateGrantedGraphPermissions(
+      token.scope,
+      requestedScopes,
+    );
+    const baseGrant: MicrosoftTokenGrant = {
       accessToken: token.access_token,
       expiresInSeconds: token.expires_in,
-      graphPermissions: validateGraphAccessTokenPermissions(
-        token.access_token,
-        requestedScopes,
-      ),
+      graphPermissions,
       refreshToken,
+    };
+    if (!identityRequired) return baseGrant;
+    if (!token.id_token)
+      throw new MicrosoftOAuthGatewayError(
+        'authorization_failed',
+        'identity_validation',
+      );
+    return {
+      ...baseGrant,
+      identity: await this.idTokens.validate(token.id_token),
     };
   }
 }

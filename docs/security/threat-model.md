@@ -105,7 +105,8 @@ effect, so `uncertain` is reserved rather than guessed.
 | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | Scope escalation                       | Exact ordered allowlist at request, token-response, domain, database, and UI boundaries; broad token response fails closed. |
 | Authorization interception             | Authorization code, confidential client, exact Web redirect URI, and S256 PKCE.                                             |
-| Callback CSRF or replay                | Random state stored only as SHA-256, ten-minute expiry, atomic one-time consume, verifier ciphertext erased.                |
+| Callback CSRF or replay                | Hashed random state and nonce, ten-minute expiry, form-post response, atomic one-time consume, verifier ciphertext erased.  |
+| Forged or substituted owner identity   | ID-token signature, consumer issuer, audience, expiry, nonce, and stable subject continuity validate before persistence.    |
 | Database token disclosure              | AES-256-GCM envelopes with external 32-byte key and owner/purpose authenticated context.                                    |
 | Token leakage through secondary stores | Strict contracts and content-free events omit codes, secrets, tokens, verifiers, and provider diagnostics.                  |
 | Cross-owner integration access         | Forced RLS for account/consent data and owner binding captured in the one-time callback session.                            |
@@ -115,7 +116,7 @@ effect, so `uncertain` is reserved rather than guessed.
 Residual risks include a compromised application process or host with the token
 key, weak local secret custody, app-registration takeover, provider-side consent
 remaining after local disconnect, and absence of a production key-rotation
-procedure. WP-07 reads only profile ID/display name; calendar item risks remain
+procedure. WP-07 derives identity basics only from the signed ID token; calendar item risks remain
 for WP-12.
 
 ## WP-08 model gateway extension
@@ -156,15 +157,16 @@ evidence before any Microsoft To Do or alternate delivery adapter activates.
 
 ## WP-11 Microsoft To Do spike extension
 
-| Threat                                      | Controls                                                                                                            |
-| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| Broad delegated task access is exercised    | Exact `scp`; dedicated stored list; owner/non-shared/marker checks; no imports, `/users`, shared traversal, or sync |
-| Foreign list/task is mutated                | Stored provider IDs plus list open extension and task linked marker; every mutation revalidates containment         |
-| Lost response creates a duplicate           | Durable pending operation, pre-create baseline, marker recovery, at most one bounded retry, multiple-match stop     |
-| Token permissions differ from OAuth request | Separate exact six requested vs exact three Graph permission schemas; missing/extra/opaque `scp` rejected           |
-| Disconnect leaves silent control            | Tokens erased; binding becomes unmanaged without provider call; reconnect requires fresh ownership verification     |
-| Reminder content leaks into audit           | Operation/event payloads contain local IDs, class, outcome and attempts only; provider diagnostics are sanitized    |
-| Wrong zone/date reaches device              | UTC/IANA canonical value, deterministic Johannesburg wall time, explicit Windows-zone mapping, live rejection gate  |
+| Threat                                      | Controls                                                                                                             |
+| ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Broad delegated task access is exercised    | Exact response scope metadata; dedicated stored list; owner/non-shared/marker checks; no imports or shared traversal |
+| Foreign list/task is mutated                | Stored provider IDs plus list open extension and task linked marker; every mutation revalidates containment          |
+| Lost response creates a duplicate           | Durable pending operation, pre-create baseline, marker recovery, at most one bounded retry, multiple-match stop      |
+| Token permissions differ from OAuth request | Exact six requested vs exact three response permissions; absent/malformed/missing/extra metadata rejected            |
+| Opaque Graph token is misinterpreted        | Access token internals are never decoded or trusted; signed ID token is the authentication artifact                  |
+| Disconnect leaves silent control            | Tokens erased; binding becomes unmanaged without provider call; reconnect requires fresh ownership verification      |
+| Reminder content leaks into audit           | Operation/event payloads contain local IDs, class, outcome and attempts only; provider diagnostics are sanitized     |
+| Wrong zone/date reaches device              | UTC/IANA canonical value, deterministic Johannesburg wall time, explicit Windows-zone mapping, live rejection gate   |
 
 Residual risks are the unavoidable breadth of delegated `Tasks.ReadWrite`,
 Microsoft client notification behavior, provider support for open extensions,

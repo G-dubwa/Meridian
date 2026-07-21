@@ -1,12 +1,16 @@
+import { createSign, generateKeyPairSync } from 'node:crypto';
+import type { KeyObject } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import {
-  MICROSOFT_STAGE_A_REQUESTED_SCOPES,
   MICROSOFT_STAGE_A_GRAPH_PERMISSIONS,
+  MICROSOFT_STAGE_A_REQUESTED_SCOPES,
   MICROSOFT_TODO_SPIKE_GRAPH_PERMISSIONS,
   MICROSOFT_TODO_SPIKE_REQUESTED_SCOPES,
   microsoftDelegatedScopesV1Schema,
 } from '../../packages/domain/src/index.js';
 import {
   Aes256GcmTokenCipher,
+  MicrosoftIdTokenVerifier,
   MicrosoftOAuthHttpGateway,
   NodePkceGenerator,
   createMicrosoftInfrastructure,
@@ -15,7 +19,6 @@ import {
   microsoftConnectionStatusResponseV1Schema,
   microsoftTodoConsentRequestV1Schema,
 } from '../../packages/api-contracts/src/microsoft-integration.js';
-import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 const configuration = {
@@ -23,14 +26,63 @@ const configuration = {
   clientSecret: 'local-test-client-secret-only',
   redirectUri: 'http://localhost:3000/api/integrations/microsoft/callback',
 };
+const nonce = 'N'.repeat(43);
+const identity = {
+  displayName: 'Test Owner',
+  nonce,
+  providerSubjectId: '018f0f77-34f1-7ef2-8ca1-7a3bf7f01977',
+};
+const idTokens = {
+  validate: () => Promise.resolve(identity),
+};
 
-function graphAccessToken(scp: string): string {
-  const encode = (value: Readonly<Record<string, unknown>>) =>
-    Buffer.from(JSON.stringify(value)).toString('base64url');
-  return `${encode({ alg: 'none' })}.${encode({ scp })}.signature`;
+function tokenResponse(
+  accessToken: string,
+  scope: string | undefined,
+): Readonly<Record<string, unknown>> {
+  return {
+    access_token: accessToken,
+    expires_in: 3600,
+    id_token: 'signed-id-token-is-validated-separately',
+    refresh_token: 'refresh-token',
+    ...(scope === undefined ? {} : { scope }),
+    token_type: 'Bearer',
+  };
 }
 
-describe('WP-07 Microsoft OAuth infrastructure', () => {
+function signedIdToken(overrides: Readonly<Record<string, unknown>> = {}): {
+  readonly publicKey: KeyObject;
+  readonly token: string;
+} {
+  const { privateKey, publicKey } = generateKeyPairSync('rsa', {
+    modulusLength: 2048,
+  });
+  const now = Math.floor(Date.now() / 1000);
+  const header = Buffer.from(
+    JSON.stringify({ alg: 'RS256', kid: 'local-test-key', typ: 'JWT' }),
+  ).toString('base64url');
+  const payload = Buffer.from(
+    JSON.stringify({
+      aud: configuration.clientId,
+      exp: now + 300,
+      iat: now,
+      iss: 'https://login.microsoftonline.com/9188040d-6c67-4c5b-b112-36a304b66dad/v2.0',
+      name: identity.displayName,
+      nonce,
+      oid: identity.providerSubjectId,
+      sub: 'synthetic-subject',
+      tid: '9188040d-6c67-4c5b-b112-36a304b66dad',
+      ...overrides,
+    }),
+  ).toString('base64url');
+  const signingInput = `${header}.${payload}`;
+  const signature = createSign('RSA-SHA256')
+    .update(signingInput)
+    .sign(privateKey, 'base64url');
+  return { publicKey, token: `${signingInput}.${signature}` };
+}
+
+describe('Microsoft OAuth infrastructure', () => {
   it('requires the exact approved Stage-A scope set', () => {
     expect(
       microsoftDelegatedScopesV1Schema.parse([
@@ -72,10 +124,15 @@ describe('WP-07 Microsoft OAuth infrastructure', () => {
     ).toThrow(/32 bytes/);
   });
 
-  it('builds a consumers-only authorization request without a client secret or forbidden scope', () => {
-    const gateway = new MicrosoftOAuthHttpGateway(configuration);
+  it('builds a consumers-only form-post authorization request with PKCE and nonce', () => {
+    const gateway = new MicrosoftOAuthHttpGateway(
+      configuration,
+      fetch,
+      idTokens,
+    );
     const url = gateway.authorizationUrl({
       codeChallenge: 'A'.repeat(43),
+      nonce,
       redirectUri: configuration.redirectUri,
       scopes: MICROSOFT_STAGE_A_REQUESTED_SCOPES,
       state: 'state-value-that-is-long-enough-for-testing',
@@ -86,98 +143,183 @@ describe('WP-07 Microsoft OAuth infrastructure', () => {
       MICROSOFT_STAGE_A_REQUESTED_SCOPES,
     );
     expect(url.searchParams.get('code_challenge_method')).toBe('S256');
+    expect(url.searchParams.get('nonce')).toBe(nonce);
+    expect(url.searchParams.get('response_mode')).toBe('form_post');
     expect(url.searchParams.has('client_secret')).toBe(false);
     expect(url.search).not.toMatch(/ReadWrite|Mail|Tasks|Shared|\.default/i);
   });
 
-  it('exchanges a code and reads only identity basics through mocked Microsoft HTTP', async () => {
-    const requests: { url: string; init?: RequestInit }[] = [];
-    const fetcher: typeof fetch = (input, init) => {
-      const url =
-        typeof input === 'string'
-          ? input
-          : input instanceof URL
-            ? input.toString()
-            : input.url;
-      requests.push({
-        url,
-        ...(init === undefined ? {} : { init }),
-      });
-      if (url.includes('/token'))
+  it.each([
+    'opaque-access-token-with-no-claims',
+    'EwB4A8l6BAAU7pZ2Z3n_encrypted-looking-not-a-jwt',
+  ])(
+    'accepts an opaque Graph credential using exact token-response permissions: %s',
+    async (accessToken) => {
+      const requests: { url: string; init?: RequestInit }[] = [];
+      const fetcher: typeof fetch = (input, init) => {
+        const url =
+          typeof input === 'string'
+            ? input
+            : input instanceof URL
+              ? input.toString()
+              : input.url;
+        requests.push({ url, ...(init === undefined ? {} : { init }) });
         return Promise.resolve(
-          Response.json({
-            access_token: graphAccessToken('User.Read Calendars.Read'),
-            expires_in: 3600,
-            id_token: 'unused-id-token',
-            refresh_token: 'refresh-token',
-            scope: 'User.Read Calendars.Read openid profile',
-            token_type: 'Bearer',
-          }),
+          Response.json(
+            tokenResponse(
+              accessToken,
+              'openid profile offline_access User.Read Calendars.Read',
+            ),
+          ),
         );
-      return Promise.resolve(
-        Response.json({
-          '@odata.context': 'metadata-not-retained',
-          displayName: 'Test Owner',
-          id: 'opaque-subject',
-          mail: 'not-requested-for-storage@example.test',
-        }),
+      };
+      const gateway = new MicrosoftOAuthHttpGateway(
+        configuration,
+        fetcher,
+        idTokens,
       );
-    };
-    const gateway = new MicrosoftOAuthHttpGateway(configuration, fetcher);
-    const grant = await gateway.exchangeAuthorizationCode(
-      'authorization-code',
-      'V'.repeat(64),
-      configuration.redirectUri,
-      MICROSOFT_STAGE_A_REQUESTED_SCOPES,
-    );
-    expect(grant).toEqual({
-      accessToken: graphAccessToken('User.Read Calendars.Read'),
-      expiresInSeconds: 3600,
-      graphPermissions: MICROSOFT_STAGE_A_GRAPH_PERMISSIONS,
-      refreshToken: 'refresh-token',
-    });
-    await expect(gateway.readProfile(grant.accessToken)).resolves.toEqual({
-      displayName: 'Test Owner',
-      providerSubjectId: 'opaque-subject',
-    });
-    const tokenBody = requests[0]?.init?.body;
-    const tokenForm =
-      tokenBody instanceof URLSearchParams
-        ? tokenBody.toString()
-        : typeof tokenBody === 'string'
-          ? tokenBody
-          : '';
-    expect(tokenForm).toContain('code_verifier=');
-    expect(tokenForm).toContain('client_secret=');
-    expect(tokenForm).not.toMatch(/ReadWrite|Mail|Tasks|Shared|\.default/i);
-    expect(requests[1]?.url).toContain('?$select=id,displayName');
-    expect(requests[1]?.url).not.toMatch(/calendar|mail|task/i);
-  });
+      await expect(
+        gateway.exchangeAuthorizationCode(
+          'authorization-code',
+          'V'.repeat(64),
+          configuration.redirectUri,
+          MICROSOFT_STAGE_A_REQUESTED_SCOPES,
+        ),
+      ).resolves.toEqual({
+        accessToken,
+        expiresInSeconds: 3600,
+        graphPermissions: MICROSOFT_STAGE_A_GRAPH_PERMISSIONS,
+        identity,
+        refreshToken: 'refresh-token',
+      });
+      expect(requests).toHaveLength(1);
+      const tokenBody = requests[0]?.init?.body;
+      const tokenForm =
+        tokenBody instanceof URLSearchParams
+          ? tokenBody.toString()
+          : typeof tokenBody === 'string'
+            ? tokenBody
+            : '';
+      expect(tokenForm).toContain('code_verifier=');
+      expect(tokenForm).toContain('client_secret=');
+      expect(tokenForm).not.toMatch(/ReadWrite|Mail|Tasks|Shared|\.default/i);
+    },
+  );
 
-  it('rejects an over-broad token response and classifies revoked refresh consent', async () => {
-    const overBroad: typeof fetch = () =>
+  it('normalizes qualified Graph permission metadata and ignores only requested OIDC markers', async () => {
+    const fetcher: typeof fetch = () =>
       Promise.resolve(
-        Response.json({
-          access_token: graphAccessToken('User.Read Calendars.Read Mail.Read'),
-          expires_in: 3600,
-          refresh_token: 'refresh-token',
-          scope: 'User.Read Calendars.Read Mail.Read',
-        }),
+        Response.json(
+          tokenResponse(
+            'opaque-access-token',
+            [
+              'profile',
+              'https://graph.microsoft.com/Tasks.ReadWrite',
+              'openid',
+              'https://graph.microsoft.com/Calendars.Read',
+              'offline_access',
+              'https://graph.microsoft.com/User.Read',
+            ].join(' '),
+          ),
+        ),
       );
     await expect(
       new MicrosoftOAuthHttpGateway(
         configuration,
-        overBroad,
+        fetcher,
+        idTokens,
       ).exchangeAuthorizationCode(
         'authorization-code',
         'V'.repeat(64),
         configuration.redirectUri,
-        MICROSOFT_STAGE_A_REQUESTED_SCOPES,
+        MICROSOFT_TODO_SPIKE_REQUESTED_SCOPES,
       ),
+    ).resolves.toMatchObject({
+      accessToken: 'opaque-access-token',
+      graphPermissions: MICROSOFT_TODO_SPIKE_GRAPH_PERMISSIONS,
+    });
+  });
+
+  it.each([
+    { label: 'absent', scope: undefined },
+    { label: 'empty', scope: '   ' },
+    { label: 'missing', scope: 'User.Read Calendars.Read' },
+    {
+      label: 'duplicate',
+      scope: 'User.Read Calendars.Read Tasks.ReadWrite User.Read',
+    },
+    {
+      label: 'unexpected Graph permission',
+      scope: 'User.Read Calendars.Read Tasks.ReadWrite Tasks.Read',
+    },
+    {
+      label: 'unexpected OIDC marker',
+      scope: 'openid email User.Read Calendars.Read Tasks.ReadWrite',
+    },
+    {
+      label: 'malformed qualified permission',
+      scope:
+        'User.Read Calendars.Read Tasks.ReadWrite https://graph.microsoft.com/',
+    },
+  ])(
+    'fails closed for $label token-response scope metadata',
+    async ({ scope }) => {
+      const fetcher: typeof fetch = () =>
+        Promise.resolve(
+          Response.json(tokenResponse('opaque-access-token', scope)),
+        );
+      await expect(
+        new MicrosoftOAuthHttpGateway(
+          configuration,
+          fetcher,
+          idTokens,
+        ).exchangeAuthorizationCode(
+          'authorization-code',
+          'V'.repeat(64),
+          configuration.redirectUri,
+          MICROSOFT_TODO_SPIKE_REQUESTED_SCOPES,
+        ),
+      ).rejects.toMatchObject({
+        reason: 'authorization_failed',
+        stage: 'scope_validation',
+      });
+    },
+  );
+
+  it('cryptographically validates the Microsoft consumer ID token', async () => {
+    const signed = signedIdToken();
+    const verifier = new MicrosoftIdTokenVerifier(
+      configuration.clientId,
+      () => signed.publicKey,
+    );
+    await expect(verifier.validate(signed.token)).resolves.toEqual(identity);
+
+    const wrongIssuer = signedIdToken({
+      iss: 'https://login.microsoftonline.com/unexpected/v2.0',
+    });
+    await expect(
+      new MicrosoftIdTokenVerifier(
+        configuration.clientId,
+        () => wrongIssuer.publicKey,
+      ).validate(wrongIssuer.token),
     ).rejects.toMatchObject({
       reason: 'authorization_failed',
+      stage: 'identity_validation',
     });
 
+    const wrongKey = signedIdToken();
+    await expect(
+      new MicrosoftIdTokenVerifier(
+        configuration.clientId,
+        () => wrongKey.publicKey,
+      ).validate(signed.token),
+    ).rejects.toMatchObject({
+      reason: 'authorization_failed',
+      stage: 'identity_validation',
+    });
+  });
+
+  it('classifies revoked refresh consent without retaining provider detail', async () => {
     const revoked: typeof fetch = () =>
       Promise.resolve(
         Response.json(
@@ -186,121 +328,13 @@ describe('WP-07 Microsoft OAuth infrastructure', () => {
         ),
       );
     await expect(
-      new MicrosoftOAuthHttpGateway(configuration, revoked).refresh(
+      new MicrosoftOAuthHttpGateway(configuration, revoked, idTokens).refresh(
         'refresh-token',
-      ),
-    ).rejects.toMatchObject({ reason: 'consent_revoked' });
-  });
-
-  it('retains the exact requested tuple when Microsoft omits its optional token scope field', async () => {
-    const withoutScope: typeof fetch = () =>
-      Promise.resolve(
-        Response.json({
-          access_token: graphAccessToken('User.Read Calendars.Read'),
-          expires_in: 3600,
-          refresh_token: 'refresh-token',
-        }),
-      );
-    await expect(
-      new MicrosoftOAuthHttpGateway(
-        configuration,
-        withoutScope,
-      ).exchangeAuthorizationCode(
-        'authorization-code',
-        'V'.repeat(64),
-        configuration.redirectUri,
         MICROSOFT_STAGE_A_REQUESTED_SCOPES,
       ),
-    ).resolves.toMatchObject({
-      graphPermissions: MICROSOFT_STAGE_A_GRAPH_PERMISSIONS,
-    });
-  });
-
-  it('requests the exact six-scope incremental envelope but validates only the exact three Graph scp permissions', async () => {
-    const requests: URLSearchParams[] = [];
-    const fetcher: typeof fetch = (_input, init) => {
-      if (init?.body instanceof URLSearchParams) requests.push(init.body);
-      return Promise.resolve(
-        Response.json({
-          access_token: graphAccessToken(
-            'profile Tasks.ReadWrite openid Calendars.Read User.Read',
-          ),
-          expires_in: 3600,
-          refresh_token: 'refresh-token',
-          scope:
-            'profile Tasks.ReadWrite offline_access openid Calendars.Read User.Read',
-        }),
-      );
-    };
-    const gateway = new MicrosoftOAuthHttpGateway(configuration, fetcher);
-    const url = gateway.authorizationUrl({
-      codeChallenge: 'A'.repeat(43),
-      redirectUri: configuration.redirectUri,
-      scopes: MICROSOFT_TODO_SPIKE_REQUESTED_SCOPES,
-      state: 'state-value-that-is-long-enough-for-testing',
-    });
-    expect(url.searchParams.get('scope')?.split(' ')).toEqual(
-      MICROSOFT_TODO_SPIKE_REQUESTED_SCOPES,
-    );
-    await expect(
-      gateway.exchangeAuthorizationCode(
-        'authorization-code',
-        'V'.repeat(64),
-        configuration.redirectUri,
-        MICROSOFT_TODO_SPIKE_REQUESTED_SCOPES,
-      ),
-    ).resolves.toMatchObject({
-      graphPermissions: MICROSOFT_TODO_SPIKE_GRAPH_PERMISSIONS,
-    });
-    expect(requests[0]?.get('scope')?.split(' ')).toEqual(
-      MICROSOFT_TODO_SPIKE_REQUESTED_SCOPES,
-    );
-
-    const unexpected: typeof fetch = () =>
-      Promise.resolve(
-        Response.json({
-          access_token: graphAccessToken(
-            'User.Read Calendars.Read Tasks.ReadWrite Tasks.Read',
-          ),
-          expires_in: 3600,
-          refresh_token: 'refresh-token',
-        }),
-      );
-    await expect(
-      new MicrosoftOAuthHttpGateway(
-        configuration,
-        unexpected,
-      ).exchangeAuthorizationCode(
-        'authorization-code',
-        'V'.repeat(64),
-        configuration.redirectUri,
-        MICROSOFT_TODO_SPIKE_REQUESTED_SCOPES,
-      ),
-    ).rejects.toMatchObject({ reason: 'authorization_failed' });
-
-    const unexpectedOidc: typeof fetch = () =>
-      Promise.resolve(
-        Response.json({
-          access_token: graphAccessToken(
-            'openid profile email User.Read Calendars.Read Tasks.ReadWrite',
-          ),
-          expires_in: 3600,
-          refresh_token: 'refresh-token',
-        }),
-      );
-    await expect(
-      new MicrosoftOAuthHttpGateway(
-        configuration,
-        unexpectedOidc,
-      ).exchangeAuthorizationCode(
-        'authorization-code',
-        'V'.repeat(64),
-        configuration.redirectUri,
-        MICROSOFT_TODO_SPIKE_REQUESTED_SCOPES,
-      ),
     ).rejects.toMatchObject({
-      reason: 'authorization_failed',
-      stage: 'token_validation',
+      reason: 'consent_revoked',
+      stage: 'token_exchange',
     });
   });
 
@@ -345,9 +379,7 @@ describe('WP-07 Microsoft OAuth infrastructure', () => {
       }),
     ).toEqual({ confirmation: 'ENABLE WP11 TODO CONSENT' });
     expect(() =>
-      microsoftTodoConsentRequestV1Schema.parse({
-        confirmation: 'CONNECT',
-      }),
+      microsoftTodoConsentRequestV1Schema.parse({ confirmation: 'CONNECT' }),
     ).toThrow();
   });
 
@@ -358,9 +390,8 @@ describe('WP-07 Microsoft OAuth infrastructure', () => {
       'MICROSOFT_CLIENT_SECRET',
       'MICROSOFT_REDIRECT_URI',
       'MICROSOFT_TOKEN_ENCRYPTION_KEY',
-    ]) {
+    ])
       expect(example).toMatch(new RegExp(`^${name}=`, 'm'));
-    }
     expect(example).toContain(
       'MICROSOFT_REDIRECT_URI=http://localhost:3000/api/integrations/microsoft/callback',
     );

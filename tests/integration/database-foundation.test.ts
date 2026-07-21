@@ -1092,12 +1092,16 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
       Buffer.alloc(32, 7).toString('base64'),
     );
     let currentTime = new Date('2026-07-18T09:00:00.000Z');
+    let authorizationNonce = '';
     let exchangedVerifier = '';
     let refreshCount = 0;
     let consentRevoked = false;
     let rejectNextTodoEnvelope = false;
+    let rejectNextNonce = false;
+    let rejectNextSubject = false;
     const gateway: MicrosoftOAuthGateway = {
       authorizationUrl(request) {
+        authorizationNonce = request.nonce;
         const url = new URL(
           'https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize',
         );
@@ -1105,7 +1109,9 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
           client_id: '018f0f77-34f1-7ef2-8ca1-7a3bf7f01976',
           code_challenge: request.codeChallenge,
           code_challenge_method: 'S256',
+          nonce: request.nonce,
           redirect_uri: request.redirectUri,
+          response_mode: 'form_post',
           response_type: 'code',
           scope: request.scopes.join(' '),
           state: request.state,
@@ -1129,18 +1135,24 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
             ? MICROSOFT_TODO_SPIKE_GRAPH_PERMISSIONS
             : MICROSOFT_STAGE_A_GRAPH_PERMISSIONS;
         rejectNextTodoEnvelope = false;
+        const identityNonce = rejectNextNonce
+          ? 'X'.repeat(43)
+          : authorizationNonce;
+        rejectNextNonce = false;
+        const providerSubjectId = rejectNextSubject
+          ? '018f0f77-34f1-7ef2-8ca1-7a3bf7f01978'
+          : '018f0f77-34f1-7ef2-8ca1-7a3bf7f01977';
+        rejectNextSubject = false;
         return Promise.resolve({
           accessToken: 'initial-access-token',
           expiresInSeconds: 60,
           graphPermissions,
+          identity: {
+            displayName: 'Meridian Test Owner',
+            nonce: identityNonce,
+            providerSubjectId,
+          },
           refreshToken: 'initial-refresh-token',
-        });
-      },
-      readProfile(accessToken) {
-        expect(accessToken).toBe('initial-access-token');
-        return Promise.resolve({
-          displayName: 'Meridian Test Owner',
-          providerSubjectId: 'provider-subject-opaque',
         });
       },
       refresh(refreshToken, requestedScopes) {
@@ -1187,12 +1199,20 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
     expect(authorizationUrl.searchParams.get('code_challenge_method')).toBe(
       'S256',
     );
+    expect(authorizationUrl.searchParams.get('response_mode')).toBe(
+      'form_post',
+    );
+    expect(authorizationUrl.searchParams.get('nonce')).toBe(authorizationNonce);
     const state = authorizationUrl.searchParams.get('state');
     if (!state) throw new Error('Authorization state was not generated.');
     const [pendingFlow] = await admin.sql<
-      { code_verifier_ciphertext: string; state_hash: string }[]
+      {
+        code_verifier_ciphertext: string;
+        nonce_hash: string;
+        state_hash: string;
+      }[]
     >`
-      select code_verifier_ciphertext, state_hash
+      select code_verifier_ciphertext, nonce_hash, state_hash
       from oauth_authorization_sessions
       where user_id = ${scopeA.userId}
       order by created_at desc
@@ -1200,6 +1220,8 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
     `;
     expect(pendingFlow?.state_hash).toBe(secrets.hash(state));
     expect(pendingFlow?.state_hash).not.toContain(state);
+    expect(pendingFlow?.nonce_hash).toBe(secrets.hash(authorizationNonce));
+    expect(pendingFlow?.nonce_hash).not.toContain(authorizationNonce);
     expect(pendingFlow?.code_verifier_ciphertext).toMatch(/^v1\./);
 
     await microsoft.completeConnection(state, 'one-time-code');
@@ -1267,10 +1289,10 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
     ).rejects.toMatchObject({
       code: 'AUTHENTICATION_FAILED',
       diagnostic: {
-        failureClass: 'token_validation_failed',
-        profileValidation: 'not_reached',
-        requestedScopes: MICROSOFT_TODO_SPIKE_REQUESTED_SCOPES,
-        tokenValidation: 'rejected',
+        accountContinuity: 'not_reached',
+        failureClass: 'scope_validation_failed',
+        identityValidation: 'not_reached',
+        scopeValidation: 'rejected',
       },
     });
     expect(await microsoft.status(scopeA)).toMatchObject({
@@ -1291,6 +1313,50 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
     expect(afterRejectedIncremental).toEqual({
       access_token_ciphertext: null,
       refresh_token_ciphertext: null,
+    });
+
+    rejectNextNonce = true;
+    const rejectedNonceUrl =
+      await microsoft.beginTodoIncrementalConsent(scopeA);
+    const rejectedNonceState = rejectedNonceUrl.searchParams.get('state');
+    if (!rejectedNonceState)
+      throw new Error('Rejected nonce state was not generated.');
+    await expect(
+      microsoft.completeConnection(rejectedNonceState, 'one-time-code'),
+    ).rejects.toMatchObject({
+      code: 'AUTHENTICATION_FAILED',
+      diagnostic: {
+        accountContinuity: 'not_reached',
+        failureClass: 'identity_validation_failed',
+        identityValidation: 'rejected',
+        scopeValidation: 'accepted',
+      },
+    });
+    expect(await microsoft.status(scopeA)).toMatchObject({
+      account: { status: 'disconnected' },
+      consentRecords: [{ action: 'granted' }, { action: 'disconnected' }],
+    });
+
+    rejectNextSubject = true;
+    const rejectedSubjectUrl =
+      await microsoft.beginTodoIncrementalConsent(scopeA);
+    const rejectedSubjectState = rejectedSubjectUrl.searchParams.get('state');
+    if (!rejectedSubjectState)
+      throw new Error('Rejected account-continuity state was not generated.');
+    await expect(
+      microsoft.completeConnection(rejectedSubjectState, 'one-time-code'),
+    ).rejects.toMatchObject({
+      code: 'AUTHENTICATION_FAILED',
+      diagnostic: {
+        accountContinuity: 'rejected',
+        failureClass: 'account_continuity_failed',
+        identityValidation: 'accepted',
+        scopeValidation: 'accepted',
+      },
+    });
+    expect(await microsoft.status(scopeA)).toMatchObject({
+      account: { status: 'disconnected' },
+      consentRecords: [{ action: 'granted' }, { action: 'disconnected' }],
     });
 
     const incrementalUrl = await microsoft.beginTodoIncrementalConsent(scopeA);

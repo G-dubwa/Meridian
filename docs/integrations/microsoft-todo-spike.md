@@ -20,11 +20,16 @@ OAuth/OIDC scopes, with no application permission:
 `openid profile offline_access User.Read Calendars.Read Tasks.ReadWrite`
 
 The OAuth/OIDC request is deliberately distinct from the Graph access token.
-Meridian decodes the returned delegated token's `scp` claim locally and requires
-exactly `User.Read Calendars.Read Tasks.ReadWrite`. It rejects a missing or
-opaque `scp`, any missing expected Graph permission, and any unexpected Graph
-permission. The OIDC scopes are not required to appear identically in `scp` or
-in Microsoft's consent display. The consent ledger records both exact sets.
+Meridian treats the returned Graph access token as opaque and never decodes,
+inspects, or cryptographically validates it. It normalizes the token endpoint
+response's `scope` metadata and requires exactly `User.Read Calendars.Read
+Tasks.ReadWrite`. It rejects absent or malformed metadata, any missing expected
+Graph permission, duplicates, and any unexpected permission. Requested OIDC
+markers may be present in the response metadata but are not Graph permissions
+and are not required to appear identically in Microsoft's consent display. The
+consent ledger records both exact sets. Authentication instead relies on the
+cryptographically validated ID token: signature, consumer issuer, audience,
+expiry, nonce, and stable account identity must all pass.
 
 `Tasks.ReadWrite` technically grants delegated access to the signed-in owner's
 Microsoft To Do tasks beyond the dedicated Meridian list, including shared
@@ -189,8 +194,9 @@ not adopt by name or resume writes until ownership is reverified.
 2. Keep the existing exact five-scope Microsoft account record. It may be
    connected or locally disconnected; no separate five-scope reconnect is
    needed. Meridian performs an in-place incremental upgrade under the same
-   local integration account. The callback validates exact `scp`, reads the
-   owner profile, encrypts the replacement access and refresh tokens, and only
+   local integration account. The form-post callback validates state, expiry,
+   PKCE, the signed ID token and nonce, exact token-response permission metadata,
+   and account continuity; it then encrypts replacement access and refresh tokens and only
    then atomically replaces the old token pair (or the cleared disconnected
    fields). Any validation/exchange failure retains no candidate token and does
    not enable To Do.
@@ -204,7 +210,7 @@ not adopt by name or resume writes until ownership is reverified.
    use emergency suspension if it shows mail, calendar-write, application, or
    any other unexpected access.
 5. After callback, require the Meridian consent ledger to show the exact six
-   requested scopes and exact Graph-token permissions `User.Read`,
+   requested scopes and exact granted Graph permissions from response metadata: `User.Read`,
    `Calendars.Read`, `Tasks.ReadWrite`. Anything else fails closed.
 6. Enter the separately approved Johannesburg wall time in the first-day field,
    confirm **Create one first-day test**, and do not change the generated
@@ -262,8 +268,9 @@ Activation requires every acceptance criterion, a weighted score of at least
 ## Content-free evidence
 
 The consent ledger records provider, action, time, local integration ID, the
-exact six requested OAuth/OIDC scopes, and the exact three Graph `scp`
-permissions. It stores no token, code, PKCE secret, provider subject, or consent
+exact six requested OAuth/OIDC scopes, and the exact three Graph permissions
+reported by token-response scope metadata. It stores no token,
+code, PKCE secret, provider subject, or consent
 page text.
 
 The activity ledger records only local operation/list/occurrence IDs, operation

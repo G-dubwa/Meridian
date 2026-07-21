@@ -54,9 +54,9 @@ secret, provider diagnostics, journal content, or calendar data. The existing
 reliable worker accepts the `integration.` type prefix and otherwise applies the
 same identifier-only delivery policy.
 
-WP-11 distinguishes requested OAuth/OIDC scopes from Graph token `scp`
-permissions in the connected-event and consent evidence. Both sets are exact;
-OIDC scopes are not assumed to reappear in the access token.
+WP-11 distinguishes requested OAuth/OIDC scopes from Graph permissions reported
+by token-response `scope` metadata in connected-event and consent evidence. Both
+sets are exact; the opaque access token is never inspected.
 
 ## Microsoft To Do experimental events v1
 
