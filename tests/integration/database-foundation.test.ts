@@ -1098,7 +1098,10 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
     let consentRevoked = false;
     let rejectNextTodoEnvelope = false;
     let rejectNextNonce = false;
+    let rejectNextProfileRead = false;
     let rejectNextSubject = false;
+    let currentGraphUserId = '018f0f77-34f1-7ef2-8ca1-7a3bf7f01977';
+    let profileReadCount = 0;
     const gateway: MicrosoftOAuthGateway = {
       authorizationUrl(request) {
         authorizationNonce = request.nonce;
@@ -1182,6 +1185,17 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
             : MICROSOFT_STAGE_A_GRAPH_PERMISSIONS,
           refreshToken: 'rotated-refresh-token',
         });
+      },
+      readCurrentUserId(accessToken) {
+        expect(accessToken).toBe('initial-access-token');
+        profileReadCount += 1;
+        if (rejectNextProfileRead) {
+          rejectNextProfileRead = false;
+          return Promise.reject(
+            new MicrosoftOAuthGatewayError('provider_unavailable'),
+          );
+        }
+        return Promise.resolve(currentGraphUserId);
       },
     };
     const microsoft = new MicrosoftConnectionService({
@@ -1286,6 +1300,23 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
       requestedScopes: MICROSOFT_TODO_SPIKE_REQUESTED_SCOPES,
     });
 
+    rejectNextSubject = true;
+    const rejectedStageAUrl = await microsoft.beginConnection(scopeA);
+    const rejectedStageAState = rejectedStageAUrl.searchParams.get('state');
+    if (!rejectedStageAState)
+      throw new Error('Rejected Stage-A state was not generated.');
+    await expect(
+      microsoft.completeConnection(rejectedStageAState, 'one-time-code'),
+    ).rejects.toMatchObject({
+      diagnostic: {
+        accountContinuity: 'rejected',
+        failureClass: 'account_continuity_failed',
+        identityValidation: 'accepted',
+        scopeValidation: 'accepted',
+      },
+    });
+    expect(profileReadCount).toBe(0);
+
     rejectNextTodoEnvelope = true;
     const rejectedIncrementalUrl =
       await microsoft.beginTodoIncrementalConsent(scopeA);
@@ -1350,6 +1381,7 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
     });
 
     rejectNextSubject = true;
+    currentGraphUserId = 'different-synthetic-graph-user';
     const rejectedSubjectUrl =
       await microsoft.beginTodoIncrementalConsent(scopeA);
     const rejectedSubjectState = rejectedSubjectUrl.searchParams.get('state');
@@ -1370,6 +1402,33 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
       account: { status: 'disconnected' },
       consentRecords: [{ action: 'granted' }, { action: 'disconnected' }],
     });
+    expect(profileReadCount).toBe(1);
+
+    rejectNextSubject = true;
+    rejectNextProfileRead = true;
+    const unavailableBridgeUrl =
+      await microsoft.beginTodoIncrementalConsent(scopeA);
+    const unavailableBridgeState =
+      unavailableBridgeUrl.searchParams.get('state');
+    if (!unavailableBridgeState)
+      throw new Error('Unavailable bridge state was not generated.');
+    await expect(
+      microsoft.completeConnection(unavailableBridgeState, 'one-time-code'),
+    ).rejects.toMatchObject({
+      code: 'AUTHENTICATION_FAILED',
+      diagnostic: {
+        accountContinuity: 'owner_review_required',
+        failureClass: 'account_continuity_review_required',
+        identityValidation: 'accepted',
+        scopeValidation: 'accepted',
+      },
+    });
+    expect(await microsoft.status(scopeA)).toMatchObject({
+      account: { status: 'disconnected' },
+      consentRecords: [{ action: 'granted' }, { action: 'disconnected' }],
+    });
+    expect(profileReadCount).toBe(2);
+    currentGraphUserId = 'legacy-personal-graph-id';
 
     await admin.sql`
       update integration_accounts
@@ -1398,7 +1457,7 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
     });
     await admin.sql`
       update integration_accounts
-      set provider_subject_id = '018f0f77-34f1-7ef2-8ca1-7a3bf7f01977'
+      set provider_subject_id = 'legacy-personal-graph-id'
       where user_id = ${scopeA.userId}
     `;
 
@@ -1410,11 +1469,22 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
     if (!incrementalState)
       throw new Error('Incremental authorization state was not generated.');
     await microsoft.completeConnection(incrementalState, 'one-time-code');
+    expect(profileReadCount).toBe(3);
     const incrementallyConsented = await microsoft.status(scopeA);
     expect(incrementallyConsented.account).toMatchObject({
       graphPermissions: MICROSOFT_TODO_SPIKE_GRAPH_PERMISSIONS,
       requestedScopes: MICROSOFT_TODO_SPIKE_REQUESTED_SCOPES,
     });
+    const [migratedIdentity] = await admin.sql<
+      { provider_subject_id: string }[]
+    >`
+      select provider_subject_id
+      from integration_accounts
+      where user_id = ${scopeA.userId}
+    `;
+    expect(migratedIdentity?.provider_subject_id).toBe(
+      '018f0f77-34f1-7ef2-8ca1-7a3bf7f01977',
+    );
     expect(incrementallyConsented.todoConsent.eligible).toBe(false);
     expect(incrementallyConsented.consentRecords).toHaveLength(3);
     const incrementalAccount = incrementallyConsented.account;

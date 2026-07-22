@@ -100,6 +100,7 @@ describe('Microsoft OAuth callback redaction', () => {
     expect(handler).toContain('application/x-www-form-urlencoded');
     expect(handler).toContain('request.nextUrl.search.length > 0');
     expect(handler).toContain('owner-review-required');
+    expect(handler).toContain('account-mismatch');
     const panel = readFileSync(
       'apps/web/app/settings/integrations/microsoft-integration-panel.tsx',
       'utf8',
@@ -107,6 +108,8 @@ describe('Microsoft OAuth callback redaction', () => {
     expect(panel).toContain(
       'Microsoft identity continuity requires owner review. No token was retained.',
     );
+    expect(panel).toContain('Retained historical account label:');
+    expect(panel).toContain('/me?$select=id');
     const config = readFileSync('apps/web/next.config.ts', 'utf8');
     expect(config).toContain('incomingRequests');
     expect(config).toMatch(/api\\\/integrations\\\/microsoft\\\/callback/);

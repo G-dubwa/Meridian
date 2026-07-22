@@ -34,7 +34,27 @@ immutable identifier returned by Graph user `id`. Meridian treats that value
 as a bounded opaque Microsoft identifier rather than imposing RFC UUID bits.
 Display name and email are never continuity identifiers. An invalid historical object ID requires
 owner review instead of rebinding. No Graph request is needed during
-connection. WP-07 does not read calendar data.
+connection except the separately gated legacy bridge below. WP-07 does not read
+calendar data.
+
+### Legacy continuity amendment — 22 July 2026
+
+WP-07 stored the personal-account Graph `/me.id`. Later signed-ID-token
+validation exposed a live case where that retained opaque value did not equal
+the ID-token `oid`, despite Microsoft's general documentation describing them
+as equivalent. Meridian must not accept a display-name/email match, silently
+replace the value, or repeatedly ask the owner to alter Entra permissions.
+
+Only an exact, eligible WP-11 six-scope upgrade may bridge this legacy record.
+After token-response scope, signed ID-token, nonce, tenant, and required-claim
+validation, a direct identifier match remains sufficient. Otherwise Meridian
+performs at most one read-only `GET /me?$select=id`, compares only the returned
+ID with the historical value, and retains neither response content nor
+candidate credentials on failure. A match permits atomic replacement with the
+validated `(tid, oid)` identity alongside encrypted tokens and consent
+evidence. Future callbacks then use direct identity continuity. The bridge is
+approved for mocked implementation only; live Graph execution requires a
+separate owner gate.
 
 Store only SHA-256 hashes of the one-time state and OIDC nonce. Encrypt the PKCE verifier while
 it is pending and erase its ciphertext on atomic consumption. The callback may

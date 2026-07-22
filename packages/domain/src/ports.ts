@@ -694,6 +694,7 @@ export interface MicrosoftOAuthGateway {
     refreshToken: string,
     requestedScopes: readonly MicrosoftRequestedScope[],
   ): Promise<MicrosoftTokenGrant>;
+  readCurrentUserId(accessToken: string): Promise<string>;
 }
 
 export interface MicrosoftTodoListBindingRepository {

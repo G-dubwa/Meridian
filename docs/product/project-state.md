@@ -8,7 +8,7 @@ related-docs: roadmap.md
 
 # Project state
 
-Last updated: 21 July 2026
+Last updated: 22 July 2026
 
 ## Current work package
 
@@ -35,6 +35,17 @@ Last updated: 21 July 2026
   be reconstructed. The correction now uses official consumers discovery
   metadata, bounded JOSE/claim diagnostics, complete v2/time/tenant/identity
   checks, and explicit owner review for insufficient historical continuity.
+  The next callback, correlation
+  `ded7b8f4-8cb4-44ce-bd7a-aa684a3384b2`, accepted exact scope and identity
+  validation but rejected direct account continuity. Content-free local
+  inspection confirmed that the disconnected WP-07 record retains a
+  16-character non-UUID Graph user ID with no token and only the two original
+  ledger rows. The owner approved a mocked-only legacy bridge: after every
+  local, scope, ID-token, and nonce check, an exact eligible six-scope callback
+  may compare one ID-selected `/me` response with that historical ID and migrate
+  atomically to the validated ID-token identity. The UI now identifies its
+  account label as historical and distinguishes start eligibility from proven
+  continuity. Another authorization and the first live Graph read remain gated.
 
 ## Completed packages
 
@@ -72,8 +83,9 @@ Last updated: 21 July 2026
 - `wp-10-tasks-canonical-reminders` — complete, pushed, and integrated at
   `718bc897939017a641e6c3ee20f593c9c7c35516`.
 - `wp-11-microsoft-todo-delivery-spike` — guarded enablement implementation;
-  pushed through `c2fb14cb4a3a960783f3c64e9f04c7699094f6c3`, with the opaque-token
-  callback correction in local verification and stopped before another live attempt.
+  pushed through `5e2fddc1131172fba6cfd9908b60abd81734af70`, with the mocked legacy
+  continuity bridge in local verification and stopped before another live
+  attempt.
 - Integration branch: remote `main` ends at
   `718bc897939017a641e6c3ee20f593c9c7c35516` after exact verification.
 
@@ -148,6 +160,16 @@ profile offline_access User.Read Calendars.Read` and no additional permission.
   disposable stale schema now returns correlated stage
   `oauth_session_persistence` with HTTP 409 and inserts no session; unexpected
   failures retain a value-free server stack and HTTP 500.
+- WP-11 legacy-continuity repository verification is green: formatting, lint,
+  strict typecheck, 129 modules/252 dependencies plus the negative fixture,
+  Drizzle consistency, 20 unit files/117 tests, one isolated PostgreSQL file/9
+  tests, all 9 authenticated browser journeys, 99 governed Markdown documents,
+  a current generated dictionary, and every workspace production build.
+  Focused infrastructure tests cover the ID-selected Graph request and
+  malformed/provider refusal; PostgreSQL proves mismatch rejection, unavailable
+  evidence owner review, successful atomic identity/token/consent migration,
+  and zero retained token or consent evidence on failure. All fixtures are
+  synthetic and all HTTP adapters are mocked; no Microsoft request occurred.
 
 ## Known risks
 
@@ -190,6 +212,9 @@ Tasks.ReadWrite`; the expected token-response Graph permission set is separately
   `User.Read Calendars.Read Tasks.ReadWrite`. The broader technical access of
   delegated `Tasks.ReadWrite`, including shared tasks, is acknowledged and
   constrained at application level.
+  The owner separately approved mocked implementation of the legacy continuity
+  bridge and corrected Settings copy. That approval does not authorize another
+  Microsoft authorization or the bridge's first live ID-only `/me` read.
 
 ## Deferred work
 

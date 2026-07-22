@@ -56,3 +56,8 @@ related-docs: release.md
   official consumers discovery document, reports bounded JOSE/claim substages,
   enforces v2/time/tenant/stable-identity claims, and fails legacy continuity to
   explicit owner review without retaining candidate credentials.
+- WP-11 legacy continuity now bridges a retained WP-07 Graph user ID to the
+  validated ID-token identity through at most one ID-selected, read-only mocked
+  `/me` request after every local/OIDC validation passes. Mismatch or unavailable
+  evidence retains nothing; Settings labels the retained account value and
+  authorization eligibility accurately. Live Graph execution remains gated.

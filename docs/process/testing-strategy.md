@@ -75,7 +75,10 @@ absent, malformed, duplicate, missing, or extra permissions fail closed. Signed
 ID-token tests cover discovery metadata, the consumers GUID issuer, algorithm
 and `kid`, signature, audience, nonce, time window, v2 token, consumer tenant,
 stable identity claims, continuity mismatch/owner review, and callback-log
-redaction. Mocked Graph tests inspect only request shape,
+redaction. The legacy bridge tests prove no profile read before exact scope,
+ID-token, and nonce validation; one exact `/me?$select=id` request; successful
+atomic migration; and mismatch, malformed response, or provider failure with no
+token/consent persistence. Mocked Graph tests inspect only request shape,
 dedicated-list paths, ownership markers, deterministic time conversion, and
 sanitized failures. Application tests prove owner confirmation, five-scope
 refusal before token access, baseline recovery, and no blind duplicate POST.
@@ -85,7 +88,8 @@ or contacting Microsoft. It also deliberately removes the nonce column in its
 disposable database and requires a correlated
 `oauth_session_persistence` 409 with no additional authorization-session row.
 The local PostgreSQL suite applies the new forced-RLS bindings and verifies the
-scope-envelope migration. Live consent, Graph reads/writes, device delivery,
+scope-envelope migration. Live consent, the legacy profile read, other Graph
+reads/writes, device delivery,
 completion observation, cleanup, and the seven-day scorecard are a separate
 manual gate and never run under `pnpm check`.
 

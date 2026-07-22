@@ -8,8 +8,9 @@ related-docs: ../process/work-packages/WP-11-microsoft-todo-delivery-spike.md
 
 # Microsoft To Do delivery spike
 
-Status: guarded enablement implemented and locally verified; live incremental
-consent and every real Graph read/write remain blocked at the second human gate.
+Status: guarded enablement and the mocked legacy continuity bridge are locally
+verified; another live authorization and every real Graph read/write remain
+blocked at the next human gate.
 To Do is experimental, not an active Meridian delivery channel.
 
 ## Permission envelope and gate
@@ -30,6 +31,16 @@ and are not required to appear identically in Microsoft's consent display. The
 consent ledger records both exact sets. Authentication instead relies on the
 cryptographically validated ID token: signature, consumer issuer, audience,
 expiry, nonce, and stable account identity must all pass.
+
+WP-07 historical accounts retain the earlier Graph `/me.id`. If that value does
+not directly equal the newly validated ID-token `oid`, the exact guarded
+six-scope callback may use `User.Read` for one read-only
+`GET /me?$select=id`. It compares only the returned ID with the historical ID;
+it does not retain the profile response or read any To Do resource. A match
+atomically migrates the stored continuity identity to the validated ID-token
+`oid` with the encrypted token replacement and consent row. Mismatch,
+unavailable/malformed evidence, or concurrent account change retains no token
+or consent evidence. The normal five-scope route cannot invoke this bridge.
 
 `Tasks.ReadWrite` technically grants delegated access to the signed-in owner's
 Microsoft To Do tasks beyond the dedicated Meridian list, including shared
@@ -199,8 +210,10 @@ not adopt by name or resume writes until ownership is reverified.
    and `(consumer tid, oid)` account continuity. ID-token verification fetches
    the official consumers discovery metadata and uses its GUID issuer, JWKS URI,
    and allowed algorithms with a five-second clock tolerance. Display name and
-   email are non-authoritative; an insufficient historical object ID produces a
-   specific owner-review failure. Meridian then encrypts replacement access and refresh tokens and only
+   email are non-authoritative. A legacy direct-identifier mismatch may perform
+   one separately approved ID-only `/me` read and must match the retained WP-07
+   Graph ID; unavailable evidence requires owner review and mismatch rejects the
+   account. Meridian then encrypts replacement access and refresh tokens and only
    then atomically replaces the old token pair (or the cleared disconnected
    fields). Any validation/exchange failure retains no candidate token and does
    not enable To Do.

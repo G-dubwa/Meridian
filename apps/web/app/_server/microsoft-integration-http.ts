@@ -104,13 +104,20 @@ export async function postMicrosoftCallback(
     const ownerReviewRequired =
       error instanceof MicrosoftCallbackFailedError &&
       error.diagnostic.failureClass === 'account_continuity_review_required';
+    const accountMismatch =
+      error instanceof MicrosoftCallbackFailedError &&
+      error.diagnostic.failureClass === 'account_continuity_failed';
     logMicrosoftCallbackFailure(
       console,
       error instanceof MicrosoftCallbackFailedError ? error.diagnostic : null,
     );
     destination.searchParams.set(
       'microsoft',
-      ownerReviewRequired ? 'owner-review-required' : 'failed',
+      ownerReviewRequired
+        ? 'owner-review-required'
+        : accountMismatch
+          ? 'account-mismatch'
+          : 'failed',
     );
   }
   const response = NextResponse.redirect(destination, 303);

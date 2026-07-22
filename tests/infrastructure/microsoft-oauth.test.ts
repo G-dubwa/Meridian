@@ -280,6 +280,69 @@ describe('Microsoft OAuth infrastructure', () => {
     },
   );
 
+  it('reads only the signed-in Graph user ID for a legacy continuity bridge', async () => {
+    const requests: { url: string; init?: RequestInit }[] = [];
+    const fetcher: typeof fetch = (input, init) => {
+      const url =
+        typeof input === 'string'
+          ? input
+          : input instanceof URL
+            ? input.toString()
+            : input.url;
+      requests.push({ url, ...(init === undefined ? {} : { init }) });
+      return Promise.resolve(
+        Response.json({
+          displayName: 'ignored profile content',
+          id: 'legacy-personal-graph-id',
+        }),
+      );
+    };
+    const gateway = new MicrosoftOAuthHttpGateway(
+      configuration,
+      fetcher,
+      idTokens,
+    );
+    await expect(
+      gateway.readCurrentUserId('opaque-candidate-access-token'),
+    ).resolves.toBe('legacy-personal-graph-id');
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.url).toBe(
+      'https://graph.microsoft.com/v1.0/me?$select=id',
+    );
+    expect(requests[0]?.init?.headers).toEqual({
+      Authorization: 'Bearer opaque-candidate-access-token',
+    });
+    expect(requests[0]?.init?.redirect).toBe('error');
+    expect(requests[0]?.init?.body).toBeUndefined();
+  });
+
+  it.each([
+    {
+      label: 'provider rejection',
+      response: () => Response.json({ error: 'synthetic' }, { status: 403 }),
+    },
+    {
+      label: 'malformed response',
+      response: () => new Response('not-json'),
+    },
+    {
+      label: 'missing identifier',
+      response: () => Response.json({ displayName: 'Synthetic owner' }),
+    },
+  ])(
+    'fails closed for a $label during the legacy bridge',
+    async ({ response }) => {
+      const gateway = new MicrosoftOAuthHttpGateway(
+        configuration,
+        () => Promise.resolve(response()),
+        idTokens,
+      );
+      await expect(
+        gateway.readCurrentUserId('opaque-candidate-access-token'),
+      ).rejects.toMatchObject({ reason: 'provider_unavailable' });
+    },
+  );
+
   it('normalizes qualified Graph permission metadata and ignores only requested OIDC markers', async () => {
     const fetcher: typeof fetch = () =>
       Promise.resolve(

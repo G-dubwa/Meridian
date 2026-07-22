@@ -113,6 +113,15 @@ owner separately adds delegated `Tasks.ReadWrite` in Entra and approves the
 incremental live run. The automated E2E runner deliberately clears these
 variables and never contacts Microsoft.
 
+For a retained WP-07 personal account, the guarded six-scope callback first
+validates token-response permissions and the signed ID token. If the validated
+ID-token identity does not directly match the historical Graph identifier, it
+may perform one read-only `GET /me?$select=id` continuity check before retaining
+anything. This uses no additional permission and accesses no To Do resource,
+but it is still a live Graph request and must not be attempted without the
+specific owner gate. Failure or mismatch retains no candidate token or consent
+row.
+
 `pnpm test:integration` uses `TEST_DATABASE_URL` when supplied. Otherwise, on
 macOS with Homebrew PostgreSQL 18 and pgvector installed, it creates and destroys
 an isolated temporary cluster automatically. It installs pg-boss inside that

@@ -303,13 +303,23 @@ class MicrosoftAccountContinuityReviewRequiredError extends AuthenticationFailed
 function accountContinuity(
   account: IntegrationAccountRecord | null,
   providerSubjectId: string,
-): 'accepted' | 'rejected' | 'owner_review_required' {
+  legacyGraphUserId?: string,
+):
+  | 'accepted'
+  | 'rejected'
+  | 'legacy_verification_required'
+  | 'owner_review_required' {
   if (!account) return 'accepted';
   const historicalObjectId = microsoftProviderSubjectIdV1Schema.safeParse(
     account.providerSubjectId,
   );
   if (!historicalObjectId.success) return 'owner_review_required';
-  return historicalObjectId.data === providerSubjectId
+  if (historicalObjectId.data === providerSubjectId) return 'accepted';
+  if (legacyGraphUserId === undefined) return 'legacy_verification_required';
+  const verifiedLegacyId =
+    microsoftProviderSubjectIdV1Schema.safeParse(legacyGraphUserId);
+  if (!verifiedLegacyId.success) return 'owner_review_required';
+  return historicalObjectId.data === verifiedLegacyId.data
     ? 'accepted'
     : 'rejected';
 }
@@ -545,14 +555,43 @@ export class MicrosoftConnectionService {
       scope,
       (ports) => ports.integrationAccounts.findMicrosoft(scope),
     );
-    const priorContinuity = accountContinuity(
+    let priorContinuity = accountContinuity(
       priorAccount,
       grant.identity.providerSubjectId,
     );
+    let legacyGraphUserId: string | undefined;
     const acceptedIdentityDetail = {
       ...grant.identity.validation,
       nonceMatch: true,
     };
+    if (priorContinuity === 'legacy_verification_required') {
+      if (
+        !requestedScopes.includes('Tasks.ReadWrite') ||
+        !todoConsentEligible(priorAccount, true)
+      )
+        priorContinuity = 'rejected';
+      else {
+        try {
+          legacyGraphUserId = await authorization.gateway.readCurrentUserId(
+            grant.accessToken,
+          );
+          priorContinuity = accountContinuity(
+            priorAccount,
+            grant.identity.providerSubjectId,
+            legacyGraphUserId,
+          );
+        } catch {
+          throw callbackFailure(
+            flow,
+            'account_continuity_review_required',
+            'accepted',
+            'accepted',
+            'owner_review_required',
+            acceptedIdentityDetail,
+          );
+        }
+      }
+    }
     if (priorContinuity === 'owner_review_required')
       throw callbackFailure(
         flow,
@@ -578,8 +617,12 @@ export class MicrosoftConnectionService {
         const transactionalContinuity = accountContinuity(
           existing,
           grant.identity.providerSubjectId,
+          legacyGraphUserId,
         );
-        if (transactionalContinuity === 'owner_review_required')
+        if (
+          transactionalContinuity === 'owner_review_required' ||
+          transactionalContinuity === 'legacy_verification_required'
+        )
           throw new MicrosoftAccountContinuityReviewRequiredError();
         if (transactionalContinuity === 'rejected')
           throw new AuthenticationFailedError();

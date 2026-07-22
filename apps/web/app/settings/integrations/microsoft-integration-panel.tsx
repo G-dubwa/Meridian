@@ -13,7 +13,10 @@ const scopePurpose = [
   ['openid', 'Identify the Microsoft account during the connection flow.'],
   ['profile', 'Read basic profile claims for the connected-account label.'],
   ['offline_access', 'Refresh access without repeatedly prompting the owner.'],
-  ['User.Read', 'Read the signed-in owner’s basic Microsoft profile.'],
+  [
+    'User.Read',
+    'Authorize read-only profile access; callback authentication uses the signed ID token.',
+  ],
   ['Calendars.Read', 'Read the owner’s calendar in the later WP-12 sync.'],
 ] as const;
 
@@ -21,7 +24,10 @@ const todoScopePurpose = [
   ['openid', 'Identify the Microsoft account during authorization.'],
   ['profile', 'Return the basic account label after authorization.'],
   ['offline_access', 'Permit encrypted refresh-token replacement.'],
-  ['User.Read', 'Validate and read the signed-in owner profile.'],
+  [
+    'User.Read',
+    'Permit one ID-only profile read if legacy account continuity cannot be proven directly.',
+  ],
   ['Calendars.Read', 'Preserve the already approved calendar-read grant.'],
   ['Tasks.ReadWrite', 'Run only the contained WP-11 synthetic To Do test.'],
 ] as const;
@@ -59,9 +65,11 @@ export function MicrosoftIntegrationPanel() {
           ? 'Microsoft connected with the approved scope envelope.'
           : outcome === 'owner-review-required'
             ? 'Microsoft identity continuity requires owner review. No token was retained.'
-            : outcome === 'failed'
-              ? 'Microsoft connection failed safely. No token was retained.'
-              : '',
+            : outcome === 'account-mismatch'
+              ? 'The authorized Microsoft account did not match the retained historical account. No token was retained.'
+              : outcome === 'failed'
+                ? 'Microsoft connection failed safely. No token was retained.'
+                : '',
       );
     } catch {
       setStatus(null);
@@ -214,7 +222,9 @@ export function MicrosoftIntegrationPanel() {
             {status.account?.status.replaceAll('_', ' ') ?? 'not connected'}
           </strong>
         </p>
-        {status.account ? <p>Account: {status.account.displayName}</p> : null}
+        {status.account ? (
+          <p>Retained historical account label: {status.account.displayName}</p>
+        ) : null}
         {!status.configured ? (
           <p>
             Local OAuth configuration is incomplete. Meridian remains usable
@@ -232,8 +242,9 @@ export function MicrosoftIntegrationPanel() {
         ) : todoConsentEligible ? (
           <p>
             The retained historical five-scope account is eligible for the
-            guarded authorization below; no separate read-only reconnect is
-            required.
+            guarded authorization below. Eligibility permits the attempt but
+            does not prove that the newly authorized Microsoft account matches.
+            No separate five-scope reconnect is required.
           </p>
         ) : (
           <button
@@ -285,6 +296,13 @@ export function MicrosoftIntegrationPanel() {
             <p>
               Expected Graph token permissions:{' '}
               {status.todoConsent.expectedGraphPermissions.join(', ')}
+            </p>
+            <p>
+              After signed ID-token validation, Meridian compares the new
+              identity with the retained account. If their identifiers use
+              different legacy representations, it performs one read-only
+              Microsoft Graph <code>/me?$select=id</code> check. No To Do list
+              or task is accessed during consent.
             </p>
           </>
         ) : null}
@@ -348,7 +366,10 @@ export function MicrosoftIntegrationPanel() {
           Meridian sends the authorization code, PKCE verifier, client
           credential, and refresh token only to Microsoft’s{' '}
           <code>consumers</code> token endpoint. Tokens are encrypted before
-          PostgreSQL storage. Journal entries are not sent.
+          PostgreSQL storage. A guarded legacy continuity bridge may send only
+          the candidate opaque access token to Microsoft Graph for one
+          ID-selected <code>/me</code> read before storage. Journal entries are
+          not sent.
         </p>
         <dl>
           {scopePurpose.map(([scope, purpose]) => (

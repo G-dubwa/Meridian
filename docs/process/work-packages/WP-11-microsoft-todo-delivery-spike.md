@@ -92,6 +92,30 @@ exact equality. An invalid historical identifier stops at explicit owner review.
 No candidate token, consent row, list, task, or Graph mutation results from any
 failure.
 
+The next live callback at correlation
+`ded7b8f4-8cb4-44ce-bd7a-aa684a3384b2` accepted the exact permission metadata,
+signed ID token, nonce, consumer tenant, and required identity claims, then
+failed closed at account continuity. The retained WP-07 account contains an
+opaque 16-character Graph `/me.id`, while the new callback supplies the
+validated ID-token `oid`; direct equality did not hold. The Settings page also
+misleadingly rendered the retained display label as if it had been freshly
+verified and described eligibility as stronger than permission to start the
+attempt. The approved correction labels that value as historical and states
+that eligibility does not prove continuity.
+
+For this exact legacy Stage-A-to-WP-11 upgrade only, a direct identifier match
+still succeeds without Graph. When direct equality fails after exact scope,
+ID-token, and nonce validation, the callback may perform one read-only
+`GET /v1.0/me?$select=id` with the candidate opaque access token. It compares
+only that returned ID with the retained WP-07 ID. Equality permits the same
+transaction that encrypts the tokens, replaces the stored identity with the
+validated ID-token `oid`, and appends consent evidence. Mismatch, unavailable or
+malformed profile evidence, an ineligible account, or a concurrent continuity
+change discards the candidate credentials and commits nothing. The bridge does
+not read To Do, calendar, profile labels, mail, or personal content, and it
+cannot run for the ordinary five-scope callback. Mocked implementation is
+approved; its first live Graph read remains separately gated.
+
 ## Verification and acceptance boundary
 
 Mocked tests must prove exact six-scope request construction; opaque and
@@ -99,7 +123,10 @@ encrypted-looking access-token acceptance with exact three-permission response
 metadata; qualified-scope normalization; unexpected/missing/duplicate metadata
 rejection; discovery-driven signed ID-token algorithm/`kid`/signature/issuer/
 audience/nonce/time/version/tenant/claims failures; continuity mismatch and
-owner-review failure; five-scope refusal before token access; successful authenticated consent-start without provider I/O;
+owner-review failure; five-scope refusal before token access; successful
+authenticated consent-start without provider I/O; legacy Graph-ID/direct-ID-token
+mismatch, one ID-selected mocked profile read, atomic identity migration, and
+provider/malformed/mismatch refusal with no token or consent persistence;
 confirmation/CSRF/eligibility stages; stale-schema 409 with no inserted session;
 atomic extension request; fallback/uncertain recovery; one
 create despite a recovered lost response; owner/non-shared/list/marker
@@ -114,15 +141,16 @@ must not be selected as the active channel prematurely.
 
 `pnpm check` passed on Node.js 24.18.0 and pnpm 11.14.0: formatting, lint,
 strict typecheck, 129 modules/252 dependencies plus the negative fixture,
-Drizzle consistency, 20 unit files/113 tests, one isolated PostgreSQL file/9
+Drizzle consistency, 20 unit files/117 tests, one isolated PostgreSQL file/9
 tests, 9 local live-server owner journeys, 99 governed Markdown documents with
 a current generated dictionary, and all workspace production builds. Focused
 tests additionally prove opaque/encrypted-looking Graph credentials, exact and
 qualified response-scope metadata, discovery-driven signed ID-token substages,
 opaque personal-account identity, hashed nonce binding, continuity owner review,
-callback log redaction, completion read-back, valid canonical
-advancement, marker-bounded cleanup, unauthenticated rejection, and
-no-configuration refusal before provider access. Microsoft was synthetically
+legacy Graph-ID bridging and atomic migration, callback log redaction,
+completion read-back, valid canonical advancement, marker-bounded cleanup,
+unauthenticated rejection, and no-configuration refusal before provider access.
+Microsoft was synthetically
 configured only to construct an unvisited authorization URL in live-server
 acceptance; all provider fixtures were mocked/synthetic, with USD 0.00 cost and
 zero provider requests.

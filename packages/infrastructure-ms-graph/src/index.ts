@@ -37,6 +37,8 @@ const AUTHORIZE_ENDPOINT =
   'https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize';
 const TOKEN_ENDPOINT =
   'https://login.microsoftonline.com/consumers/oauth2/v2.0/token';
+const CURRENT_USER_ID_ENDPOINT =
+  'https://graph.microsoft.com/v1.0/me?$select=id';
 const MICROSOFT_ACCOUNT_TENANT_ID = '9188040d-6c67-4c5b-b112-36a304b66dad';
 const OIDC_DISCOVERY_ENDPOINT =
   'https://login.microsoftonline.com/consumers/v2.0/.well-known/openid-configuration';
@@ -725,6 +727,35 @@ export class MicrosoftOAuthHttpGateway implements MicrosoftOAuthGateway {
       requestedScopes,
       false,
     );
+  }
+
+  public async readCurrentUserId(accessToken: string): Promise<string> {
+    let response: Response;
+    try {
+      response = await this.fetcher(CURRENT_USER_ID_ENDPOINT, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        redirect: 'error',
+        signal: AbortSignal.timeout(TOKEN_TIMEOUT_MS),
+      });
+    } catch {
+      throw new MicrosoftOAuthGatewayError('provider_unavailable');
+    }
+    if (!response.ok)
+      throw new MicrosoftOAuthGatewayError('provider_unavailable');
+    let value: unknown;
+    try {
+      value = await response.json();
+    } catch {
+      throw new MicrosoftOAuthGatewayError('provider_unavailable');
+    }
+    if (!value || typeof value !== 'object')
+      throw new MicrosoftOAuthGatewayError('provider_unavailable');
+    const identifier = microsoftProviderSubjectIdV1Schema.safeParse(
+      (value as Readonly<Record<string, unknown>>).id,
+    );
+    if (!identifier.success)
+      throw new MicrosoftOAuthGatewayError('provider_unavailable');
+    return identifier.data;
   }
 
   private requestToken(

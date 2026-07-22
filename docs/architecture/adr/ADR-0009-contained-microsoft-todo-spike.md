@@ -30,6 +30,14 @@ permissions. Cryptographically validate the ID token and bind its nonce and
 stable account identity to the consumed authorization session. Keep the current
 five-scope route unchanged until live approval.
 
+For an existing WP-07 personal account whose retained Graph user ID differs
+from the validated ID-token `oid`, fail closed unless the separately gated
+legacy bridge can compare one ID-selected `/me` response with that retained
+value. A match migrates continuity to `(tid, oid)` only inside the atomic
+token/consent transaction. A mismatch or unavailable/malformed response retains
+nothing. This bridge cannot traverse To Do or run during ordinary Stage-A
+connection.
+
 Create a dedicated normal list named `Meridian` with an opaque open-extension
 ownership marker, preferably in the same create request. Store the list ID and
 marker under owner RLS. Mutate only that list and locally bound tasks bearing
