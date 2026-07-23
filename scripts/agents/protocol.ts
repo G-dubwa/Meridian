@@ -480,12 +480,14 @@ export function parseRunRecord(raw: unknown): RunRecord {
     throw new Error('Run repair cycles are invalid.');
   const baseCommit = commit(value.baseCommit, 'run.baseCommit');
   if (baseCommit === null) throw new Error('Run base commit cannot be null.');
+  const runId = string(value.runId, 'run.runId');
+  const workPackageId = string(value.workPackageId, 'run.workPackageId');
   const authorizedCostCeilingUsd = number(
-    value.authorizedCostCeilingUsd,
+    value.authorizedCostCeilingUsd ?? 0,
     'run.authorizedCostCeilingUsd',
   );
   const estimatedCostUsd = number(
-    value.estimatedCostUsd,
+    value.estimatedCostUsd ?? 0,
     'run.estimatedCostUsd',
   );
   if (
@@ -513,14 +515,17 @@ export function parseRunRecord(raw: unknown): RunRecord {
     ),
     pilotMode: boolean(value.pilotMode, 'run.pilotMode'),
     protocolVersion: PROTOCOL_VERSION,
-    qaBranchName: string(value.qaBranchName, 'run.qaBranchName'),
-    qaCommit: commit(value.qaCommit, 'run.qaCommit', true),
+    qaBranchName:
+      typeof value.qaBranchName === 'string' && value.qaBranchName.length > 0
+        ? value.qaBranchName
+        : `qa/${workPackageId.toLowerCase()}-${runId.slice(-8)}-legacy`,
+    qaCommit: commit(value.qaCommit ?? null, 'run.qaCommit', true),
     repairCycles,
-    runId: string(value.runId, 'run.runId'),
+    runId,
     simulatedAgents: boolean(value.simulatedAgents, 'run.simulatedAgents'),
     state: value.state as RunRecord['state'],
     stopRequested: boolean(value.stopRequested, 'run.stopRequested'),
     updatedAt: string(value.updatedAt, 'run.updatedAt'),
-    workPackageId: string(value.workPackageId, 'run.workPackageId'),
+    workPackageId,
   };
 }

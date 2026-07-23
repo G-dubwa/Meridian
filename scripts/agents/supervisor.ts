@@ -85,9 +85,60 @@ function commandResult(result: CommandResult): TestResult {
   };
 }
 
+function invocationFailureClass(result: CommandResult): string {
+  if (result.spawnFailed) return 'spawn_failed';
+  if (result.timedOut) return 'timeout';
+  const diagnostic = `${result.stdout}\n${result.stderr}`;
+  if (/schema|\$ref|structured.output/iu.test(diagnostic))
+    return 'structured_output_schema';
+  if (/auth|login|credential|unauthorized|forbidden/iu.test(diagnostic))
+    return 'agent_authentication';
+  if (/quota|rate.limit|credit|billing/iu.test(diagnostic))
+    return 'agent_quota';
+  if (/network|connect|dns|socket|timed.out/iu.test(diagnostic))
+    return 'agent_network';
+  if (/permission|operation not permitted|access denied/iu.test(diagnostic))
+    return 'agent_permission';
+  return 'nonzero_exit';
+}
+
 function handoffJson(path: string): unknown {
   assertPrivateArtifact(path);
   return JSON.parse(readFileSync(path, 'utf8')) as unknown;
+}
+
+function inlineCommonSchemaReferences(
+  root: string,
+  schemaPath: string,
+): string {
+  const schema = JSON.parse(readFileSync(schemaPath, 'utf8')) as unknown;
+  const common = JSON.parse(
+    readFileSync(resolve(root, 'schemas/agents/v1/common.schema.json'), 'utf8'),
+  ) as {
+    readonly $defs?: Readonly<Record<string, unknown>>;
+  };
+  const definitions = common.$defs ?? {};
+  const visit = (value: unknown): unknown => {
+    if (Array.isArray(value)) return value.map(visit);
+    if (!value || typeof value !== 'object') return value;
+    const record = value as Record<string, unknown>;
+    const reference = record.$ref;
+    if (typeof reference === 'string') {
+      const match = /^common\.schema\.json#\/\$defs\/([A-Za-z0-9_-]+)$/u.exec(
+        reference,
+      );
+      if (match) {
+        const definition = definitions[match[1] ?? ''];
+        if (!definition)
+          throw new Error('Agent schema references an unknown common type.');
+        return visit(definition);
+      }
+    }
+    return Object.fromEntries(
+      Object.entries(record).map(([key, item]) => [key, visit(item)]),
+    );
+  };
+  return `${JSON.stringify(visit(schema), null, 2)}\n`;
 }
 
 function updateRun(
@@ -454,7 +505,7 @@ export class Supervisor {
       this.config.worktreeRoot,
       actor === 'codex' ? 'codex-builder' : 'claude-auditor',
     );
-    const schema = resolve(
+    const schemaSource = resolve(
       this.root,
       'schemas/agents/v1',
       actor === 'claude'
@@ -462,6 +513,17 @@ export class Supervisor {
         : repair
           ? 'repair-response.schema.json'
           : 'codex-implementation-result.schema.json',
+    );
+    const schema = handoffPath(
+      this.root,
+      this.config.runRoot,
+      run.runId,
+      `schema-${actor}-${repair ? 'repair' : 'initial'}.json`,
+    );
+    writeFileSync(
+      schema,
+      inlineCommonSchemaReferences(this.root, schemaSource),
+      { mode: 0o600 },
     );
     const fixture = resolve(
       this.root,
@@ -547,6 +609,32 @@ export class Supervisor {
       });
       if (result.exitCode === 0 || (!result.spawnFailed && !result.timedOut))
         break;
+    }
+    if (result && result.exitCode !== 0) {
+      const diagnosticPath = handoffPath(
+        this.root,
+        this.config.runRoot,
+        run.runId,
+        `diagnostic-${actor}-${repair ? 'repair' : 'initial'}.json`,
+      );
+      writeFileSync(
+        diagnosticPath,
+        `${JSON.stringify(
+          {
+            actor,
+            exitCode: result.exitCode,
+            failureClass: invocationFailureClass(result),
+            signal: result.signal,
+            spawnFailed: result.spawnFailed,
+            stderrBytes: Buffer.byteLength(result.stderr),
+            stdoutBytes: Buffer.byteLength(result.stdout),
+            timedOut: result.timedOut,
+          },
+          null,
+          2,
+        )}\n`,
+        { mode: 0o600 },
+      );
     }
     if (result?.exitCode !== 0)
       throw new Error(

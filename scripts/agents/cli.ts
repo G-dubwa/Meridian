@@ -133,12 +133,16 @@ async function main(): Promise<void> {
           ownerConfirmedPaidPilot: true,
           pilotMode: false,
         });
-        const completed = await supervisor.run(planned.runId);
-        if (
-          ['READY_TO_MERGE', 'FAILED', 'HUMAN_GATE'].includes(completed.state)
-        )
-          await supervisor.cleanup(planned.runId);
-        process.stdout.write(`${supervisor.report(completed.runId)}\n`);
+        try {
+          const completed = await supervisor.run(planned.runId);
+          process.stdout.write(`${supervisor.report(completed.runId)}\n`);
+        } finally {
+          const current = supervisor.load(planned.runId);
+          if (
+            ['READY_TO_MERGE', 'FAILED', 'HUMAN_GATE'].includes(current.state)
+          )
+            await supervisor.cleanup(planned.runId);
+        }
         return;
       }
       const planned = await supervisor.plan('INFRA-PILOT', {
