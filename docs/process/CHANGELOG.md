@@ -46,3 +46,7 @@ related-docs: release.md
   inactive experimental branch, defer WP-11/WP-12 without waiving live
   acceptance, and split WP-13 into provider-independent Local Alpha Today and
   separately governed external agenda/delivery projections.
+- WP-13A provider-independent Today with forced-RLS manual agenda blocks, a
+  concurrent-safe three-priority limit, canonical local tasks/reminders,
+  in-app completion/dismissal/edit, exact-version lifecycle undo, content-free
+  audit, and literal external-delivery-inactive status.

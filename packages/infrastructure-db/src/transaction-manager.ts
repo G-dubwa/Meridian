@@ -26,13 +26,20 @@ import {
   DrizzleUserRepository,
   type DatabaseTransaction,
 } from './repositories.js';
+import {
+  DrizzleAgendaBlockRepository,
+  DrizzleDailyPriorityRepository,
+  DrizzleTodayReceiptRepository,
+} from './today-repositories.js';
 
 function createTransactionPorts(
   database: DatabaseTransaction,
 ): TransactionPorts {
   return {
+    agendaBlocks: new DrizzleAgendaBlockRepository(database),
     commandReceipts: new DrizzleCommandReceiptRepository(database),
     consentRecords: new DrizzleConsentRecordRepository(database),
+    dailyPriorities: new DrizzleDailyPriorityRepository(database),
     derivationLinks: new DrizzleDerivationLinkRepository(database),
     domainEvents: new DrizzleDomainEventRepository(database),
     entries: new DrizzleEntryRepository(database),
@@ -44,6 +51,7 @@ function createTransactionPorts(
     reminders: new DrizzleReminderRepository(database),
     resources: new DrizzleResourceRepository(database),
     tasks: new DrizzleTaskRepository(database),
+    todayReceipts: new DrizzleTodayReceiptRepository(database),
     users: new DrizzleUserRepository(database),
   };
 }

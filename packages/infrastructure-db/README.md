@@ -44,6 +44,12 @@ is a server-only technical callback boundary: state is hashed, the verifier is
 encrypted, consumption is atomic/one-time, and persisted verifier ciphertext is
 erased on consume.
 
+WP-13A adds forced-RLS agenda blocks, daily task priorities, and Today
+lifecycle receipts. Owner-matching foreign keys protect task/resource
+relationships, unique date/position constraints plus a transaction advisory
+lock enforce three priorities under concurrency, and optimistic versions make
+undo fail closed after intervening changes.
+
 Tests: `pnpm test:integration` creates a temporary PostgreSQL 18 cluster when
 `TEST_DATABASE_URL` is absent. It covers empty and seeded migration paths,
 installed-but-unused pgvector, unpartitioned tables, two-user isolation,
@@ -51,5 +57,6 @@ transactional resource creation, provenance deletion, authentication schema,
 journal/worker migrations, immutable revisions, optimistic state, event/outbox
 atomicity, retry idempotency, concurrent queue dispatch, terminal dead letters,
 Private exclusion, Microsoft token lifecycle, exact-scope constraints, consent
-immutability, and integration RLS. Playwright proves journal, health, and
-Microsoft Settings/status paths without contacting the provider.
+immutability, integration RLS, local Today isolation, priority limits, and
+lifecycle undo. Playwright proves journal, health, Microsoft Settings/status,
+and local Today paths without contacting a provider.

@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: Meridian API
-  version: 0.10.0
-  description: Same-origin REST contract for owner authentication, journal evidence, Triage, internal tasks/reminders, worker health, and Microsoft consent.
+  version: 0.13.0
+  description: Same-origin REST contract for owner authentication, journal evidence, Triage, internal tasks/reminders, provider-independent Today, worker health, and Microsoft consent.
 paths:
   /api/auth/csrf:
     get:
@@ -444,6 +444,225 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/ActionReceipt' }
         '400': { $ref: '#/components/responses/ValidationFailed' }
+        '403': { $ref: '#/components/responses/CsrfInvalid' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/today:
+    get:
+      operationId: getLocalToday
+      summary: Read provider-independent Today for one owner-local date.
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - name: date
+          in: query
+          required: true
+          schema: { type: string, format: date, pattern: '^\d{4}-\d{2}-\d{2}$' }
+        - name: timeZone
+          in: query
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 100 }
+      responses:
+        '200':
+          description: Local Today with literal inactive external delivery.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TodaySnapshotResponseV1' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '401': { $ref: '#/components/responses/SessionInvalid' }
+  /api/today/agenda:
+    post:
+      operationId: createLocalAgendaBlock
+      summary: Create one owner-confirmed manual local agenda block.
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/CsrfHeader' }
+        - { $ref: '#/components/parameters/RequestIdHeader' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateAgendaBlockRequestV1' }
+      responses:
+        '201':
+          description: Canonical local agenda block.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AgendaBlockResponseV1' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '401': { $ref: '#/components/responses/SessionInvalid' }
+        '403': { $ref: '#/components/responses/CsrfInvalid' }
+  /api/today/agenda/{agendaBlockId}/edit:
+    post:
+      operationId: editLocalAgendaBlock
+      summary: Edit one planned local agenda block with optimistic concurrency.
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/CsrfHeader' }
+        - { $ref: '#/components/parameters/RequestIdHeader' }
+        - name: agendaBlockId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateAgendaBlockRequestV1' }
+      responses:
+        '200':
+          description: Updated agenda block.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AgendaBlockResponseV1' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '403': { $ref: '#/components/responses/CsrfInvalid' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/today/agenda/{agendaBlockId}/complete:
+    post:
+      operationId: completeLocalAgendaBlock
+      summary: Complete a planned manual agenda block.
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/CsrfHeader' }
+        - { $ref: '#/components/parameters/RequestIdHeader' }
+        - name: agendaBlockId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TodayLifecycleRequestV1' }
+      responses:
+        '200': { $ref: '#/components/responses/TodayReceipt' }
+        '403': { $ref: '#/components/responses/CsrfInvalid' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/today/agenda/{agendaBlockId}/cancel:
+    post:
+      operationId: cancelLocalAgendaBlock
+      summary: Cancel a planned manual agenda block.
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/CsrfHeader' }
+        - { $ref: '#/components/parameters/RequestIdHeader' }
+        - name: agendaBlockId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TodayLifecycleRequestV1' }
+      responses:
+        '200': { $ref: '#/components/responses/TodayReceipt' }
+        '403': { $ref: '#/components/responses/CsrfInvalid' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/today/priorities:
+    post:
+      operationId: selectLocalDailyPriority
+      summary: Select one of at most three owner-confirmed task priorities.
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/CsrfHeader' }
+        - { $ref: '#/components/parameters/RequestIdHeader' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              { $ref: '#/components/schemas/SelectDailyPriorityRequestV1' }
+      responses:
+        '201': { $ref: '#/components/responses/TodayReceipt' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '403': { $ref: '#/components/responses/CsrfInvalid' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/today/tasks/{taskId}/complete:
+    post:
+      operationId: completeTaskInToday
+      summary: Complete a canonical task in Meridian without an external effect.
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/CsrfHeader' }
+        - { $ref: '#/components/parameters/RequestIdHeader' }
+        - name: taskId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TodayLifecycleRequestV1' }
+      responses:
+        '200': { $ref: '#/components/responses/TodayReceipt' }
+        '403': { $ref: '#/components/responses/CsrfInvalid' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/today/reminders/{reminderId}/complete:
+    post:
+      operationId: completeReminderInToday
+      summary: Complete canonical reminder intent in-app without claiming delivery.
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/CsrfHeader' }
+        - { $ref: '#/components/parameters/RequestIdHeader' }
+        - name: reminderId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TodayLifecycleRequestV1' }
+      responses:
+        '200': { $ref: '#/components/responses/TodayReceipt' }
+        '403': { $ref: '#/components/responses/CsrfInvalid' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/today/reminders/{reminderId}/dismiss:
+    post:
+      operationId: dismissReminderInToday
+      summary: Dismiss canonical reminder intent in-app without claiming delivery.
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/CsrfHeader' }
+        - { $ref: '#/components/parameters/RequestIdHeader' }
+        - name: reminderId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TodayLifecycleRequestV1' }
+      responses:
+        '200': { $ref: '#/components/responses/TodayReceipt' }
+        '403': { $ref: '#/components/responses/CsrfInvalid' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/today/receipts/{receiptId}/undo:
+    post:
+      operationId: undoTodayLifecycle
+      summary: Undo the exact unchanged local effect recorded by a Today receipt.
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/CsrfHeader' }
+        - { $ref: '#/components/parameters/RequestIdHeader' }
+        - { $ref: '#/components/parameters/ReceiptIdPath' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TodayLifecycleRequestV1' }
+      responses:
+        '200': { $ref: '#/components/responses/TodayReceipt' }
         '403': { $ref: '#/components/responses/CsrfInvalid' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
@@ -976,6 +1195,188 @@ components:
       properties:
         expectedVersion: { type: integer, minimum: 1 }
         ownerConfirmed: { type: boolean, const: true }
+    TodayLifecycleRequestV1:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, ownerConfirmed]
+      properties:
+        expectedVersion: { type: integer, minimum: 1 }
+        ownerConfirmed: { type: boolean, const: true }
+    CreateAgendaBlockRequestV1:
+      type: object
+      additionalProperties: false
+      required: [endsAt, notes, ownerConfirmed, startsAt, timeZone, title]
+      properties:
+        endsAt: { type: string, format: date-time }
+        notes: { type: string, maxLength: 2000 }
+        ownerConfirmed: { type: boolean, const: true }
+        startsAt: { type: string, format: date-time }
+        timeZone: { type: string, minLength: 1, maxLength: 100 }
+        title: { type: string, minLength: 1, maxLength: 240 }
+    UpdateAgendaBlockRequestV1:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          endsAt,
+          expectedVersion,
+          notes,
+          ownerConfirmed,
+          startsAt,
+          timeZone,
+          title,
+        ]
+      properties:
+        endsAt: { type: string, format: date-time }
+        expectedVersion: { type: integer, minimum: 1 }
+        notes: { type: string, maxLength: 2000 }
+        ownerConfirmed: { type: boolean, const: true }
+        startsAt: { type: string, format: date-time }
+        timeZone: { type: string, minLength: 1, maxLength: 100 }
+        title: { type: string, minLength: 1, maxLength: 240 }
+    SelectDailyPriorityRequestV1:
+      type: object
+      additionalProperties: false
+      required: [localDate, ownerConfirmed, position, taskId]
+      properties:
+        localDate:
+          { type: string, format: date, pattern: '^\d{4}-\d{2}-\d{2}$' }
+        ownerConfirmed: { type: boolean, const: true }
+        position: { type: integer, minimum: 1, maximum: 3 }
+        taskId: { type: string, format: uuid }
+    AgendaBlockResponseV1:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          resourceId,
+          title,
+          notes,
+          startsAt,
+          endsAt,
+          timeZone,
+          state,
+          createdAt,
+          updatedAt,
+          version,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        resourceId: { type: string, format: uuid }
+        title: { type: string }
+        notes: { type: string }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: string, format: date-time }
+        timeZone: { type: string }
+        state: { type: string, enum: [planned, completed, cancelled] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        version: { type: integer, minimum: 1 }
+    DailyPriorityResponseV1:
+      type: object
+      additionalProperties: false
+      required: [id, taskId, localDate, position, createdAt, updatedAt, version]
+      properties:
+        id: { type: string, format: uuid }
+        taskId: { type: string, format: uuid }
+        localDate: { type: string, format: date }
+        position: { type: integer, minimum: 1, maximum: 3 }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        version: { type: integer, minimum: 1 }
+    TodayReceiptResponseV1:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          targetResourceId,
+          targetType,
+          action,
+          status,
+          createdAt,
+          updatedAt,
+          undoneAt,
+          version,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        targetResourceId: { type: string, format: uuid }
+        targetType:
+          { type: string, enum: [task, reminder, agenda_block, priority] }
+        action:
+          {
+            type: string,
+            enum:
+              [
+                task_completed,
+                reminder_completed,
+                reminder_dismissed,
+                agenda_completed,
+                agenda_cancelled,
+                priority_selected,
+              ],
+          }
+        status: { type: string, enum: [active, undone] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        undoneAt: { type: [string, 'null'], format: date-time }
+        version: { type: integer, minimum: 1 }
+    TodaySnapshotResponseV1:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          agendaBlocks,
+          channel,
+          localDate,
+          priorities,
+          reminders,
+          tasks,
+          timeZone,
+        ]
+      properties:
+        agendaBlocks:
+          type: array
+          items: { $ref: '#/components/schemas/AgendaBlockResponseV1' }
+        channel:
+          type: object
+          additionalProperties: false
+          required: [externalDeliveryActive, status]
+          properties:
+            externalDeliveryActive: { type: boolean, const: false }
+            status: { type: string, const: inactive }
+        localDate: { type: string, format: date }
+        priorities:
+          type: array
+          maxItems: 3
+          items: { $ref: '#/components/schemas/DailyPriorityResponseV1' }
+        reminders:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [receipt, reminder]
+            properties:
+              receipt:
+                anyOf:
+                  - { $ref: '#/components/schemas/CommandReceiptResponseV1' }
+                  - { type: 'null' }
+              reminder: { $ref: '#/components/schemas/ReminderResponseV1' }
+        tasks:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [receipt, task]
+            properties:
+              receipt:
+                anyOf:
+                  - { $ref: '#/components/schemas/CommandReceiptResponseV1' }
+                  - { type: 'null' }
+              task: { $ref: '#/components/schemas/TaskResponseV1' }
+        timeZone: { type: string, minLength: 1, maxLength: 100 }
     TaskResponseV1:
       type: object
       additionalProperties: false
@@ -1379,6 +1780,11 @@ components:
       content:
         application/json:
           schema: { $ref: '#/components/schemas/ActionReceiptResponseV1' }
+    TodayReceipt:
+      description: Content-free local lifecycle receipt; not provider delivery evidence.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/TodayReceiptResponseV1' }
     NotFound:
       description: The owner-scoped resource does not exist.
       content:
@@ -1390,8 +1796,8 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorResponseV1' }
 x-document-metadata:
-  purpose: Canonical local-owner authentication, journal, Triage, internal actions, worker-health, and integration REST contract.
+  purpose: Canonical local-owner authentication, journal, Triage, internal actions, local Today, worker-health, and integration REST contract.
   audience: Contributors, clients, and coding agents.
-  authoritative-for: WP-04 authentication, WP-05 journal, WP-06 health, WP-07 Microsoft consent, WP-09 Triage, and WP-10 task/reminder HTTP request and response shapes.
+  authoritative-for: WP-04 authentication, WP-05 journal, WP-06 health, WP-07 Microsoft consent, WP-09 Triage, WP-10 tasks/reminders, and WP-13A Today HTTP request and response shapes.
   update-triggers: Versioned API boundary schemas, authentication, journal, system-health, or integration routes change.
   related-docs: conventions.md

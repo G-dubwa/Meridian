@@ -8,12 +8,12 @@ related-docs: ../README.md
 
 # Releases
 
-| Release        | Packages | Status                                | Evidence                                                              |
-| -------------- | -------- | ------------------------------------- | --------------------------------------------------------------------- |
-| Foundation     | WP-01–06 | Complete and independently deployable | [Foundation report](../process/releases/Foundation-release-report.md) |
-| Personal Alpha | WP-07–13 | In progress; WP-07–10 complete        | Local Alpha report at WP-13A; provider addendum only after WP-13B     |
-| Personal Beta  | WP-14–18 | Pending                               | Required at WP-18                                                     |
-| Personal v1    | WP-19–22 | Pending                               | Required at WP-22                                                     |
+| Release        | Packages | Status                                    | Evidence                                                                                                         |
+| -------------- | -------- | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Foundation     | WP-01–06 | Complete and independently deployable     | [Foundation report](../process/releases/Foundation-release-report.md)                                            |
+| Personal Alpha | WP-07–13 | Local provider-independent Alpha complete | [Local Alpha report](../process/releases/Personal-Alpha-local-release-report.md); provider addendum after WP-13B |
+| Personal Beta  | WP-14–18 | Pending                                   | Required at WP-18                                                                                                |
+| Personal v1    | WP-19–22 | Pending                                   | Required at WP-22                                                                                                |
 
 Each release is independently deployable and retains its own test, operations,
 limitations, and rollback evidence. A later package may correct a release report

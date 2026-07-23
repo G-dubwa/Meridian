@@ -39,7 +39,11 @@ Standard-revision extraction request/response schemas. Proposal decisions expose
 review state and provenance only; no contract can carry a downstream mutation
 or external-action approval.
 
+WP-13A adds strict Today snapshot, agenda, daily-priority, lifecycle, and undo
+schemas. The response has a literal inactive external-delivery status and no
+field capable of claiming a provider notification.
+
 Tests: Type checking and Playwright exercise authentication, journal, health,
-and Microsoft schemas
+Microsoft, and Today schemas
 against the live boundary. `docs/api/openapi.yaml` is reviewed and documentation
 checked; automated OpenAPI generation/diff remains later tooling.

@@ -83,3 +83,22 @@ Every payload contains only target resource ID/type/state and nullable receipt
 ID. Target title, notes, purpose, time, recurrence, feedback, source text, and
 delivery material stay out of events and outbox rows. WP-10 emits no delivery
 event because it has no delivery adapter.
+
+## Local Today events v1
+
+| Event                             | Emitted when                                  |
+| --------------------------------- | --------------------------------------------- |
+| `today.agenda_block_created.v1`   | Manual local agenda block commits             |
+| `today.agenda_block_updated.v1`   | Version-guarded local agenda edit commits     |
+| `today.priority_selected.v1`      | One of three daily task positions commits     |
+| `today.task_completed.v1`         | Owner completes a canonical task in-app       |
+| `today.reminder_completed.v1`     | Owner completes a canonical reminder in-app   |
+| `today.reminder_dismissed.v1`     | Owner dismisses a canonical reminder in-app   |
+| `today.agenda_block_completed.v1` | Owner completes a local agenda block          |
+| `today.agenda_block_cancelled.v1` | Owner cancels a local agenda block            |
+| `today.change_undone.v1`          | Exact-version lifecycle/priority undo commits |
+
+Payloads contain only action enum, target resource ID/type, and nullable Today
+receipt ID. Agenda/task/reminder content, dates, time zones, and priority dates
+are prohibited. These are local application events, not notification or
+calendar-provider evidence.

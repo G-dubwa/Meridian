@@ -145,6 +145,119 @@
   gap: 1rem;
 }
 
+.today-shell {
+  max-width: 1120px;
+  margin-top: 5vh;
+}
+
+.today-layout,
+.today-section,
+.today-cards,
+.priority-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.channel-status {
+  display: grid;
+  gap: 0.35rem;
+  padding: 1rem 1.2rem;
+  border: 1px solid #cb9c45;
+  border-radius: 16px;
+  background: rgb(203 156 69 / 12%);
+}
+
+.today-toolbar,
+.section-heading,
+.card-title,
+.undo-banner {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.today-toolbar {
+  padding: 0.8rem 0;
+}
+
+.today-section {
+  padding: 1.2rem;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+}
+
+.section-heading h2,
+.section-heading p,
+.card-title strong,
+.card-title span {
+  margin: 0;
+}
+
+.priority-list {
+  list-style: none;
+  padding: 0;
+}
+
+.priority-list li {
+  display: grid;
+  grid-template-columns: 2rem 1fr;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.priority-list li > span,
+.priority-pill,
+.state-pill {
+  border-radius: 999px;
+  padding: 0.2rem 0.55rem;
+  background: rgb(84 122 111 / 30%);
+  font-size: 0.78rem;
+}
+
+.inline-form,
+.agenda-create,
+.edit-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: end;
+  gap: 0.8rem;
+}
+
+.inline-form {
+  grid-template-columns: minmax(0, 2fr) minmax(6rem, 0.5fr) auto;
+}
+
+.wide-field {
+  grid-column: 1 / -2;
+}
+
+.today-card {
+  display: grid;
+  gap: 0.8rem;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
+.card-title > div {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.card-title span,
+.delivery-note {
+  color: var(--muted);
+}
+
+.undo-banner {
+  padding: 0.8rem 1rem;
+  border-radius: 14px;
+  background: rgb(84 122 111 / 20%);
+}
+
 @media (max-width: 760px) {
   .journal-layout,
   .entry-detail-grid,
@@ -154,6 +267,16 @@
 
   .activity-ledger {
     position: static;
+  }
+
+  .inline-form,
+  .agenda-create,
+  .edit-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .wide-field {
+    grid-column: auto;
   }
 }
 

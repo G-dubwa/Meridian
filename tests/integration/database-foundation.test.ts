@@ -38,6 +38,7 @@ import {
   type MaterialChangeInvalidationHook,
 } from '../../packages/application/src/journal.js';
 import { ActionService } from '../../packages/application/src/actions.js';
+import { TodayService } from '../../packages/application/src/today.js';
 import {
   ProposalMaterialChangeInvalidationHook,
   TriageService,
@@ -116,12 +117,14 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
       order by table_name
     `;
     expect(tables.map((row) => row.table_name)).toEqual([
+      'agenda_blocks',
       'auth_credentials',
       'auth_events',
       'auth_rate_limits',
       'auth_sessions',
       'command_receipts',
       'consent_records',
+      'daily_priorities',
       'derivation_links',
       'domain_events',
       'entries',
@@ -136,6 +139,7 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
       'resources',
       'schema_registry',
       'tasks',
+      'today_receipts',
       'users',
     ]);
     const [vector] = await admin.sql<{ extversion: string }[]>`
@@ -238,6 +242,14 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
           'utf8',
         ),
       );
+      await snapshotSql.unsafe(
+        readFileSync(
+          resolve(
+            'packages/infrastructure-db/migrations/0009_wp13a_local_alpha_today.sql',
+          ),
+          'utf8',
+        ),
+      );
       const [seeded] = await snapshotSql<{ count: string }[]>`
         select count(*)::text as count from users
       `;
@@ -273,6 +285,10 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
         select to_regclass('public.reminders')::text as name
       `;
       expect(reminderTable?.name).toBe('reminders');
+      const [agendaTable] = await snapshotSql<{ name: string }[]>`
+        select to_regclass('public.agenda_blocks')::text as name
+      `;
+      expect(agendaTable?.name).toBe('agenda_blocks');
     } finally {
       await snapshotSql.end();
       await admin.sql.unsafe(`drop database if exists ${snapshotDatabase}`);
@@ -287,7 +303,7 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
     await admin.sql.unsafe(`grant usage on schema public to ${appRole}`);
     await admin.sql.unsafe(`grant select on schema_registry to ${appRole}`);
     await admin.sql.unsafe(
-      `grant select, insert, update, delete on users, resources, entries, entry_revisions, derivation_links, domain_events, outbox_messages, proposals, tasks, reminders, reminder_occurrences, command_receipts, integration_accounts, consent_records, oauth_authorization_sessions to ${appRole}`,
+      `grant select, insert, update, delete on users, resources, entries, entry_revisions, derivation_links, domain_events, outbox_messages, proposals, tasks, reminders, reminder_occurrences, command_receipts, agenda_blocks, daily_priorities, today_receipts, integration_accounts, consent_records, oauth_authorization_sessions to ${appRole}`,
     );
 
     app = createDatabaseClient(appUrl.toString());
@@ -892,6 +908,174 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
     expect(actionEvents).toHaveLength(6);
     expect(JSON.stringify(actionEvents)).not.toContain('Owner entered');
     expect(JSON.stringify(actionEvents)).not.toContain('synthetic check');
+  });
+
+  it('builds owner-isolated local Today with three priorities and guarded lifecycle undo', async () => {
+    if (!app) throw new Error('Application database was not initialized.');
+    const transactions = new DrizzleTransactionManager(app.database);
+    const ids = new CryptoIdGenerator();
+    const clock = { now: () => new Date('2026-07-19T08:00:00.000Z') };
+    const actions = new ActionService({ clock, ids, transactions });
+    const today = new TodayService({ clock, ids, transactions });
+    const createTask = (title: string) =>
+      actions.createTask(
+        scopeA,
+        {
+          authority: {
+            ambiguous: false,
+            deterministic: true,
+            explicit: true,
+            externalEffect: false,
+            ownerConfirmed: true,
+          },
+          dueAt: null,
+          estimateMinutes: null,
+          goalResourceId: null,
+          kind: 'task',
+          notes: `private notes for ${title}`,
+          title,
+        },
+        { correlationId: ids.next() },
+      );
+    const taskResults = await Promise.all([
+      createTask('Today fixture one'),
+      createTask('Today fixture two'),
+      createTask('Today fixture three'),
+      createTask('Today fixture four'),
+    ]);
+    for (const [index, task] of taskResults.slice(0, 3).entries()) {
+      await today.selectPriority(
+        scopeA,
+        {
+          localDate: '2026-07-19',
+          ownerConfirmed: true,
+          position: index + 1,
+          taskId: task.target.id,
+        },
+        { correlationId: ids.next() },
+      );
+    }
+    await expect(
+      today.selectPriority(
+        scopeA,
+        {
+          localDate: '2026-07-19',
+          ownerConfirmed: true,
+          position: 3,
+          taskId: taskResults[3].target.id,
+        },
+        { correlationId: ids.next() },
+      ),
+    ).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
+
+    const agenda = await today.createAgendaBlock(
+      scopeA,
+      {
+        endsAt: '2026-07-19T11:00:00.000Z',
+        notes: 'private agenda notes',
+        ownerConfirmed: true,
+        startsAt: '2026-07-19T10:00:00.000Z',
+        timeZone: 'Africa/Johannesburg',
+        title: 'Today fixture agenda',
+      },
+      { correlationId: ids.next() },
+    );
+    const reminder = await actions.createReminder(
+      scopeA,
+      {
+        authority: {
+          ambiguous: false,
+          deterministic: true,
+          explicit: true,
+          externalEffect: false,
+          ownerConfirmed: true,
+        },
+        expiresAt: null,
+        priority: 'normal',
+        purpose: 'Today fixture reminder',
+        recurrence: null,
+        relatedResourceId: null,
+        timeZone: 'Africa/Johannesburg',
+        triggerAt: '2026-07-19T09:00:00.000Z',
+      },
+      { correlationId: ids.next() },
+    );
+
+    const snapshot = await today.get(
+      scopeA,
+      '2026-07-19',
+      'Africa/Johannesburg',
+    );
+    expect(snapshot.channel).toEqual({
+      externalDeliveryActive: false,
+      status: 'inactive',
+    });
+    expect(snapshot.priorities).toHaveLength(3);
+    expect(snapshot.agendaBlocks).toContainEqual(
+      expect.objectContaining({ id: agenda.id }),
+    );
+    expect(
+      snapshot.reminders.some(
+        (item) => item.reminder.id === reminder.target.id,
+      ),
+    ).toBe(true);
+    await expect(
+      today.get(scopeB, '2026-07-19', 'Africa/Johannesburg'),
+    ).resolves.toMatchObject({
+      agendaBlocks: [],
+      priorities: [],
+    });
+
+    const task = taskResults[0];
+    const taskReceipt = await today.completeTask(
+      scopeA,
+      task.target.id,
+      task.target.version,
+      true,
+      { correlationId: ids.next() },
+    );
+    const undoneTaskReceipt = await today.undo(
+      scopeA,
+      taskReceipt.id,
+      taskReceipt.version,
+      true,
+      { correlationId: ids.next() },
+    );
+    expect(undoneTaskReceipt.status).toBe('undone');
+    await expect(
+      transactions.run(scopeA, (ports) =>
+        ports.tasks.findById(scopeA, task.target.id),
+      ),
+    ).resolves.toMatchObject({ state: 'open', version: 3 });
+
+    const reminderReceipt = await today.dismissReminder(
+      scopeA,
+      reminder.target.id,
+      reminder.target.version,
+      true,
+      { correlationId: ids.next() },
+    );
+    await today.undo(
+      scopeA,
+      reminderReceipt.id,
+      reminderReceipt.version,
+      true,
+      { correlationId: ids.next() },
+    );
+    await expect(
+      transactions.run(scopeA, (ports) =>
+        ports.reminders.findById(scopeA, reminder.target.id),
+      ),
+    ).resolves.toMatchObject({ state: 'scheduled', version: 3 });
+
+    const todayEvents = await transactions.run(scopeA, (ports) =>
+      ports.domainEvents.listByTypePrefix(scopeA, 'today.', 30),
+    );
+    expect(todayEvents.length).toBeGreaterThanOrEqual(8);
+    const eventText = JSON.stringify(todayEvents);
+    expect(eventText).not.toContain('Today fixture');
+    expect(eventText).not.toContain('private agenda notes');
+    expect(eventText).not.toContain('private notes');
   });
 
   it('cascades revision-derived provenance when an entry is deleted', async () => {

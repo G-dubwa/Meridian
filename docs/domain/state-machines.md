@@ -62,17 +62,23 @@ stale in the same journal transaction.
 ## Task
 
 `open → scheduled | done | dropped | superseded` and `scheduled → open | done |
-dropped | superseded`. Terminal states never reopen. Due-field receipt edits
-move between open and scheduled. Undo of creation moves an active task to
-dropped while retaining the target, receipt, provenance, and audit event.
+dropped | superseded`. Ordinary commands never reopen terminal states. Due-field
+receipt edits move between open and scheduled. Undo of creation moves an active
+task to dropped while retaining the target, receipt, provenance, and audit
+event. WP-13A lifecycle undo may restore `done` to its recorded `open` or
+`scheduled` prior state only when the target still has the receipt's exact
+resulting version.
 
 ## Reminder and occurrence
 
 Canonical reminder intent follows `scheduled → due → delivered → completed |
 dismissed | snoozed`; `due → completed | dismissed | snoozed`; `snoozed →
 scheduled`; `scheduled → paused | expired | dismissed`; and `paused →
-scheduled`. Completed, dismissed, and expired are terminal. WP-10 creates and
-edits only scheduled internal intent; delivery transitions remain inactive.
+scheduled`. WP-13A also permits owner-confirmed in-app `scheduled → completed`
+without asserting delivery. Completed, dismissed, and expired are terminal to
+ordinary commands. Exact-version Today undo can restore the recorded active
+prior state and occurrence state. External delivery transitions remain
+inactive.
 
 Occurrence state is `pending → due → acknowledged | dismissed`, with pending
 also able to become cancelled when the trigger is edited or creation is undone.
@@ -85,3 +91,11 @@ cancels rather than rewrites old pending occurrences.
 validation. Undone is terminal. Receipt edits leave the receipt active while
 advancing the target version and appending an action event. A receipt is
 evidence and a reversible-control handle, not external-action authority.
+
+## Local agenda and Today receipt
+
+Agenda blocks follow `planned → completed | cancelled`. Exact-version Today
+undo can restore the recorded `planned` state. Today receipts follow
+`active → undone`; undo fails if the target changed after the recorded effect.
+Priority selection creates a receipt whose undo removes only that exact
+unchanged priority row.

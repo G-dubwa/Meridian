@@ -10,7 +10,7 @@ related-docs: ../README.md
 
 ## Local Alpha boundary
 
-External phone reminder delivery is inactive. WP-13A may present and mutate
+External phone reminder delivery is inactive. WP-13A presents and mutates
 canonical reminders in the authenticated Meridian UI, but it must never claim
 that an external notification was sent, delivered, seen, or completed.
 
@@ -21,4 +21,6 @@ channel require separate governed proposals, permissions, privacy review, and
 live acceptance. Deferring one provider does not select another.
 
 Meridian's canonical task, reminder, and occurrence records remain the source
-of truth regardless of any future projection or completion channel.
+of truth regardless of any future projection or completion channel. The
+implemented Today response carries literal `externalDeliveryActive: false`;
+there is no simulated provider receipt.

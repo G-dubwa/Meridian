@@ -14,6 +14,8 @@ import type {
   MicrosoftProfile,
 } from './integration.js';
 import type {
+  AgendaBlockId,
+  DailyPriorityId,
   DerivationLinkId,
   CommandReceiptId,
   EntryId,
@@ -25,9 +27,16 @@ import type {
   ResourceId,
   SessionId,
   TaskId,
+  TodayReceiptId,
   UserId,
   Uuid,
 } from './ids.js';
+import type {
+  AgendaBlockState,
+  LocalDateV1,
+  TodayLifecycleAction,
+  TodayTargetType,
+} from './today.js';
 import type {
   CommandReceiptStatus,
   CreationAuthority,
@@ -213,6 +222,48 @@ export interface CommandReceiptRecord {
   readonly version: number;
 }
 
+export interface AgendaBlockRecord {
+  readonly id: AgendaBlockId;
+  readonly resourceId: ResourceId;
+  readonly scope: UserScope;
+  readonly title: string;
+  readonly notes: string;
+  readonly startsAt: Date;
+  readonly endsAt: Date;
+  readonly timeZone: string;
+  readonly state: AgendaBlockState;
+  readonly createdAt: Date;
+  readonly updatedAt: Date;
+  readonly version: number;
+}
+
+export interface DailyPriorityRecord {
+  readonly id: DailyPriorityId;
+  readonly scope: UserScope;
+  readonly taskId: TaskId;
+  readonly localDate: LocalDateV1;
+  readonly position: 1 | 2 | 3;
+  readonly createdAt: Date;
+  readonly updatedAt: Date;
+  readonly version: number;
+}
+
+export interface TodayReceiptRecord {
+  readonly id: TodayReceiptId;
+  readonly scope: UserScope;
+  readonly targetResourceId: ResourceId;
+  readonly targetType: TodayTargetType;
+  readonly action: TodayLifecycleAction;
+  readonly priorState: string | null;
+  readonly resultingVersion: number;
+  readonly effectId: DailyPriorityId | null;
+  readonly status: 'active' | 'undone';
+  readonly createdAt: Date;
+  readonly updatedAt: Date;
+  readonly undoneAt: Date | null;
+  readonly version: number;
+}
+
 export interface OutboxMessageRecord {
   readonly id: OutboxMessageId;
   readonly event: DomainEventEnvelopeV1;
@@ -377,12 +428,28 @@ export interface ReminderOccurrenceRepository {
     reminderId: ReminderId,
     at: Date,
   ): Promise<void>;
+  restoreSettled(
+    scope: UserScope,
+    reminderId: ReminderId,
+    state: 'acknowledged' | 'dismissed',
+    at: Date,
+  ): Promise<void>;
+  settle(
+    scope: UserScope,
+    reminderId: ReminderId,
+    state: 'acknowledged' | 'dismissed',
+    at: Date,
+  ): Promise<void>;
 }
 
 export interface CommandReceiptRepository {
   findById(
     scope: UserScope,
     id: CommandReceiptId,
+  ): Promise<CommandReceiptRecord | null>;
+  findActiveForTarget(
+    scope: UserScope,
+    targetResourceId: ResourceId,
   ): Promise<CommandReceiptRecord | null>;
   save(receipt: CommandReceiptRecord): Promise<void>;
   update(
@@ -391,21 +458,61 @@ export interface CommandReceiptRepository {
   ): Promise<boolean>;
 }
 
+export interface AgendaBlockRepository {
+  findById(
+    scope: UserScope,
+    id: AgendaBlockId,
+  ): Promise<AgendaBlockRecord | null>;
+  listBetween(
+    scope: UserScope,
+    start: Date,
+    end: Date,
+  ): Promise<readonly AgendaBlockRecord[]>;
+  save(record: AgendaBlockRecord): Promise<void>;
+  update(record: AgendaBlockRecord, expectedVersion: number): Promise<boolean>;
+}
+
+export interface DailyPriorityRepository {
+  acquireDateLock(scope: UserScope, localDate: LocalDateV1): Promise<void>;
+  findById(
+    scope: UserScope,
+    id: DailyPriorityId,
+  ): Promise<DailyPriorityRecord | null>;
+  listForDate(
+    scope: UserScope,
+    localDate: LocalDateV1,
+  ): Promise<readonly DailyPriorityRecord[]>;
+  save(record: DailyPriorityRecord): Promise<void>;
+  delete(scope: UserScope, id: DailyPriorityId): Promise<boolean>;
+}
+
+export interface TodayReceiptRepository {
+  findById(
+    scope: UserScope,
+    id: TodayReceiptId,
+  ): Promise<TodayReceiptRecord | null>;
+  save(record: TodayReceiptRecord): Promise<void>;
+  update(record: TodayReceiptRecord, expectedVersion: number): Promise<boolean>;
+}
+
 export interface TransactionPorts {
-  readonly users: UserRepository;
-  readonly resources: ResourceRepository;
+  readonly agendaBlocks: AgendaBlockRepository;
+  readonly commandReceipts: CommandReceiptRepository;
+  readonly consentRecords: ConsentRecordRepository;
+  readonly dailyPriorities: DailyPriorityRepository;
+  readonly derivationLinks: DerivationLinkRepository;
+  readonly domainEvents: DomainEventRepository;
   readonly entries: EntryRepository;
   readonly entryRevisions: EntryRevisionRepository;
-  readonly domainEvents: DomainEventRepository;
+  readonly integrationAccounts: IntegrationAccountRepository;
   readonly outbox: OutboxRepository;
   readonly proposals: ProposalRepository;
-  readonly derivationLinks: DerivationLinkRepository;
-  readonly tasks: TaskRepository;
-  readonly reminders: ReminderRepository;
   readonly reminderOccurrences: ReminderOccurrenceRepository;
-  readonly commandReceipts: CommandReceiptRepository;
-  readonly integrationAccounts: IntegrationAccountRepository;
-  readonly consentRecords: ConsentRecordRepository;
+  readonly reminders: ReminderRepository;
+  readonly resources: ResourceRepository;
+  readonly tasks: TaskRepository;
+  readonly todayReceipts: TodayReceiptRepository;
+  readonly users: UserRepository;
 }
 
 export interface TransactionManager {
@@ -421,6 +528,40 @@ export interface Clock {
 
 export interface IdGenerator {
   next(): Uuid;
+}
+
+export interface CalendarProjection {
+  readonly externalId: string;
+  readonly startsAt: Date;
+  readonly endsAt: Date;
+  readonly label: string;
+  readonly source: string;
+}
+
+export interface CalendarPort {
+  list(
+    scope: UserScope,
+    start: Date,
+    end: Date,
+  ): Promise<readonly CalendarProjection[]>;
+}
+
+export interface ReminderDeliveryRequest {
+  readonly occurrenceId: ReminderOccurrenceId;
+  readonly reminderId: ReminderId;
+  readonly scheduledFor: Date;
+}
+
+export interface ReminderDeliveryResult {
+  readonly state: 'delivered' | 'rejected' | 'uncertain';
+  readonly providerReference: string | null;
+}
+
+export interface ReminderDeliveryPort {
+  deliver(
+    scope: UserScope,
+    request: ReminderDeliveryRequest,
+  ): Promise<ReminderDeliveryResult>;
 }
 
 export interface PasswordHasher {

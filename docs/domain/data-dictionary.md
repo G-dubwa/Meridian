@@ -12,6 +12,28 @@ related-docs: ../ops/migrations.md
 
 All owner-scoped tables use forced PostgreSQL row-level security through the transaction-local `meridian.user_id` setting. `schema_registry` is system-owned. No table is partitioned and no vector column or vector index exists in WP-03.
 
+## agenda_blocks
+
+| Column | SQL type | Null | Default | Primary |
+|---|---|---|---|---|
+| `id` | `uuid` | no | no | yes |
+| `user_id` | `uuid` | no | no | no |
+| `title` | `text` | no | no | no |
+| `notes` | `text` | no | yes | no |
+| `starts_at` | `timestamp with time zone` | no | no | no |
+| `ends_at` | `timestamp with time zone` | no | no | no |
+| `time_zone` | `text` | no | no | no |
+| `state` | `text` | no | yes | no |
+| `created_at` | `timestamp with time zone` | no | yes | no |
+| `updated_at` | `timestamp with time zone` | no | yes | no |
+| `version` | `integer` | no | yes | no |
+
+Foreign keys:
+- `agenda_blocks_user_id_users_id_fk`: (user_id) → `users` (id)
+- `agenda_blocks_resource_owner_fk`: (id, user_id) → `resources` (id, user_id)
+
+Indexes: `agenda_blocks_user_window_idx`.
+
 ## auth_credentials
 
 | Column | SQL type | Null | Default | Primary |
@@ -99,6 +121,25 @@ Foreign keys:
 - `command_receipts_target_owner_fk`: (target_resource_id, user_id) → `resources` (id, user_id)
 
 Indexes: `command_receipts_user_created_idx`.
+
+## daily_priorities
+
+| Column | SQL type | Null | Default | Primary |
+|---|---|---|---|---|
+| `id` | `uuid` | no | no | yes |
+| `user_id` | `uuid` | no | no | no |
+| `task_id` | `uuid` | no | no | no |
+| `local_date` | `date` | no | no | no |
+| `position` | `integer` | no | no | no |
+| `created_at` | `timestamp with time zone` | no | yes | no |
+| `updated_at` | `timestamp with time zone` | no | yes | no |
+| `version` | `integer` | no | yes | no |
+
+Foreign keys:
+- `daily_priorities_user_id_users_id_fk`: (user_id) → `users` (id)
+- `daily_priorities_task_owner_fk`: (task_id, user_id) → `tasks` (id, user_id)
+
+Indexes: `daily_priorities_user_date_idx`.
 
 ## derivation_links
 
@@ -365,6 +406,30 @@ Foreign keys:
 
 Indexes: `tasks_user_state_due_idx`.
 
+## today_receipts
+
+| Column | SQL type | Null | Default | Primary |
+|---|---|---|---|---|
+| `id` | `uuid` | no | no | yes |
+| `user_id` | `uuid` | no | no | no |
+| `target_resource_id` | `uuid` | no | no | no |
+| `target_type` | `text` | no | no | no |
+| `action` | `text` | no | no | no |
+| `prior_state` | `text` | yes | no | no |
+| `resulting_version` | `integer` | no | no | no |
+| `effect_id` | `uuid` | yes | no | no |
+| `status` | `text` | no | yes | no |
+| `created_at` | `timestamp with time zone` | no | yes | no |
+| `updated_at` | `timestamp with time zone` | no | yes | no |
+| `undone_at` | `timestamp with time zone` | yes | no | no |
+| `version` | `integer` | no | yes | no |
+
+Foreign keys:
+- `today_receipts_user_id_users_id_fk`: (user_id) → `users` (id)
+- `today_receipts_target_owner_fk`: (target_resource_id, user_id) → `resources` (id, user_id)
+
+Indexes: `today_receipts_user_created_idx`.
+
 ## users
 
 | Column | SQL type | Null | Default | Primary |
@@ -382,4 +447,4 @@ Indexes: `tasks_user_state_due_idx`.
 - pgvector is installed as an extension but unused by schema columns.
 - `entries.current_revision_id` and `domain_events.aggregate_id` have owner-matching composite foreign keys added by custom migration.
 - Entry revisions and domain events reject updates; deletion remains available for governed hard-deletion propagation.
-- Registry seeds: `resource.entry@1`, `attrs.entry@1`, `resource.proposal@1`, `resource.task@1`, and `resource.reminder@1`.
+- Registry seeds: `resource.entry@1`, `attrs.entry@1`, `resource.proposal@1`, `resource.task@1`, `resource.reminder@1`, and `resource.agenda_block@1`.

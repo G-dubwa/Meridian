@@ -24,7 +24,7 @@ Status legend: `NEXT`, `PENDING`, `DEFERRED`, `COMPLETE`.
 | Personal Alpha |  10 | Tasks and canonical reminders                   | COMPLETE                      |
 | Personal Alpha |  11 | Microsoft To Do delivery spike                  | DEFERRED: experimental        |
 | Personal Alpha |  12 | Outlook fixed-window read sync                  | DEFERRED: Microsoft-dependent |
-| Personal Alpha | 13A | Local Alpha Today                               | NEXT: provider-independent    |
+| Personal Alpha | 13A | Local Alpha Today                               | COMPLETE                      |
 | Personal Alpha | 13B | External agenda and notification projections    | DEFERRED: provider gate       |
 | Personal Beta  |  14 | Goals, edges, and soft load guidance            | PENDING                       |
 | Personal Beta  |  15 | Deterministic scheduling and local proposals    | PENDING                       |
@@ -42,4 +42,5 @@ WP-13 is split without rewriting the accepted v1.2 specification: WP-13A
 delivers a useful local Today surface from canonical Meridian data, while
 WP-13B retains provider-dependent agenda and notification projections behind
 future explicit gates. WP-16 is likewise non-blocking for the independent
-WP-17–WP-22 sequence. No deferred provider is substituted automatically.
+WP-17–WP-22 sequence. WP-14 is next. No deferred provider is substituted
+automatically.

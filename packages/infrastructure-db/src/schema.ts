@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import {
   boolean,
   check,
+  date,
   foreignKey,
   index,
   integer,
@@ -865,6 +866,155 @@ export const commandReceipts = pgTable(
   ],
 );
 
+export const agendaBlocks = pgTable(
+  'agenda_blocks',
+  {
+    id: uuid('id').primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    notes: text('notes').notNull().default(''),
+    startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
+    endsAt: timestamp('ends_at', { withTimezone: true }).notNull(),
+    timeZone: text('time_zone').notNull(),
+    state: text('state').notNull().default('planned'),
+    ...timestamps,
+    version: integer('version').notNull().default(1),
+  },
+  (table) => [
+    unique('agenda_blocks_id_user_unique').on(table.id, table.userId),
+    foreignKey({
+      columns: [table.id, table.userId],
+      foreignColumns: [resources.id, resources.userId],
+      name: 'agenda_blocks_resource_owner_fk',
+    }).onDelete('cascade'),
+    check(
+      'agenda_blocks_title_valid',
+      sql`length(btrim(${table.title})) between 1 and 240`,
+    ),
+    check('agenda_blocks_notes_valid', sql`length(${table.notes}) <= 2000`),
+    check(
+      'agenda_blocks_time_zone_valid',
+      sql`length(${table.timeZone}) between 1 and 100`,
+    ),
+    check(
+      'agenda_blocks_order_valid',
+      sql`${table.endsAt} > ${table.startsAt}`,
+    ),
+    check(
+      'agenda_blocks_duration_valid',
+      sql`${table.endsAt} <= ${table.startsAt} + interval '24 hours'`,
+    ),
+    check(
+      'agenda_blocks_state_valid',
+      sql`${table.state} in ('planned', 'completed', 'cancelled')`,
+    ),
+    check('agenda_blocks_version_positive', sql`${table.version} > 0`),
+    index('agenda_blocks_user_window_idx').on(
+      table.userId,
+      table.startsAt,
+      table.endsAt,
+    ),
+  ],
+);
+
+export const dailyPriorities = pgTable(
+  'daily_priorities',
+  {
+    id: uuid('id').primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    taskId: uuid('task_id').notNull(),
+    localDate: date('local_date', { mode: 'string' }).notNull(),
+    position: integer('position').notNull(),
+    ...timestamps,
+    version: integer('version').notNull().default(1),
+  },
+  (table) => [
+    unique('daily_priorities_id_user_unique').on(table.id, table.userId),
+    unique('daily_priorities_task_date_unique').on(
+      table.userId,
+      table.taskId,
+      table.localDate,
+    ),
+    unique('daily_priorities_position_unique').on(
+      table.userId,
+      table.localDate,
+      table.position,
+    ),
+    foreignKey({
+      columns: [table.taskId, table.userId],
+      foreignColumns: [tasks.id, tasks.userId],
+      name: 'daily_priorities_task_owner_fk',
+    }).onDelete('cascade'),
+    check(
+      'daily_priorities_position_valid',
+      sql`${table.position} between 1 and 3`,
+    ),
+    check('daily_priorities_version_positive', sql`${table.version} > 0`),
+    index('daily_priorities_user_date_idx').on(
+      table.userId,
+      table.localDate,
+      table.position,
+    ),
+  ],
+);
+
+export const todayReceipts = pgTable(
+  'today_receipts',
+  {
+    id: uuid('id').primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    targetResourceId: uuid('target_resource_id').notNull(),
+    targetType: text('target_type').notNull(),
+    action: text('action').notNull(),
+    priorState: text('prior_state'),
+    resultingVersion: integer('resulting_version').notNull(),
+    effectId: uuid('effect_id'),
+    status: text('status').notNull().default('active'),
+    ...timestamps,
+    undoneAt: timestamp('undone_at', { withTimezone: true }),
+    version: integer('version').notNull().default(1),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.targetResourceId, table.userId],
+      foreignColumns: [resources.id, resources.userId],
+      name: 'today_receipts_target_owner_fk',
+    }).onDelete('cascade'),
+    check(
+      'today_receipts_target_valid',
+      sql`${table.targetType} in ('task', 'reminder', 'agenda_block', 'priority')`,
+    ),
+    check(
+      'today_receipts_action_valid',
+      sql`${table.action} in ('task_completed', 'reminder_completed', 'reminder_dismissed', 'agenda_completed', 'agenda_cancelled', 'priority_selected')`,
+    ),
+    check(
+      'today_receipts_status_valid',
+      sql`${table.status} in ('active', 'undone')`,
+    ),
+    check(
+      'today_receipts_undone_valid',
+      sql`(${table.status} = 'active' and ${table.undoneAt} is null) or (${table.status} = 'undone' and ${table.undoneAt} is not null)`,
+    ),
+    check(
+      'today_receipts_priority_effect_valid',
+      sql`(${table.targetType} = 'priority' and ${table.effectId} is not null and ${table.priorState} is null) or (${table.targetType} <> 'priority' and ${table.effectId} is null and ${table.priorState} is not null)`,
+    ),
+    check(
+      'today_receipts_result_version_positive',
+      sql`${table.resultingVersion} > 0`,
+    ),
+    check('today_receipts_version_positive', sql`${table.version} > 0`),
+    index('today_receipts_user_created_idx').on(table.userId, table.createdAt),
+  ],
+);
+
 export const domainEvents = pgTable(
   'domain_events',
   {
@@ -947,11 +1097,13 @@ export const outboxMessages = pgTable(
 );
 
 export const schemaTables = {
+  agendaBlocks,
   authCredentials,
   authEvents,
   authRateLimits,
   authSessions,
   commandReceipts,
+  dailyPriorities,
   derivationLinks,
   domainEvents,
   entries,
@@ -964,5 +1116,6 @@ export const schemaTables = {
   recoveryCodes,
   schemaRegistry,
   tasks,
+  todayReceipts,
   users,
 } as const;

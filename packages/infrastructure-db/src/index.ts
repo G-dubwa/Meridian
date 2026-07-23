@@ -6,5 +6,6 @@ export * from './integration-repositories.js';
 export * from './repositories.js';
 export * from './schema.js';
 export * from './transaction-manager.js';
+export * from './today-repositories.js';
 export * from './worker-repositories.js';
 export * from './worker-scope.js';

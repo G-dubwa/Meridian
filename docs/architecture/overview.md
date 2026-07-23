@@ -57,6 +57,13 @@ accept/edit/dismiss decisions; these are review records, not downstream domain
 mutation. Revising the source marks pending proposals stale in the journal
 transaction.
 
+WP-13A composes a provider-independent Today application service over
+canonical tasks/reminders plus owner-entered agenda blocks and daily priority
+references. Local lifecycle receipts make completion, dismissal, and priority
+selection reversibly auditable with exact-version checks. `CalendarPort` and
+`ReminderDeliveryPort` remain uncomposed domain boundaries; every Today
+response declares external delivery inactive.
+
 ADR-0001/0002 govern modularity/dependencies, ADR-0003 persistence/RLS,
 ADR-0004 authentication, ADR-0005 journal revision history, ADR-0006 reliable
 worker processing, ADR-0007 Microsoft OAuth/token custody, and ADR-0008 the

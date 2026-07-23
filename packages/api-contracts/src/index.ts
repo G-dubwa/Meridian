@@ -102,3 +102,4 @@ export const generatedSchemaPlaceholdersV1 = {
 
 export const apiContractSchemaVersion = 1 as const;
 export * from './triage.js';
+export * from './today.js';

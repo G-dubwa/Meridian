@@ -64,7 +64,7 @@ export function reminderResponse(reminder: ReminderRecord) {
   };
 }
 
-function receiptResponse(receipt: CommandReceiptRecord) {
+export function receiptResponse(receipt: CommandReceiptRecord) {
   return {
     createdAt: receipt.createdAt.toISOString(),
     id: receipt.id,

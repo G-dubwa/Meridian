@@ -28,7 +28,7 @@ related-docs: ../README.md
 | Reminder intent is mistaken for delivery           | `undecided` delivery constraint, internal-only receipts, and explicit external-channel-inactive UI                          | A future channel must pass a separate provider and device gate.    |
 | Local time resolves incorrectly                    | IANA zone plus exact instant, DST gap/overlap rejection, time-zone matrix tests                                             | Re-test recurrence expansion in WP-13A and every later channel.    |
 | Receipt edit or undo races                         | Owner CSRF/confirmation, target and receipt versions, one transaction, content-free audit                                   | Add multi-device conflict UX when measured.                        |
-| Deferred integration becomes an assumed dependency | WP-13A and later canonical models depend only on provider-neutral ports; Microsoft packages remain unmerged and inactive    | Re-run dependency and no-provider acceptance tests each package.   |
+| Deferred integration becomes an assumed dependency | WP-13A passes without provider configuration and depends only on provider-neutral ports; Microsoft packages remain unmerged | Re-run dependency and no-provider acceptance tests each package.   |
 | Experimental evidence is mistaken for acceptance   | WP-11 branch is labelled experimental, preserved separately, and has no waived or passed live criteria                      | Require a new explicit resume decision and complete live evidence. |
 
 No recorded risk authorizes broader provider access, production deployment,

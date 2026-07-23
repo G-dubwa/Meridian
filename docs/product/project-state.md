@@ -12,13 +12,11 @@ Last updated: 23 July 2026
 
 ## Current work package
 
-- A standalone governance package records the owner decision to defer
-  Microsoft-dependent WP-11 and WP-12 and split WP-13.
-- Verified `main` remains at completed WP-10 commit
-  `718bc897939017a641e6c3ee20f593c9c7c35516` until that documentation package
-  is committed.
-- WP-13A Local Alpha Today is next. It depends only on canonical local Meridian
-  data and provider-neutral ports.
+- WP-13A Local Alpha Today is complete on
+  `wp-13a-local-alpha-today`, based on the verified provider-deferral `main`.
+- The package adds only local canonical Today functionality and leaves every
+  provider-dependent package inactive.
+- WP-14 goals, edges, and soft load guidance is next.
 
 ## Completed packages
 
@@ -42,11 +40,18 @@ Last updated: 23 July 2026
   `930a4b567004589ec32a2268994ce0097b5316ff`.
 - WP-10 — Tasks and canonical reminders. Commit
   `718bc897939017a641e6c3ee20f593c9c7c35516`.
+- Microsoft deferral governance. Commit
+  `1c6979f3a5a1509ed7c31b70766039e88acacc8b`.
+- Date-independent WP-10 integration fixture. Commit
+  `b55331fe62880e39973059703d3459b5e37fbdf5`.
+- WP-13A — Local Alpha Today. Package completion commit is the current
+  package-sized branch commit.
 
 ## Branch disposition
 
-- `main` and `origin/main` were verified at WP-10 commit
-  `718bc897939017a641e6c3ee20f593c9c7c35516` before the governance package.
+- `main` and `origin/main` were verified at
+  `b55331fe62880e39973059703d3459b5e37fbdf5` before WP-13A began.
+- `wp-13a-local-alpha-today` contains the provider-independent package.
 - Remote `wp-11-microsoft-todo-delivery-spike` is preserved at
   `7538b4123cfcba7b65765cd68c4b53c7193a6f15`.
 - The WP-11 branch is experimental, inactive, deliberately unmerged, and the
@@ -64,14 +69,19 @@ Last updated: 23 July 2026
 - WP-11 mocked implementation and local verification succeeded on its preserved
   branch. Live personal-account validation did not complete acceptance and
   remained fail closed. No live To Do delivery channel is accepted.
+- WP-13A passes formatting, lint, strict typecheck, architecture and migration
+  checks, 80 unit tests, 10 live PostgreSQL tests, 10 authenticated browser
+  journeys, 103 governed documents/current dictionary, and all production
+  builds. Evidence proves forced RLS, a concurrent-safe three-priority limit,
+  exact-version undo, content-free Today events, and no provider call.
 - The default shell remains Node.js 21.6.0; Node.js 24.18.0 with pnpm 11.14.0
   is the verified repository runtime.
 - Gitleaks runs in CI; the local repository gate does not require its binary.
 
 ## Decisions and risks
 
-- ADR-0008 retains restricted provisional model routing. No paid model use is
-  part of WP-13A.
+- ADR-0008 retains restricted provisional model routing. WP-13A made no paid
+  model call.
 - ADR-0010 defers WP-11/WP-12 and sequences a provider-independent local Alpha.
 - Canonical task, reminder, journal, goal, planning, memory, and knowledge
   models must remain independent of provider credentials and availability.
@@ -106,7 +116,6 @@ conclusion that Microsoft To Do is technically unsuitable.
 
 ## Next package
 
-WP-13A delivers local Today over canonical tasks/reminders, up to three
-owner-selected priorities, manually entered agenda blocks, in-app completion,
-dismissal, edit and undo, and explicit external-delivery-inactive status.
-Provider-neutral `CalendarPort` and `ReminderDeliveryPort` boundaries remain.
+WP-14 introduces provider-independent goals, resource edges, and soft load
+guidance. It must preserve canonical ownership, forced RLS, deterministic
+validation, explicit owner control, and the inactive provider boundary.

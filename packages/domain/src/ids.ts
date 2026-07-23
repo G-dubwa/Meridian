@@ -29,10 +29,19 @@ export const reminderOccurrenceIdV1Schema = z
 export type ReminderOccurrenceId = z.infer<typeof reminderOccurrenceIdV1Schema>;
 export const commandReceiptIdV1Schema = z.uuid().brand<'CommandReceiptId'>();
 export type CommandReceiptId = z.infer<typeof commandReceiptIdV1Schema>;
+export const agendaBlockIdV1Schema = z.uuid().brand<'AgendaBlockId'>();
+export type AgendaBlockId = z.infer<typeof agendaBlockIdV1Schema>;
+export const dailyPriorityIdV1Schema = z.uuid().brand<'DailyPriorityId'>();
+export type DailyPriorityId = z.infer<typeof dailyPriorityIdV1Schema>;
+export const todayReceiptIdV1Schema = z.uuid().brand<'TodayReceiptId'>();
+export type TodayReceiptId = z.infer<typeof todayReceiptIdV1Schema>;
 export const sessionIdV1Schema = z.uuid().brand<'SessionId'>();
 export type SessionId = z.infer<typeof sessionIdV1Schema>;
 
 export const idSchemasV1 = {
+  agendaBlockId: agendaBlockIdV1Schema,
+  commandReceiptId: commandReceiptIdV1Schema,
+  dailyPriorityId: dailyPriorityIdV1Schema,
   derivationLinkId: derivationLinkIdV1Schema,
   domainEventId: domainEventIdV1Schema,
   entryId: entryIdV1Schema,
@@ -42,9 +51,9 @@ export const idSchemasV1 = {
   taskId: taskIdV1Schema,
   reminderId: reminderIdV1Schema,
   reminderOccurrenceId: reminderOccurrenceIdV1Schema,
-  commandReceiptId: commandReceiptIdV1Schema,
   resourceId: resourceIdV1Schema,
   sessionId: sessionIdV1Schema,
+  todayReceiptId: todayReceiptIdV1Schema,
   userId: userIdV1Schema,
   uuid: uuidV1Schema,
 } as const;

@@ -55,6 +55,13 @@ in `apps/web`. The parser is domain-level deterministic code. No delivery
 adapter is composed, and no application or presentation module imports a
 Microsoft To Do client.
 
+WP-13A adds domain-owned `CalendarPort` and `ReminderDeliveryPort` contracts
+without composing a provider. `application/TodayService` orchestrates local
+date bounds, manual agenda, daily priorities, canonical lifecycle, receipts,
+and content-free events. `infrastructure-db` implements their forced-RLS
+repositories; `api-contracts` and `apps/web` expose the same-origin Today
+boundary. No Today module imports Microsoft or assumes provider state.
+
 `dependency-cruiser.config.mjs` is executable authority for accepted ADR-0002
 rules. Its negative fixtures prove both domain-to-infrastructure and
 application-to-infrastructure imports are rejected, while the exact composition

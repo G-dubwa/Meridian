@@ -8,6 +8,7 @@ import {
   ProposalMaterialChangeInvalidationHook,
   OutboxHealthService,
   TriageService,
+  TodayService,
 } from '@meridian/application';
 import {
   Argon2idPasswordHasher,
@@ -39,6 +40,7 @@ export interface AuthenticationRuntime {
   readonly journal: JournalService;
   readonly microsoft: MicrosoftConnectionService;
   readonly triage: TriageService;
+  readonly today: TodayService;
   readonly secrets: NodeSecretService;
   readonly service: AuthenticationService;
   readonly workerHealth: OutboxHealthService;
@@ -128,6 +130,11 @@ function createRuntime(): AuthenticationRuntime {
       ),
     }),
     triage,
+    today: new TodayService({
+      clock: new SystemClock(),
+      ids,
+      transactions,
+    }),
     workerHealth: new OutboxHealthService(transactions),
   };
 }

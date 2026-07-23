@@ -66,7 +66,7 @@ lines.push(
   '- pgvector is installed as an extension but unused by schema columns.',
   '- `entries.current_revision_id` and `domain_events.aggregate_id` have owner-matching composite foreign keys added by custom migration.',
   '- Entry revisions and domain events reject updates; deletion remains available for governed hard-deletion propagation.',
-  '- Registry seeds: `resource.entry@1`, `attrs.entry@1`, `resource.proposal@1`, `resource.task@1`, and `resource.reminder@1`.',
+  '- Registry seeds: `resource.entry@1`, `attrs.entry@1`, `resource.proposal@1`, `resource.task@1`, `resource.reminder@1`, and `resource.agenda_block@1`.',
   '',
 );
 

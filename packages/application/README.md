@@ -44,7 +44,13 @@ Schema, deterministic validation, provenance, explicit uncertainty, abstention,
 and confidence fail closed together without automatic tier escalation. It
 imports no adapter.
 
+`TodayService` composes local task/reminder records, owner-entered agenda
+blocks, and three daily priority references. It owns content-free lifecycle
+events and exact-version receipts for completion, dismissal, and undo. It does
+not receive or call a calendar or reminder-delivery adapter in WP-13A.
+
 Tests: dependency-cruiser proves application-to-infrastructure imports fail.
-Authentication, journal, and event services use live PostgreSQL/pg-boss/Next.js
+Authentication, journal, Today, and event services use live
+PostgreSQL/pg-boss/Next.js
 journeys; model gateway and routing use isolated mock adapters. Unit tests cover
 schemas, policy, retry/terminal transitions, and content-safe observations.

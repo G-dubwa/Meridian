@@ -261,6 +261,42 @@ export class DrizzleReminderOccurrenceRepository implements ReminderOccurrenceRe
         ),
       );
   }
+
+  public async settle(
+    scope: UserScope,
+    reminderId: ReminderRecord['id'],
+    state: 'acknowledged' | 'dismissed',
+    at: Date,
+  ): Promise<void> {
+    await this.database
+      .update(reminderOccurrences)
+      .set({ state, updatedAt: at })
+      .where(
+        and(
+          eq(reminderOccurrences.userId, scope.userId),
+          eq(reminderOccurrences.reminderId, reminderId),
+          eq(reminderOccurrences.state, 'pending'),
+        ),
+      );
+  }
+
+  public async restoreSettled(
+    scope: UserScope,
+    reminderId: ReminderRecord['id'],
+    state: 'acknowledged' | 'dismissed',
+    at: Date,
+  ): Promise<void> {
+    await this.database
+      .update(reminderOccurrences)
+      .set({ state: 'pending', updatedAt: at })
+      .where(
+        and(
+          eq(reminderOccurrences.userId, scope.userId),
+          eq(reminderOccurrences.reminderId, reminderId),
+          eq(reminderOccurrences.state, state),
+        ),
+      );
+  }
 }
 
 function mapReceipt(
@@ -297,6 +333,25 @@ export class DrizzleCommandReceiptRepository implements CommandReceiptRepository
           eq(commandReceipts.id, id),
         ),
       )
+      .limit(1);
+    return row ? mapReceipt(row, scope) : null;
+  }
+
+  public async findActiveForTarget(
+    scope: UserScope,
+    targetResourceId: CommandReceiptRecord['targetResourceId'],
+  ): Promise<CommandReceiptRecord | null> {
+    const [row] = await this.database
+      .select()
+      .from(commandReceipts)
+      .where(
+        and(
+          eq(commandReceipts.userId, scope.userId),
+          eq(commandReceipts.targetResourceId, targetResourceId),
+          eq(commandReceipts.status, 'active'),
+        ),
+      )
+      .orderBy(desc(commandReceipts.createdAt))
       .limit(1);
     return row ? mapReceipt(row, scope) : null;
   }

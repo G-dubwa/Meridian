@@ -8,4 +8,16 @@ related-docs: ../README.md
 
 # Known limitations
 
-Status: WP-01 governed placeholder. Populate this document only in the work package that introduces its authoritative definitions.
+- External calendar agenda synchronisation and external reminder/phone
+  notification delivery are inactive and unaccepted.
+- Today contains only canonical local tasks/reminders, owner-selected
+  priorities, and manually entered agenda blocks. It cannot infer availability
+  from a provider.
+- In-app completion or dismissal is not evidence that a phone notification was
+  sent, received, or acted on.
+- Daily priorities are deliberately capped at three and are selected per
+  owner-local date; no automatic ranking is active.
+- Goals, load guidance, deterministic scheduling proposals, execution evidence,
+  Weekly Review, retrieval, and analytics remain later packages.
+- The preserved Microsoft branch is experimental and does not provide an
+  active capability on `main`.

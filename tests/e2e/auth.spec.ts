@@ -43,7 +43,7 @@ async function login(
   });
 }
 
-test.describe.serial('WP-04 through WP-10 authenticated acceptance', () => {
+test.describe.serial('WP-04 through WP-13A authenticated acceptance', () => {
   test('bootstraps exactly one owner and stores only Argon2id/recovery hashes', async () => {
     const first = spawnSync(
       'pnpm',
@@ -610,6 +610,198 @@ test.describe.serial('WP-04 through WP-10 authenticated acceptance', () => {
         where event_type like 'action.%'
       `;
       expect(audit).toEqual({ body_leaks: '0', external_rows: '0' });
+    } finally {
+      await sql.end();
+    }
+  });
+
+  test('uses local Today priorities, agenda, completion, dismissal, and undo without a provider', async ({
+    request,
+  }) => {
+    const localDate = new Date().toLocaleDateString('en-CA', {
+      timeZone: 'Africa/Johannesburg',
+    });
+    const timeZone = 'Africa/Johannesburg';
+    const query = new URLSearchParams({ date: localDate, timeZone });
+    expect((await request.get(`/api/today?${query.toString()}`)).status()).toBe(
+      401,
+    );
+    expect((await login(request)).status()).toBe(200);
+    const csrfToken = await csrfCookie(request);
+    const todayPage = await request.get('/today');
+    expect(todayPage.status()).toBe(200);
+    expect(await todayPage.text()).toContain('Local Alpha');
+
+    const taskCreated = await request.post('/api/actions/tasks', {
+      data: {
+        authority: {
+          ambiguous: false,
+          deterministic: true,
+          explicit: true,
+          externalEffect: false,
+          ownerConfirmed: true,
+        },
+        dueAt: null,
+        estimateMinutes: 15,
+        goalResourceId: null,
+        kind: 'task',
+        notes: 'E2E Today private notes',
+        title: 'E2E Today task',
+      },
+      headers: { 'x-csrf-token': csrfToken },
+    });
+    expect(taskCreated.status()).toBe(201);
+    const taskBody = (await taskCreated.json()) as {
+      target: {
+        task: { id: string; version: number };
+        targetType: 'task';
+      };
+    };
+
+    const noCsrf = await request.post('/api/today/priorities', {
+      data: {
+        localDate,
+        ownerConfirmed: true,
+        position: 1,
+        taskId: taskBody.target.task.id,
+      },
+    });
+    expect(noCsrf.status()).toBe(403);
+    const priority = await request.post('/api/today/priorities', {
+      data: {
+        localDate,
+        ownerConfirmed: true,
+        position: 1,
+        taskId: taskBody.target.task.id,
+      },
+      headers: { 'x-csrf-token': csrfToken },
+    });
+    expect(priority.status()).toBe(201);
+
+    const start = new Date(Date.now() + 60 * 60 * 1_000);
+    const end = new Date(start.getTime() + 60 * 60 * 1_000);
+    const agenda = await request.post('/api/today/agenda', {
+      data: {
+        endsAt: end.toISOString(),
+        notes: 'E2E Today private agenda notes',
+        ownerConfirmed: true,
+        startsAt: start.toISOString(),
+        timeZone,
+        title: 'E2E Today agenda',
+      },
+      headers: { 'x-csrf-token': csrfToken },
+    });
+    expect(agenda.status()).toBe(201);
+
+    const reminderCreated = await request.post('/api/actions/reminders', {
+      data: {
+        authority: {
+          ambiguous: false,
+          deterministic: true,
+          explicit: true,
+          externalEffect: false,
+          ownerConfirmed: true,
+        },
+        expiresAt: null,
+        priority: 'normal',
+        purpose: 'E2E Today reminder',
+        recurrence: null,
+        relatedResourceId: null,
+        timeZone,
+        triggerAt: new Date(Date.now() + 30 * 60 * 1_000).toISOString(),
+      },
+      headers: { 'x-csrf-token': csrfToken },
+    });
+    expect(reminderCreated.status()).toBe(201);
+    const reminderBody = (await reminderCreated.json()) as {
+      target: {
+        reminder: { id: string; version: number };
+        targetType: 'reminder';
+      };
+    };
+
+    const snapshot = await request.get(`/api/today?${query.toString()}`);
+    expect(snapshot.status()).toBe(200);
+    expect(await snapshot.json()).toMatchObject({
+      channel: { externalDeliveryActive: false, status: 'inactive' },
+      priorities: [
+        expect.objectContaining({ taskId: taskBody.target.task.id }),
+      ],
+      reminders: [
+        expect.objectContaining({
+          reminder: expect.objectContaining({
+            deliveryPolicy: 'undecided',
+            id: reminderBody.target.reminder.id,
+          }),
+        }),
+      ],
+      tasks: [
+        expect.objectContaining({
+          task: expect.objectContaining({ id: taskBody.target.task.id }),
+        }),
+      ],
+    });
+
+    const completed = await request.post(
+      `/api/today/tasks/${taskBody.target.task.id}/complete`,
+      {
+        data: {
+          expectedVersion: taskBody.target.task.version,
+          ownerConfirmed: true,
+        },
+        headers: { 'x-csrf-token': csrfToken },
+      },
+    );
+    expect(completed.status()).toBe(200);
+    const completionReceipt = (await completed.json()) as {
+      id: string;
+      status: string;
+      version: number;
+    };
+    expect(completionReceipt.status).toBe('active');
+    const undo = await request.post(
+      `/api/today/receipts/${completionReceipt.id}/undo`,
+      {
+        data: {
+          expectedVersion: completionReceipt.version,
+          ownerConfirmed: true,
+        },
+        headers: { 'x-csrf-token': csrfToken },
+      },
+    );
+    expect(undo.status()).toBe(200);
+    expect(await undo.json()).toMatchObject({ status: 'undone' });
+
+    const dismissed = await request.post(
+      `/api/today/reminders/${reminderBody.target.reminder.id}/dismiss`,
+      {
+        data: {
+          expectedVersion: reminderBody.target.reminder.version,
+          ownerConfirmed: true,
+        },
+        headers: { 'x-csrf-token': csrfToken },
+      },
+    );
+    expect(dismissed.status()).toBe(200);
+
+    const sql = postgres(databaseUrl, { prepare: false });
+    try {
+      const [audit] = await sql<
+        { content_leaks: string; provider_events: string }[]
+      >`
+        select
+          count(*) filter (
+            where payload::text like '%E2E Today%'
+          )::text as content_leaks,
+          count(*) filter (
+            where event_type like 'integration.%'
+               or event_type like 'calendar.%'
+               or event_type like 'delivery.%'
+          )::text as provider_events
+        from domain_events
+        where event_type like 'today.%'
+      `;
+      expect(audit).toEqual({ content_leaks: '0', provider_events: '0' });
     } finally {
       await sql.end();
     }

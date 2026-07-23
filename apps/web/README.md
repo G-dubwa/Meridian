@@ -10,7 +10,7 @@ related-docs: ../../docs/architecture/module-map.md
 
 Responsibility: mobile-responsive UI, thin REST presentation, and explicit
 server-process composition. It includes `/login`, `/settings/security`,
-`/journal`, `/journal/[entryId]`, `/settings/health`, and the
+`/journal`, `/journal/[entryId]`, `/today`, `/settings/health`, and the
 auth/journal/worker-health REST routes while preserving `/health`.
 
 Exclusions: domain invariants, persistence policy, provider calls, and business
@@ -26,3 +26,9 @@ optimistic edit/archive/deletion request, and a content-free activity ledger.
 Worker health exposes owner-scoped durable counts/dead letters without queue or
 event payloads. Playwright covers live Next.js and PostgreSQL. Architecture is
 ADR-0002, ADR-0004, ADR-0005, and ADR-0006.
+
+Today displays local canonical tasks/reminders, manual agenda blocks, and at
+most three owner-selected priorities. It offers owner-confirmed in-app
+completion, dismissal, edit, and guarded undo while explicitly stating that
+external phone delivery is inactive. It has no provider import or credential
+dependency.

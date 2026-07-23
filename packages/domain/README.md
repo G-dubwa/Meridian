@@ -26,3 +26,8 @@ WP-07 adds the immutable five-scope Microsoft tuple, connection/consent states,
 OAuth/PKCE/token-cipher ports, owner-scoped integration repositories, and strict
 content-free integration event payloads. It contains no provider URL, SDK, HTTP,
 or cryptographic implementation.
+
+WP-13A adds local-date/agenda/priority/lifecycle schemas and provider-neutral
+`CalendarPort` and `ReminderDeliveryPort` contracts. These ports contain
+normalised Meridian types only. No provider credential, Graph type, or delivery
+claim enters the domain.
