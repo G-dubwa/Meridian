@@ -158,6 +158,8 @@ export interface RunRecord {
   readonly lastErrorCode: string | null;
   readonly latestCodexHandoff: string | null;
   readonly latestClaudeHandoff: string | null;
+  readonly authorizedCostCeilingUsd: number;
+  readonly estimatedCostUsd: number;
 }
 
 export interface CommandResult {

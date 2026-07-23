@@ -231,7 +231,12 @@ export class Supervisor {
 
   public async plan(
     workPackageId: string,
-    options: { readonly pilotMode?: boolean } = {},
+    options: {
+      readonly baseReference?: string;
+      readonly costCeilingUsd?: number;
+      readonly ownerConfirmedPaidPilot?: boolean;
+      readonly pilotMode?: boolean;
+    } = {},
   ): Promise<RunRecord> {
     const workPackage = loadWorkPackage(this.root, workPackageId);
     for (const path of [
@@ -239,12 +244,23 @@ export class Supervisor {
       ...workPackage.allowedImplementationPaths,
     ])
       assertSafeRelativePath(this.root, path);
-    const mandatoryGateClass = workPackage.externalProviderAccess
-      ? 'live_provider_access'
-      : workPackage.personalDataAllowed
-        ? 'personal_data_transmission'
-        : (workPackage.mandatoryGateClasses[0] ?? null);
-    const baseCommit = await resolveCommit(this.root, 'origin/main');
+    const costCeilingUsd = options.costCeilingUsd ?? 0;
+    if (!Number.isFinite(costCeilingUsd) || costCeilingUsd < 0)
+      throw new Error('The run cost ceiling must be a non-negative USD value.');
+    const paidGateRequired =
+      costCeilingUsd > this.config.paidModelAllowanceUsd &&
+      !options.ownerConfirmedPaidPilot;
+    const mandatoryGateClass = paidGateRequired
+      ? 'paid_model_above_allowance'
+      : workPackage.externalProviderAccess
+        ? 'live_provider_access'
+        : workPackage.personalDataAllowed
+          ? 'personal_data_transmission'
+          : (workPackage.mandatoryGateClasses[0] ?? null);
+    const baseCommit = await resolveCommit(
+      this.root,
+      options.baseReference ?? 'origin/main',
+    );
     const runId = `${workPackageId.toLowerCase()}-${new Date()
       .toISOString()
       .replace(/\D/gu, '')
@@ -252,10 +268,12 @@ export class Supervisor {
     const createdAt = nowIso();
     const run: RunRecord = {
       activeChildPid: null,
+      authorizedCostCeilingUsd: costCeilingUsd,
       baseCommit,
       branchName: `agent/${workPackageId.toLowerCase()}-${runId.slice(-8)}`,
       candidateCommit: null,
       createdAt,
+      estimatedCostUsd: 0,
       lastErrorCode: null,
       latestClaudeHandoff: null,
       latestCodexHandoff: null,
@@ -286,6 +304,7 @@ export class Supervisor {
     const assignment = {
       actor: 'supervisor',
       allowedImplementationPaths: workPackage.allowedImplementationPaths,
+      authorizedCostCeilingUsd: costCeilingUsd,
       baseCommit,
       candidateCommit: null,
       commandsExecuted: [],
@@ -386,12 +405,26 @@ export class Supervisor {
     });
   }
 
+  private accountInvocationCost(
+    run: RunRecord,
+    costUsd: number | null,
+  ): RunRecord {
+    if (costUsd === null) return run;
+    const estimatedCostUsd = run.estimatedCostUsd + costUsd;
+    if (estimatedCostUsd > run.authorizedCostCeilingUsd)
+      throw new Error(
+        'Cumulative agent cost exceeded the authorized run ceiling.',
+      );
+    return updateRun(this.root, this.config, run, { estimatedCostUsd });
+  }
+
   private async invokeAgent(
     run: RunRecord,
     actor: 'codex' | 'claude',
     repair: boolean,
     workPackage: WorkPackageDefinition,
   ): Promise<{
+    readonly costUsd: number | null;
     readonly handoff: ReturnType<typeof parseHandoff>;
     readonly result: CommandResult;
     readonly path: string;
@@ -446,6 +479,12 @@ export class Supervisor {
     await exactHead(worktree, expectedCommit);
     await assertClean(worktree);
     const command = run.pilotMode ? process.execPath : actor;
+    const remainingBudgetUsd =
+      run.authorizedCostCeilingUsd - run.estimatedCostUsd;
+    if (!run.pilotMode && actor === 'claude' && remainingBudgetUsd <= 0)
+      throw new Error(
+        'Claude invocation refused because no authorized cost budget remains.',
+      );
     const args = run.pilotMode
       ? [fixture]
       : actor === 'codex'
@@ -469,6 +508,13 @@ export class Supervisor {
             prompt,
             '--output-format',
             'json',
+            '--safe-mode',
+            '--strict-mcp-config',
+            '--mcp-config',
+            '{}',
+            '--no-session-persistence',
+            '--max-budget-usd',
+            remainingBudgetUsd.toFixed(6),
             '--json-schema',
             readFileSync(schema, 'utf8'),
             '--disallowedTools',
@@ -510,13 +556,42 @@ export class Supervisor {
       );
     assertNoSensitiveText(result.stdout, `${actor} stdout`);
     assertNoSensitiveText(result.stderr, `${actor} stderr`);
+    let costUsd: number | null = null;
+    let claudeResponse:
+      | {
+          readonly structured_output?: unknown;
+          readonly total_cost_usd?: unknown;
+        }
+      | undefined;
+    if (actor === 'claude' && !run.pilotMode) {
+      claudeResponse = JSON.parse(result.stdout) as {
+        readonly structured_output?: unknown;
+        readonly total_cost_usd?: unknown;
+      };
+      const reportedCost = claudeResponse.total_cost_usd;
+      if (
+        typeof reportedCost !== 'number' ||
+        !Number.isFinite(reportedCost) ||
+        reportedCost < 0
+      )
+        throw new Error(
+          'Claude response omitted valid content-free cost metadata.',
+        );
+      costUsd = reportedCost;
+      if (costUsd > remainingBudgetUsd)
+        throw new Error(
+          'Claude reported cost above the authorized remaining ceiling.',
+        );
+    }
     if (
       actor === 'claude' &&
       readFileSync(outputPath, 'utf8').trim().length === 0
     ) {
-      const response = JSON.parse(result.stdout) as {
-        readonly structured_output?: unknown;
-      };
+      const response =
+        claudeResponse ??
+        (JSON.parse(result.stdout) as {
+          readonly structured_output?: unknown;
+        });
       if (response.structured_output === undefined)
         throw new Error('Claude response omitted structured_output.');
       writeFileSync(
@@ -532,7 +607,7 @@ export class Supervisor {
       repair,
       run,
     });
-    return { handoff, path: outputPath, result };
+    return { costUsd, handoff, path: outputPath, result };
   }
 
   private async deterministicChecks(
@@ -627,6 +702,7 @@ export class Supervisor {
               false,
               workPackage,
             );
+            run = this.accountInvocationCost(run, invocation.costUsd);
             if (invocation.handoff.humanGateRequired) {
               run = this.humanGate(
                 run,
@@ -694,33 +770,33 @@ export class Supervisor {
           case 'CLAUDE_RETEST': {
             if (!run.candidateCommit)
               throw new Error('Claude cannot audit a missing candidate.');
+            const candidateCommit = run.candidateCommit;
             const auditor = resolve(
               this.root,
               this.config.worktreeRoot,
               'claude-auditor',
             );
-            await materializeAuditorCommit(auditor, run.candidateCommit);
+            await materializeAuditorCommit(auditor, candidateCommit);
             const invocation = await this.invokeAgent(
               run,
               'claude',
               run.state === 'CLAUDE_RETEST',
               workPackage,
             );
+            run = this.accountInvocationCost(run, invocation.costUsd);
             const qaChanges = await workingTreePaths(auditor);
             assertPathsAllowed(auditor, qaChanges, this.config.qaWritablePaths);
             await assertClean(auditor);
             const auditedCommit = await resolveCommit(auditor, 'HEAD');
             let qaCommit = run.qaCommit;
-            if (auditedCommit !== run.candidateCommit) {
-              if (
-                !(await isAncestor(auditor, run.candidateCommit, auditedCommit))
-              )
+            if (auditedCommit !== candidateCommit) {
+              if (!(await isAncestor(auditor, candidateCommit, auditedCommit)))
                 throw new Error(
                   'QA commit does not descend from the exact audited candidate.',
                 );
               assertPathsAllowed(
                 auditor,
-                await changedPaths(auditor, run.candidateCommit, auditedCommit),
+                await changedPaths(auditor, candidateCommit, auditedCommit),
                 this.config.qaWritablePaths,
               );
               await recordQaBranch(this.root, run.qaBranchName, auditedCommit);
@@ -785,6 +861,7 @@ export class Supervisor {
               true,
               workPackage,
             );
+            run = this.accountInvocationCost(run, invocation.costUsd);
             if (invocation.handoff.status !== 'ready_for_retest')
               throw new Error('Codex repair did not return ready_for_retest.');
             const candidateCommit = invocation.handoff.candidateCommit;
@@ -839,6 +916,7 @@ export class Supervisor {
               `${JSON.stringify(
                 {
                   actor: 'supervisor',
+                  authorizedCostCeilingUsd: run.authorizedCostCeilingUsd,
                   baseCommit: run.baseCommit,
                   candidateCommit: run.candidateCommit,
                   commandsExecuted: commands,
@@ -846,6 +924,7 @@ export class Supervisor {
                     run.latestCodexHandoff,
                     run.latestClaudeHandoff,
                   ].filter(Boolean),
+                  estimatedCostUsd: run.estimatedCostUsd,
                   findings: [],
                   humanGateRequired: false,
                   mergeAuthorized: false,
@@ -1045,8 +1124,10 @@ export class Supervisor {
       : 0;
     return JSON.stringify(
       {
+        authorizedCostCeilingUsd: run.authorizedCostCeilingUsd,
         baseCommit: run.baseCommit,
         candidateCommit: run.candidateCommit,
+        estimatedCostUsd: run.estimatedCostUsd,
         humanGateRequired: run.state === 'HUMAN_GATE',
         mergeAuthorized: false,
         pilotMode: run.pilotMode,

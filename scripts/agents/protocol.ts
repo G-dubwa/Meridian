@@ -438,6 +438,7 @@ export function parseRunRecord(raw: unknown): RunRecord {
       'protocolVersion',
       'runId',
       'workPackageId',
+      'authorizedCostCeilingUsd',
       'baseCommit',
       'branchName',
       'qaBranchName',
@@ -446,6 +447,7 @@ export function parseRunRecord(raw: unknown): RunRecord {
       'qaCommit',
       'repairCycles',
       'createdAt',
+      'estimatedCostUsd',
       'updatedAt',
       'activeChildPid',
       'stopRequested',
@@ -478,12 +480,28 @@ export function parseRunRecord(raw: unknown): RunRecord {
     throw new Error('Run repair cycles are invalid.');
   const baseCommit = commit(value.baseCommit, 'run.baseCommit');
   if (baseCommit === null) throw new Error('Run base commit cannot be null.');
+  const authorizedCostCeilingUsd = number(
+    value.authorizedCostCeilingUsd,
+    'run.authorizedCostCeilingUsd',
+  );
+  const estimatedCostUsd = number(
+    value.estimatedCostUsd,
+    'run.estimatedCostUsd',
+  );
+  if (
+    authorizedCostCeilingUsd < 0 ||
+    estimatedCostUsd < 0 ||
+    estimatedCostUsd > authorizedCostCeilingUsd
+  )
+    throw new Error('Run cost accounting is invalid.');
   return {
     activeChildPid,
+    authorizedCostCeilingUsd,
     baseCommit,
     branchName: string(value.branchName, 'run.branchName'),
     candidateCommit: commit(value.candidateCommit, 'run.candidateCommit', true),
     createdAt: string(value.createdAt, 'run.createdAt'),
+    estimatedCostUsd,
     lastErrorCode: nullableText(value.lastErrorCode, 'run.lastErrorCode'),
     latestClaudeHandoff: nullableText(
       value.latestClaudeHandoff,

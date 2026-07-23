@@ -53,3 +53,8 @@ The live pilot remains blocked until:
 
 No product work package, merge, external provider integration, or personal data
 is authorized by that approval.
+
+The owner approved one live QA-only pilot on 23 July 2026 with a cumulative
+maximum of USD 50. That approval applies only to the exact guarded command,
+synthetic repository content, and the verified infrastructure branch. It does
+not authorize product work or another live run.

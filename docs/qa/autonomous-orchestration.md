@@ -48,6 +48,7 @@ pnpm agents:resume <run-id>
 pnpm agents:stop <run-id>
 pnpm agents:report <run-id>
 pnpm agents:pilot
+pnpm agents:pilot -- --live --max-cost-usd=<USD> --confirm-paid-pilot
 pnpm agents:deliver <run-id>
 ```
 
@@ -131,6 +132,14 @@ committed assignment authorizes delivery. Configured branch pushes use exact
 commit refspecs; optional main delivery is fast-forward-only and refuses a
 changed `origin/main`. Push, pull-request, and automatic-fast-forward controls
 stay disabled for the initial pilot.
+
+A live infrastructure pilot requires an explicit run-scoped ceiling and literal
+confirmation. It bases its isolated worktrees on the verified infrastructure
+`HEAD`, where the pilot specification exists. Claude receives only the
+remaining cumulative allowance through `--max-budget-usd`; its content-free
+reported cost is persisted and required before another invocation. Codex uses
+the owner's fixed ChatGPT authentication rather than an API key. The committed
+default remains USD 0, so the approval does not silently authorize later runs.
 
 ## Adding another agent
 

@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { parseHandoff } from '../../scripts/agents/protocol.js';
+import { parseRunRecord } from '../../scripts/agents/protocol.js';
 import { runCommand } from '../../scripts/agents/process-runner.js';
 import {
   assertNoSensitiveText,
@@ -29,10 +30,12 @@ function temporary(): string {
 function runRecord(): RunRecord {
   return {
     activeChildPid: null,
+    authorizedCostCeilingUsd: 0,
     baseCommit: 'a'.repeat(40),
     branchName: 'agent/test-run',
     candidateCommit: null,
     createdAt: '2026-07-23T00:00:00.000Z',
+    estimatedCostUsd: 0,
     lastErrorCode: null,
     latestClaudeHandoff: null,
     latestCodexHandoff: null,
@@ -179,6 +182,16 @@ describe('governed agent orchestration', () => {
       run.workPackageId,
     );
     releaseAgain();
+  });
+
+  it('rejects run state whose reported cost exceeds its owner ceiling', () => {
+    expect(() => {
+      parseRunRecord({
+        ...runRecord(),
+        authorizedCostCeilingUsd: 1,
+        estimatedCostUsd: 1.01,
+      });
+    }).toThrow(/cost accounting/u);
   });
 
   it('keeps artifacts content-free in the fixture', () => {

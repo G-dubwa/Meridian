@@ -8,7 +8,11 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 function option(name: string): string | null {
   const index = process.argv.indexOf(name);
   const value = index >= 0 ? process.argv[index + 1] : undefined;
-  return value && !value.startsWith('--') ? value : null;
+  if (value && !value.startsWith('--')) return value;
+  const inline = process.argv.find((argument) =>
+    argument.startsWith(`${name}=`),
+  );
+  return inline ? inline.slice(name.length + 1) : null;
 }
 
 function positional(index: number): string | null {
@@ -112,6 +116,31 @@ async function main(): Promise<void> {
       return;
     }
     case 'pilot': {
+      const live = process.argv.includes('--live');
+      if (live) {
+        const rawCost = required(
+          option('--max-cost-usd'),
+          'Live pilot requires --max-cost-usd <AMOUNT>.',
+        );
+        const costCeilingUsd = Number(rawCost);
+        if (!process.argv.includes('--confirm-paid-pilot'))
+          throw new Error(
+            'Live pilot requires the literal --confirm-paid-pilot gate.',
+          );
+        const planned = await supervisor.plan('INFRA-PILOT', {
+          baseReference: 'HEAD',
+          costCeilingUsd,
+          ownerConfirmedPaidPilot: true,
+          pilotMode: false,
+        });
+        const completed = await supervisor.run(planned.runId);
+        if (
+          ['READY_TO_MERGE', 'FAILED', 'HUMAN_GATE'].includes(completed.state)
+        )
+          await supervisor.cleanup(planned.runId);
+        process.stdout.write(`${supervisor.report(completed.runId)}\n`);
+        return;
+      }
       const planned = await supervisor.plan('INFRA-PILOT', {
         pilotMode: true,
       });

@@ -11,6 +11,7 @@
     "baseCommit",
     "candidateCommit",
     "actor",
+    "authorizedCostCeilingUsd",
     "status",
     "requirementsEvaluated",
     "findings",
@@ -19,6 +20,7 @@
     "testResults",
     "nextRequestedActor",
     "humanGateRequired",
+    "estimatedCostUsd",
     "repairCycles",
     "mergeAuthorized"
   ],
@@ -29,6 +31,7 @@
     "baseCommit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
     "candidateCommit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
     "actor": { "const": "supervisor" },
+    "authorizedCostCeilingUsd": { "type": "number", "minimum": 0 },
     "status": {
       "enum": ["approved", "blocked", "human_gate_required", "failed"]
     },
@@ -45,6 +48,7 @@
     },
     "nextRequestedActor": { "enum": ["human", "none"] },
     "humanGateRequired": { "type": "boolean" },
+    "estimatedCostUsd": { "type": "number", "minimum": 0 },
     "repairCycles": { "type": "integer", "minimum": 0, "maximum": 4 },
     "mergeAuthorized": { "const": false }
   }
