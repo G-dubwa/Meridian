@@ -1,0 +1,52 @@
+{
+  "protocolVersion": "1.0.0",
+  "worktreeRoot": ".worktrees",
+  "runRoot": ".agents/runs",
+  "lockRoot": ".agents/locks",
+  "maxRepairCycles": 4,
+  "staleAfterMinutes": 360,
+  "agentTimeoutMinutes": 45,
+  "infrastructureRetries": 1,
+  "paidModelAllowanceUsd": 0,
+  "automaticMerge": false,
+  "pushBranches": false,
+  "openPullRequest": false,
+  "qaWritablePaths": [
+    "tests/autonomous-acceptance/",
+    "docs/qa/",
+    "playwright.qa.config.ts",
+    "playwright.qa.config.mts",
+    "playwright.qa.config.js"
+  ],
+  "forbiddenReadPatterns": [
+    ".env",
+    ".env.local",
+    ".env.*",
+    "**/.env",
+    "**/.env.local",
+    "**/.env.*"
+  ],
+  "mandatoryGateClasses": [
+    "new_provider_permission",
+    "live_provider_access",
+    "paid_model_above_allowance",
+    "personal_data_transmission",
+    "production_deployment",
+    "destructive_database_operation",
+    "live_account_deletion",
+    "real_phone_notification",
+    "safety_sensitive_health",
+    "unresolved_agent_disagreement",
+    "suspected_secret_exposure",
+    "scope_expansion"
+  ],
+  "preflightCommands": [
+    "pnpm format:check",
+    "pnpm lint",
+    "pnpm typecheck",
+    "pnpm deps:check",
+    "pnpm db:check",
+    "pnpm test"
+  ],
+  "finalVerificationCommands": ["pnpm check"]
+}

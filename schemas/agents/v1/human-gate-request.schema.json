@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://meridian.local/schemas/agents/v1/human-gate-request.schema.json",
+  "title": "Human gate request v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocolVersion",
+    "runId",
+    "workPackageId",
+    "baseCommit",
+    "candidateCommit",
+    "actor",
+    "status",
+    "requirementsEvaluated",
+    "findings",
+    "evidencePaths",
+    "commandsExecuted",
+    "testResults",
+    "nextRequestedActor",
+    "humanGateRequired",
+    "gateClass",
+    "request",
+    "reason",
+    "untouched"
+  ],
+  "properties": {
+    "protocolVersion": { "const": "1.0.0" },
+    "runId": { "type": "string" },
+    "workPackageId": { "type": "string" },
+    "baseCommit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "candidateCommit": {
+      "type": ["string", "null"],
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "actor": { "const": "supervisor" },
+    "status": { "const": "human_gate_required" },
+    "requirementsEvaluated": { "type": "array", "items": { "type": "string" } },
+    "findings": {
+      "type": "array",
+      "items": { "$ref": "common.schema.json#/$defs/finding" }
+    },
+    "evidencePaths": { "type": "array", "items": { "type": "string" } },
+    "commandsExecuted": { "type": "array", "items": { "type": "string" } },
+    "testResults": {
+      "type": "array",
+      "items": { "$ref": "common.schema.json#/$defs/testResult" }
+    },
+    "nextRequestedActor": { "const": "human" },
+    "humanGateRequired": { "const": true },
+    "gateClass": { "type": "string" },
+    "request": { "type": "string", "minLength": 1 },
+    "reason": { "type": "string", "minLength": 1 },
+    "untouched": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string" }
+    }
+  }
+}

@@ -153,3 +153,21 @@ administrator, wall-clock or time-zone database drift, travel semantics not yet
 implemented, and an owner assuming a scheduled internal reminder will notify a
 device. WP-11 must receive explicit permission approval and real-device
 evidence before any Microsoft To Do or alternate delivery adapter activates.
+
+## INFRA-01 orchestration extension
+
+| Threat                                       | Controls                                                                                                                                                          |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Agent reads local secrets or owner data      | Git-created worktrees omit ignored environment files; child environment allowlist omits keys/database URLs; prompts forbid credential and persistent-data access. |
+| Agent contacts an unapproved provider        | Provider variables omitted, deny marker set, Claude web/common network tools denied, no provider adapter composed, synthetic pilot only.                          |
+| Malformed or stale handoff changes state     | Strict runtime shape plus exact protocol/run/package/base/candidate/actor checks; supervisor alone transitions.                                                   |
+| Headless process waits forever               | Closed stdin, explicit timeout, detached process-group termination, persisted PID and stop request.                                                               |
+| QA edits production code                     | Separate detached worktree and QA path allowlist; exact candidate and clean state verified.                                                                       |
+| Secret enters artifacts or logs              | Secret-pattern scanning before persistence/transition; owner-only ignored run directories; content-free telemetry.                                                |
+| Agent loop consumes unbounded time or cost   | Four repair cycles, bounded infrastructure retry, timeout, USD 0 pre-authorized paid allowance, human gate.                                                       |
+| Verified commit is rewritten or merged early | Full hashes and ancestry checks; no amend/rebase/squash; automatic merge/push/PR disabled for initial pilot.                                                      |
+
+Residual risks include compromised CLI binaries or host, semantic collusion or
+shared model blind spots, incomplete requirements, allowed-file misuse, and
+secret forms outside deterministic scanner patterns. The synthetic pilot does
+not reduce those live-agent residual risks.

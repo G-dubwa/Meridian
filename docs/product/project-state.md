@@ -12,11 +12,12 @@ Last updated: 23 July 2026
 
 ## Current work package
 
-- WP-15 deterministic scheduling and local planning proposals is complete on
-  `wp-15-deterministic-local-scheduling`, based on verified WP-14 `main`.
-- The package adds only local canonical plan intent and leaves every
-  provider-dependent package inactive.
-- WP-17 execution evidence and The Weekly is next; WP-16 remains deferred.
+- INFRA-01 governed Codex–Claude orchestration is the active standalone
+  infrastructure workstream on `infra/codex-claude-orchestrator`, based on
+  exact `origin/main` at WP-15.
+- No product work package is active in this branch. WP-17 remains next but is
+  paused until the owner reviews the orchestration pilot.
+- Microsoft-dependent work remains deferred and untouched.
 
 ## Completed packages
 
@@ -53,10 +54,10 @@ Last updated: 23 July 2026
 
 ## Branch disposition
 
-- `main` and `origin/main` were verified at WP-14 commit
-  `50989cd0273324f32c110896b6aa5189c6a609ea` before WP-15 began.
-- `wp-15-deterministic-local-scheduling` contains the provider-independent
-  package pending its package-sized integration.
+- `origin/main` is the exact INFRA-01 product baseline at
+  `fbc86fc4adb53648caef403e2a79a09e35e0cba6`.
+- `infra/codex-claude-orchestrator` contains only the governed supervisor,
+  protocol, tests, and documentation.
 - Remote `wp-11-microsoft-todo-delivery-spike` is preserved at
   `7538b4123cfcba7b65765cd68c4b53c7193a6f15`.
 - The WP-11 branch is experimental, inactive, deliberately unmerged, and the
@@ -133,6 +134,7 @@ conclusion that Microsoft To Do is technically unsuitable.
 
 ## Next package
 
-WP-17 introduces provider-independent execution evidence and The Weekly. It
-must preserve confirmed-versus-planned separation, provenance, missing-data
-semantics, owner review authority, and the inactive provider boundary.
+Owner review of the INFRA-01 offline pilot is next. A real Codex–Claude pilot
+requires a separate approval because Claude Code is not installed and this
+workstream authorizes no external model service. WP-17 remains the next product
+package only after that review.

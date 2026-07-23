@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://meridian.local/schemas/agents/v1/work-package-assignment.schema.json",
+  "title": "Meridian work-package assignment v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocolVersion",
+    "runId",
+    "workPackageId",
+    "baseCommit",
+    "candidateCommit",
+    "actor",
+    "status",
+    "requirementsEvaluated",
+    "findings",
+    "evidencePaths",
+    "commandsExecuted",
+    "testResults",
+    "nextRequestedActor",
+    "humanGateRequired",
+    "specificationPaths",
+    "allowedImplementationPaths"
+  ],
+  "properties": {
+    "protocolVersion": { "const": "1.0.0" },
+    "runId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{7,79}$" },
+    "workPackageId": { "type": "string", "pattern": "^[A-Z0-9-]{3,40}$" },
+    "baseCommit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "candidateCommit": {
+      "type": ["string", "null"],
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "actor": { "const": "supervisor" },
+    "status": { "const": "ready_for_qa" },
+    "requirementsEvaluated": { "type": "array", "items": { "type": "string" } },
+    "findings": {
+      "type": "array",
+      "items": { "$ref": "common.schema.json#/$defs/finding" }
+    },
+    "evidencePaths": { "type": "array", "items": { "type": "string" } },
+    "commandsExecuted": { "type": "array", "items": { "type": "string" } },
+    "testResults": {
+      "type": "array",
+      "items": { "$ref": "common.schema.json#/$defs/testResult" }
+    },
+    "nextRequestedActor": { "const": "codex" },
+    "humanGateRequired": { "const": false },
+    "specificationPaths": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string" }
+    },
+    "allowedImplementationPaths": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string" }
+    }
+  }
+}

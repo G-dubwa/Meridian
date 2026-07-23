@@ -1,0 +1,25 @@
+{
+  "protocolVersion": "1.0.0",
+  "workPackageId": "INFRA-PILOT",
+  "title": "Synthetic orchestration QA pilot",
+  "specificationPaths": [
+    "docs/qa/autonomous-orchestration-pilot.md",
+    "agents/work-packages/INFRA-PILOT.json"
+  ],
+  "allowedImplementationPaths": ["docs/qa/", "tests/autonomous-acceptance/"],
+  "requirements": [
+    {
+      "id": "PILOT-001",
+      "text": "Create a synthetic, non-sensitive QA marker through the governed builder."
+    },
+    {
+      "id": "PILOT-002",
+      "text": "Independent QA must request one repair and approve only the repaired exact commit."
+    }
+  ],
+  "externalProviderAccess": false,
+  "personalDataAllowed": false,
+  "automaticMergeAllowed": false,
+  "mandatoryGateClasses": [],
+  "pilotOnly": true
+}

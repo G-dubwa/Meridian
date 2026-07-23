@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://meridian.local/schemas/agents/v1/common.schema.json",
+  "$defs": {
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "requirementId",
+        "severity",
+        "summary",
+        "status",
+        "evidencePaths"
+      ],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[A-Z]+-[0-9]{3,}$" },
+        "requirementId": { "type": "string", "minLength": 1 },
+        "severity": { "enum": ["low", "medium", "high", "critical"] },
+        "summary": { "type": "string", "minLength": 1, "maxLength": 1000 },
+        "status": { "enum": ["open", "resolved", "accepted"] },
+        "evidencePaths": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "testResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["command", "status", "durationMs"],
+      "properties": {
+        "command": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["passed", "failed", "not_run"] },
+        "durationMs": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

@@ -12,3 +12,7 @@ evals/results/*.local.json
 .env.*
 !.env.example
 .DS_Store
+.agents/runs/
+.agents/locks/
+.agents/artifacts/
+.worktrees/

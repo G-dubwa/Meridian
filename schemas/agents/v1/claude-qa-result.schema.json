@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://meridian.local/schemas/agents/v1/claude-qa-result.schema.json",
+  "title": "Claude QA result v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocolVersion",
+    "runId",
+    "workPackageId",
+    "baseCommit",
+    "candidateCommit",
+    "actor",
+    "status",
+    "requirementsEvaluated",
+    "findings",
+    "evidencePaths",
+    "commandsExecuted",
+    "testResults",
+    "nextRequestedActor",
+    "humanGateRequired",
+    "acceptancePlan"
+  ],
+  "properties": {
+    "protocolVersion": { "const": "1.0.0" },
+    "runId": { "type": "string" },
+    "workPackageId": { "type": "string" },
+    "baseCommit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "candidateCommit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "actor": { "const": "claude" },
+    "status": {
+      "enum": [
+        "changes_requested",
+        "approved",
+        "blocked",
+        "human_gate_required",
+        "failed"
+      ]
+    },
+    "requirementsEvaluated": { "type": "array", "items": { "type": "string" } },
+    "findings": {
+      "type": "array",
+      "items": { "$ref": "common.schema.json#/$defs/finding" }
+    },
+    "evidencePaths": { "type": "array", "items": { "type": "string" } },
+    "commandsExecuted": { "type": "array", "items": { "type": "string" } },
+    "testResults": {
+      "type": "array",
+      "items": { "$ref": "common.schema.json#/$defs/testResult" }
+    },
+    "nextRequestedActor": { "enum": ["supervisor", "codex", "human"] },
+    "humanGateRequired": { "type": "boolean" },
+    "acceptancePlan": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "requirementId",
+          "observableBehaviour",
+          "scenario",
+          "expectedResult",
+          "evidence"
+        ],
+        "properties": {
+          "requirementId": { "type": "string" },
+          "observableBehaviour": { "type": "string" },
+          "scenario": { "type": "string" },
+          "expectedResult": { "type": "string" },
+          "evidence": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    }
+  }
+}

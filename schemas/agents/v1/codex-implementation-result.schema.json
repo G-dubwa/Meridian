@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://meridian.local/schemas/agents/v1/codex-implementation-result.schema.json",
+  "title": "Codex implementation result v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocolVersion",
+    "runId",
+    "workPackageId",
+    "baseCommit",
+    "candidateCommit",
+    "actor",
+    "status",
+    "requirementsEvaluated",
+    "findings",
+    "evidencePaths",
+    "commandsExecuted",
+    "testResults",
+    "nextRequestedActor",
+    "humanGateRequired"
+  ],
+  "properties": {
+    "protocolVersion": { "const": "1.0.0" },
+    "runId": { "type": "string" },
+    "workPackageId": { "type": "string" },
+    "baseCommit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "candidateCommit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "actor": { "const": "codex" },
+    "status": {
+      "enum": ["ready_for_qa", "blocked", "human_gate_required", "failed"]
+    },
+    "requirementsEvaluated": { "type": "array", "items": { "type": "string" } },
+    "findings": {
+      "type": "array",
+      "items": { "$ref": "common.schema.json#/$defs/finding" }
+    },
+    "evidencePaths": { "type": "array", "items": { "type": "string" } },
+    "commandsExecuted": { "type": "array", "items": { "type": "string" } },
+    "testResults": {
+      "type": "array",
+      "items": { "$ref": "common.schema.json#/$defs/testResult" }
+    },
+    "nextRequestedActor": { "enum": ["supervisor", "claude", "human"] },
+    "humanGateRequired": { "type": "boolean" }
+  }
+}

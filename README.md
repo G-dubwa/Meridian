@@ -31,3 +31,22 @@ remains <http://localhost:3000/health>.
 ## Governance
 
 Start with the [documentation index](docs/README.md), [authoritative specification](docs/product/spec.md), [project state](docs/product/project-state.md), and [roadmap](docs/product/roadmap.md). Contributors and coding agents must also follow [AGENTS.md](AGENTS.md).
+
+## Governed agent delivery
+
+The standalone INFRA-01 supervisor coordinates isolated Codex implementation
+and Claude black-box QA without granting either merge authority:
+
+```sh
+pnpm agents:doctor
+pnpm agents:plan --wp WP-XX
+pnpm agents:run --wp WP-XX
+pnpm agents:status
+pnpm agents:resume <run-id>
+pnpm agents:stop <run-id>
+pnpm agents:report <run-id>
+pnpm agents:deliver <run-id>
+```
+
+See [autonomous orchestration](docs/qa/autonomous-orchestration.md). Automatic
+merge and live model-backed piloting are disabled until owner review.

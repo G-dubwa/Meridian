@@ -12,6 +12,11 @@ related-docs: release.md
 
 ### Added
 
+- INFRA-01 governed local Codex–Claude supervisor with isolated worktrees,
+  versioned structured handoffs, exact-commit verification, bounded repair,
+  mandatory gates, secret/path controls, resumable state, and a synthetic
+  offline QA-only pilot. Automatic merge and live model-backed piloting remain
+  inactive.
 - WP-01 pnpm TypeScript monorepo with minimal web health page, worker shell, and twelve package boundaries.
 - Strict formatting, linting, project-reference type checking, Vitest, Playwright scaffolding, dependency rules with a negative fixture, documentation validation, Gitleaks policy, and CI.
 - Authoritative v1.2 specification, governed documentation hierarchy, project state and roadmap, ADR-0001/0002, and PDR-0001.

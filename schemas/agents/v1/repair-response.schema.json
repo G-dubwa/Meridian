@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://meridian.local/schemas/agents/v1/repair-response.schema.json",
+  "title": "Codex repair response v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocolVersion",
+    "runId",
+    "workPackageId",
+    "baseCommit",
+    "candidateCommit",
+    "actor",
+    "status",
+    "requirementsEvaluated",
+    "findings",
+    "evidencePaths",
+    "commandsExecuted",
+    "testResults",
+    "nextRequestedActor",
+    "humanGateRequired",
+    "resolutions"
+  ],
+  "properties": {
+    "protocolVersion": { "const": "1.0.0" },
+    "runId": { "type": "string" },
+    "workPackageId": { "type": "string" },
+    "baseCommit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "candidateCommit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "actor": { "const": "codex" },
+    "status": {
+      "enum": ["ready_for_retest", "blocked", "human_gate_required", "failed"]
+    },
+    "requirementsEvaluated": { "type": "array", "items": { "type": "string" } },
+    "findings": {
+      "type": "array",
+      "items": { "$ref": "common.schema.json#/$defs/finding" }
+    },
+    "evidencePaths": { "type": "array", "items": { "type": "string" } },
+    "commandsExecuted": { "type": "array", "items": { "type": "string" } },
+    "testResults": {
+      "type": "array",
+      "items": { "$ref": "common.schema.json#/$defs/testResult" }
+    },
+    "nextRequestedActor": { "enum": ["supervisor", "claude", "human"] },
+    "humanGateRequired": { "type": "boolean" },
+    "resolutions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["findingId", "status", "evidencePaths"],
+        "properties": {
+          "findingId": { "type": "string" },
+          "status": { "enum": ["resolved", "disputed", "blocked"] },
+          "evidencePaths": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    }
+  }
+}

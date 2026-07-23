@@ -20,6 +20,10 @@ limitations, and rollback evidence. A later package may correct a release report
 only by recording the reconciliation; it does not silently rewrite historical
 acceptance.
 
+INFRA-01 is repository delivery infrastructure, not a Meridian product release
+or capability. Its controlled pilot cannot advance Personal Beta status or
+waive any product acceptance criterion.
+
 Personal Alpha is being delivered in a provider-independent local lane.
 WP-11, WP-12, and WP-13B remain deferred and do not block WP-13A. The local
 Alpha report must state that external agenda sync and phone reminder delivery

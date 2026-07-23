@@ -10,6 +10,10 @@ related-docs: spec.md
 
 Status legend: `NEXT`, `PENDING`, `DEFERRED`, `COMPLETE`.
 
+INFRA-01 governed agent orchestration temporarily pauses product sequencing.
+WP-17 remains the next product package but must not begin until the owner
+reviews the orchestration pilot. INFRA-01 does not change release scope.
+
 | Release        |  WP | Title                                           | Status                        |
 | -------------- | --: | ----------------------------------------------- | ----------------------------- |
 | Foundation     |  01 | Repository and quality foundation               | COMPLETE                      |
@@ -42,5 +46,5 @@ WP-13 is split without rewriting the accepted v1.2 specification: WP-13A
 delivers a useful local Today surface from canonical Meridian data, while
 WP-13B retains provider-dependent agenda and notification projections behind
 future explicit gates. WP-16 is likewise non-blocking for the independent
-WP-17–WP-22 sequence. WP-17 is next. No deferred provider is substituted
-automatically.
+WP-17–WP-22 sequence. WP-17 remains next after the standalone INFRA-01 pilot
+review. No deferred provider is substituted automatically.

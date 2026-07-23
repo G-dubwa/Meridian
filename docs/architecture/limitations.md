@@ -26,3 +26,7 @@ related-docs: ../README.md
   success forecast, performance score, or proof that work occurred.
 - The preserved Microsoft branch is experimental and does not provide an
   active capability on `main`.
+- The offline orchestration pilot uses synthetic fixture executables. It proves
+  supervisor mechanics but not real Codex/Claude independence or QA quality.
+  Claude Code is currently absent, live model calls are unapproved, and
+  automatic merge remains disabled.

@@ -78,3 +78,12 @@ provider.
 rules. Its negative fixtures prove both domain-to-infrastructure and
 application-to-infrastructure imports are rejected, while the exact composition
 root exception remains narrow and reviewable.
+
+## Delivery-tool boundary
+
+`scripts/agents` is a repository delivery tool outside the product runtime
+dependency graph. It may invoke Git, Codex, Claude, and deterministic repository
+commands, but it cannot import product application services or adapters.
+Product apps and packages cannot import the supervisor. Runtime state lives
+only in ignored `.agents`; isolated checkouts live only in ignored
+`.worktrees`.

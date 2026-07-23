@@ -71,3 +71,11 @@ Tests may use synthetic fixture identifiers and passphrases only. Test output,
 snapshots, traces, and screenshots must not contain credentials, recovery codes,
 session cookies, journal content, or production data. A failed security journey
 is a release blocker, not a candidate for retries that hide nondeterminism.
+
+INFRA-01 adds supervisor unit tests for strict/stale handoffs, scope and secret
+rejection, closed stdin, process-tree timeout, exclusive locks, atomic state,
+and append-only history. `pnpm agents:pilot` is a separate offline, synthetic
+process acceptance: it exercises build, QA finding, repair, reconstructed
+supervisor resume, exact-commit retest, final verification, and clean worktree
+shutdown. It is not a live model evaluation and cannot authorize automatic
+merge.
