@@ -16,27 +16,6 @@ const contents = repair
   ? `---\npurpose: Provide a non-sensitive orchestration pilot marker.\naudience: Orchestrator maintainers.\nauthoritative-for: Synthetic autonomous QA pilot evidence only.\nupdate-triggers: The orchestration pilot protocol changes.\nrelated-docs: autonomous-orchestration-pilot.md\n---\n\n# Pilot target\n\nStatus: repaired\n`
   : `---\npurpose: Provide a non-sensitive orchestration pilot marker.\naudience: Orchestrator maintainers.\nauthoritative-for: Synthetic autonomous QA pilot evidence only.\nupdate-triggers: The orchestration pilot protocol changes.\nrelated-docs: autonomous-orchestration-pilot.md\n---\n\n# Pilot target\n\nStatus: candidate\n`;
 writeFileSync(markerPath, contents);
-execFileSync('git', ['add', 'docs/qa/pilot-target.md']);
-execFileSync(
-  'git',
-  [
-    'commit',
-    '-m',
-    repair
-      ? 'Pilot: resolve synthetic QA finding'
-      : 'Pilot: add synthetic QA marker',
-  ],
-  {
-    env: {
-      ...process.env,
-      GIT_AUTHOR_EMAIL: 'pilot@meridian.invalid',
-      GIT_AUTHOR_NAME: 'Meridian Codex Pilot',
-      GIT_COMMITTER_EMAIL: 'pilot@meridian.invalid',
-      GIT_COMMITTER_NAME: 'Meridian Codex Pilot',
-    },
-    stdio: 'ignore',
-  },
-);
 const candidateCommit = execFileSync('git', ['rev-parse', 'HEAD'], {
   encoding: 'utf8',
 }).trim();
@@ -46,8 +25,7 @@ const handoff = {
   candidateCommit,
   commandsExecuted: [
     'write synthetic QA marker',
-    'git add docs/qa/pilot-target.md',
-    'git commit',
+    'leave marker unstaged for supervisor validation',
   ],
   evidencePaths: ['docs/qa/pilot-target.md'],
   findings: repair

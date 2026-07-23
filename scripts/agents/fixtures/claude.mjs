@@ -20,17 +20,6 @@ if (!approved) {
     acceptancePath,
     '# Synthetic independent acceptance plan\n\nPILOT-002 requires the exact candidate marker to report repaired status.\n',
   );
-  execFileSync('git', ['add', 'docs/qa/pilot-independent-plan.md']);
-  execFileSync('git', ['commit', '-m', 'Pilot QA: add independent plan'], {
-    env: {
-      ...process.env,
-      GIT_AUTHOR_EMAIL: 'pilot-qa@meridian.invalid',
-      GIT_AUTHOR_NAME: 'Meridian Claude Pilot',
-      GIT_COMMITTER_EMAIL: 'pilot-qa@meridian.invalid',
-      GIT_COMMITTER_NAME: 'Meridian Claude Pilot',
-    },
-    stdio: 'ignore',
-  });
 }
 const finding = {
   evidencePaths: ['docs/qa/pilot-target.md'],
@@ -58,7 +47,7 @@ const handoff = {
   commandsExecuted: [
     'read docs/qa/pilot-target.md',
     ...(!approved
-      ? ['commit docs/qa/pilot-independent-plan.md']
+      ? ['leave docs/qa/pilot-independent-plan.md unstaged for supervisor']
       : ['git rev-parse HEAD']),
   ],
   evidencePaths: ['docs/qa/pilot-target.md'],

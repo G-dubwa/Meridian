@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import {
   assertClean,
   changedPaths,
+  commitValidatedWorkingTree,
   createWorktrees,
   exactHead,
   fastForwardBuilder,
@@ -250,7 +251,9 @@ function agentPrompt(input: {
       `Requirements: ${input.workPackage.requirements.map((item) => `${item.id}: ${item.text}`).join(' | ')}`,
       input.repairFindingsPath
         ? `Resolve only the structured findings in ${input.repairFindingsPath}; provide finding-by-finding resolutions.`
-        : 'Create one clean package-sized candidate commit and report its exact full hash.',
+        : 'Create one package-sized working-tree change for the supervisor to commit after deterministic path validation.',
+      'Do not stage or commit changes and do not write Git metadata. Report the exact current HEAD as candidateCommit; the supervisor owns the commit boundary.',
+      'The supervisor owns the complete repository check. For this synthetic package, run only focused checks needed to validate your allowed-path change.',
     ].join('\n');
   return [
     ...shared,
@@ -259,7 +262,7 @@ function agentPrompt(input: {
     'Map requirement ID to observable behaviour, scenario, expected result, and evidence.',
     'Prefer browser and public API behaviour. Do not import application services to calculate expected outputs.',
     'Do not repair production code. Any repository edit is restricted to the configured QA paths.',
-    'If you create or update allowed QA files, commit them cleanly as a separate QA commit; never amend, rebase, squash, or rewrite the candidate.',
+    'If you create or update allowed QA files, leave them unstaged. The supervisor validates their paths and creates a separate QA commit; never amend, rebase, squash, or rewrite the candidate.',
     `Authoritative specifications: ${input.workPackage.specificationPaths.join(', ')}`,
     `Requirements: ${input.workPackage.requirements.map((item) => `${item.id}: ${item.text}`).join(' | ')}`,
     `Candidate commit: ${input.run.candidateCommit ?? 'missing'}`,
@@ -844,7 +847,7 @@ export class Supervisor {
             }
             if (invocation.handoff.status !== 'ready_for_qa')
               throw new Error('Codex did not return ready_for_qa.');
-            const candidateCommit = invocation.handoff.candidateCommit;
+            let candidateCommit = invocation.handoff.candidateCommit;
             if (!candidateCommit)
               throw new Error('Codex handoff omitted its candidate commit.');
             const builder = resolve(
@@ -852,8 +855,31 @@ export class Supervisor {
               this.config.worktreeRoot,
               'codex-builder',
             );
-            await exactHead(builder, candidateCommit);
-            await assertClean(builder);
+            const builderHead = await resolveCommit(builder, 'HEAD');
+            const builderChanges = await workingTreePaths(builder);
+            if (builderChanges.length > 0) {
+              if (
+                builderHead !== run.baseCommit ||
+                candidateCommit !== builderHead
+              )
+                throw new Error(
+                  'Uncommitted Codex output is not based on the exact approved commit.',
+                );
+              assertPathsAllowed(
+                builder,
+                builderChanges,
+                workPackage.allowedImplementationPaths,
+              );
+              candidateCommit = await commitValidatedWorkingTree(
+                builder,
+                `${run.workPackageId}: supervised implementation`,
+              );
+            } else {
+              await exactHead(builder, candidateCommit);
+              await assertClean(builder);
+            }
+            if (candidateCommit === run.baseCommit)
+              throw new Error('Codex produced no candidate change.');
             if (!(await isAncestor(builder, run.baseCommit, candidateCommit)))
               throw new Error(
                 'Candidate does not descend from the approved base.',
@@ -916,8 +942,17 @@ export class Supervisor {
             run = this.accountInvocationCost(run, invocation.costUsd);
             const qaChanges = await workingTreePaths(auditor);
             assertPathsAllowed(auditor, qaChanges, this.config.qaWritablePaths);
-            await assertClean(auditor);
-            const auditedCommit = await resolveCommit(auditor, 'HEAD');
+            let auditedCommit = await resolveCommit(auditor, 'HEAD');
+            if (qaChanges.length > 0) {
+              if (auditedCommit !== candidateCommit)
+                throw new Error(
+                  'Uncommitted QA output is not based on the exact audited candidate.',
+                );
+              auditedCommit = await commitValidatedWorkingTree(
+                auditor,
+                `${run.workPackageId}: supervised independent QA evidence`,
+              );
+            } else await assertClean(auditor);
             let qaCommit = run.qaCommit;
             if (auditedCommit !== candidateCommit) {
               if (!(await isAncestor(auditor, candidateCommit, auditedCommit)))
@@ -994,18 +1029,41 @@ export class Supervisor {
             run = this.accountInvocationCost(run, invocation.costUsd);
             if (invocation.handoff.status !== 'ready_for_retest')
               throw new Error('Codex repair did not return ready_for_retest.');
-            const candidateCommit = invocation.handoff.candidateCommit;
-            if (!candidateCommit || candidateCommit === priorCandidate)
-              throw new Error(
-                'Repair must produce a new exact candidate commit.',
-              );
+            let candidateCommit = invocation.handoff.candidateCommit;
+            if (!candidateCommit)
+              throw new Error('Codex repair omitted its candidate commit.');
             const builder = resolve(
               this.root,
               this.config.worktreeRoot,
               'codex-builder',
             );
-            await exactHead(builder, candidateCommit);
-            await assertClean(builder);
+            const builderHead = await resolveCommit(builder, 'HEAD');
+            const builderChanges = await workingTreePaths(builder);
+            if (builderChanges.length > 0) {
+              if (
+                builderHead !== priorCandidate ||
+                candidateCommit !== builderHead
+              )
+                throw new Error(
+                  'Uncommitted repair output is not based on the exact candidate.',
+                );
+              assertPathsAllowed(
+                builder,
+                builderChanges,
+                workPackage.allowedImplementationPaths,
+              );
+              candidateCommit = await commitValidatedWorkingTree(
+                builder,
+                `${run.workPackageId}: supervised repair ${String(run.repairCycles)}`,
+              );
+            } else {
+              await exactHead(builder, candidateCommit);
+              await assertClean(builder);
+            }
+            if (candidateCommit === priorCandidate)
+              throw new Error(
+                'Repair must produce a new exact candidate commit.',
+              );
             assertPathsAllowed(
               builder,
               await changedPaths(builder, run.baseCommit, candidateCommit),

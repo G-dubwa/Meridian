@@ -25,6 +25,12 @@ agent-to-supervisor protocol. The supervisor checks the exact base and candidate
 commits, clean state, changed paths, structured findings, and test results at
 every boundary.
 
+Agents do not receive write access to the controlling repository's Git
+administrative directory. They leave allowed changes unstaged; after validating
+the exact starting commit and every changed path, the supervisor alone stages
+and creates the implementation, repair, or QA evidence commit. Already-clean
+fixture commits remain accepted for deterministic offline protocol testing.
+
 Allowed Claude QA changes are separate descendant commits. The supervisor
 validates their paths and fast-forwards them onto the package branch while
 retaining a distinct QA branch reference; it never rewrites the implementation

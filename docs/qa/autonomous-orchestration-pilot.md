@@ -13,9 +13,11 @@ related-docs: autonomous-orchestration.md
 `pnpm agents:pilot` uses committed fixture executables with the same closed-stdin
 process adapter and structured protocol as the real CLIs. It creates a
 QA-only synthetic marker on an isolated builder branch. The synthetic Claude
-fixture independently requests one repair, the builder commits it, and the
-auditor retests the exact new commit. The CLI deliberately reconstructs the
-supervisor between audit and repair to prove persisted resumption.
+fixture independently requests one repair, and the auditor retests the exact
+new commit. Fixtures leave their changes unstaged so the supervisor's
+path-validation and commit ownership are exercised. The CLI deliberately
+reconstructs the supervisor between audit and repair to prove persisted
+resumption.
 
 The pilot must finish `READY_TO_MERGE` with:
 

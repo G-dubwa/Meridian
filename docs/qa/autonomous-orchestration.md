@@ -30,11 +30,13 @@ control checkout
 
 Claude repository writes are restricted to `tests/autonomous-acceptance/**`,
 `docs/qa/**`, `playwright.qa.config.*`, and explicitly configured harness
-paths. Claude must commit any allowed QA change separately. The supervisor
-checks that the QA commit descends from the exact candidate, fast-forwards it
-onto the implementation branch without rewriting either commit, and records a
-separate QA branch reference. Product changes outside the work-package
-allowlist enter a human gate.
+paths. Neither model can write the controlling repository's Git metadata.
+Agents leave changes unstaged; the supervisor validates every path before it
+creates the implementation, repair, or separate QA evidence commit. It checks
+that the QA commit descends from the exact candidate, fast-forwards it onto the
+implementation branch without rewriting either commit, and records a separate
+QA branch reference. Product changes outside the work-package allowlist enter a
+human gate.
 
 ## Commands
 

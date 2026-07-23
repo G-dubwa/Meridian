@@ -88,6 +88,29 @@ export async function workingTreePaths(
     : [];
 }
 
+export async function commitValidatedWorkingTree(
+  cwd: string,
+  message: string,
+): Promise<string> {
+  const paths = await workingTreePaths(cwd);
+  if (paths.length === 0)
+    throw new Error('Supervisor cannot commit an empty working tree.');
+  await git(cwd, ['add', '--all']);
+  await git(cwd, [
+    '-c',
+    'user.name=Meridian Agent Supervisor',
+    '-c',
+    'user.email=agents@meridian.invalid',
+    'commit',
+    '--no-gpg-sign',
+    '--no-verify',
+    '-m',
+    message,
+  ]);
+  await assertClean(cwd);
+  return resolveCommit(cwd, 'HEAD');
+}
+
 export async function createWorktrees(input: {
   readonly controlRoot: string;
   readonly baseCommit: string;
