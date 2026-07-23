@@ -618,7 +618,7 @@ export class Supervisor {
             '--safe-mode',
             '--strict-mcp-config',
             '--mcp-config',
-            '{}',
+            '{"mcpServers":{}}',
             '--no-session-persistence',
             '--max-budget-usd',
             remainingBudgetUsd.toFixed(6),
