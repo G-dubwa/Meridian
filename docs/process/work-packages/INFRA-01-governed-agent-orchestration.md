@@ -8,7 +8,7 @@ related-docs: ../../qa/autonomous-orchestration.md
 
 # INFRA-01: governed Codex–Claude orchestration
 
-Status: implementation and offline synthetic pilot verified on
+Status: implementation plus offline and live synthetic pilots verified on
 `infra/codex-claude-orchestrator`, based on exact `origin/main` at
 `fbc86fc4adb53648caef403e2a79a09e35e0cba6`.
 
@@ -40,10 +40,10 @@ Status: implementation and offline synthetic pilot verified on
 
 Unit tests cover strict/stale handoffs, secret/path rejection, closed stdin,
 timeout termination, exclusive locks, atomic state, and append-only history.
-The pilot must prove build, audit, repair, resume, retest, final verification,
-terminal reporting, and worktree cleanup. The full Meridian `pnpm check` remains
-the repository gate. A genuine two-agent pilot is a later explicit owner gate,
-not waived acceptance.
+The pilots proved build, audit, repair, resume, retest, final verification,
+terminal reporting, cost containment, and worktree cleanup. The full Meridian
+`pnpm check` remains the repository gate. Live product use remains a later
+explicit owner gate, not waived acceptance.
 
 Rollback is a normal revert of the standalone commit plus removal of ignored
 `.agents` and `.worktrees` runtime directories after confirming no run is

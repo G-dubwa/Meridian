@@ -43,9 +43,9 @@ without rewriting the implementation history. The final synthetic candidate
 `0934d88deedde0f3a15c3d6d95c3282e9549700b` was not pushed or merged, and its
 temporary worktrees were removed.
 
-## Live pilot gate
+## Verified live pilot
 
-The live pilot remains blocked until:
+The live pilot required:
 
 1. the official Claude Code CLI is installed and owner-authenticated;
 2. `pnpm agents:doctor` passes without reading or printing credentials;
@@ -60,3 +60,20 @@ The owner approved one live QA-only pilot on 23 July 2026 with a cumulative
 maximum of USD 50. That approval applies only to the exact guarded command,
 synthetic repository content, and the verified infrastructure branch. It does
 not authorize product work or another live run.
+
+Run `infra-pilot-20260723140930-4e7fc25e` completed all eight append-only
+transitions to `READY_TO_MERGE` from exact infrastructure base
+`10e20dc61966831c253cf341b87916bc670537c8`. Codex produced a synthetic marker,
+Claude requested the expected medium-severity repair, Codex resolved it, and
+Claude approved the exact repaired commit
+`dee7bbe04fc8ba90668a6b145ee25ae8bc4d05f3`. Deterministic preflight and final
+repository verification passed. The supervisor recorded one repair cycle and
+Claude-reported cumulative cost of USD 0.5971293 against the USD 50 ceiling.
+
+The candidate remained local and was neither pushed nor merged. Temporary agent
+worktrees were removed, `origin/main` remained
+`fbc86fc4adb53648caef403e2a79a09e35e0cba6`, and no product data, environment
+file, provider credential, persistent owner database, Microsoft integration, or
+production service was accessed. This narrow synthetic success validates the
+governed two-agent mechanism; it does not establish durable model quality for a
+Meridian product work package or waive any later human gate.

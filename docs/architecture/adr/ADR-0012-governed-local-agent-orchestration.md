@@ -8,8 +8,8 @@ related-docs: ../../qa/autonomous-orchestration.md
 
 # ADR-0012: governed local agent orchestration
 
-Status: Accepted for an offline controlled pilot; live two-agent use remains
-owner-gated.
+Status: Accepted after controlled offline and live synthetic pilots; every new
+live or product-bearing use remains independently owner-gated.
 
 ## Decision
 
