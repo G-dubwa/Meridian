@@ -8,149 +8,105 @@ related-docs: roadmap.md
 
 # Project state
 
-Last updated: 19 July 2026
+Last updated: 23 July 2026
 
 ## Current work package
 
-- WP-10 — Tasks and canonical reminders is complete on
-  `wp-10-tasks-canonical-reminders`, based exactly on WP-09. Internal canonical
-  tasks/reminders, deterministic time resolution, atomic accepted-proposal
-  targets/provenance, receipts, Edit/Undo, occurrence history, REST/UI, and
-  content-free audit passed the full gate. Work is stopped at the WP-11
-  Microsoft To Do permission and real-device gate.
+- A standalone governance package records the owner decision to defer
+  Microsoft-dependent WP-11 and WP-12 and split WP-13.
+- Verified `main` remains at completed WP-10 commit
+  `718bc897939017a641e6c3ee20f593c9c7c35516` until that documentation package
+  is committed.
+- WP-13A Local Alpha Today is next. It depends only on canonical local Meridian
+  data and provider-neutral ports.
 
 ## Completed packages
 
-- WP-01 — Repository and quality foundation. Commit `07f9fcfbb85ebc3f639f817f8b44bde771b233fa`.
-- WP-02 — Domain and application boundaries. Commit `3099a3d601e17208af247a2ffbdd41e1ea4b4d1d`.
-- WP-03 — Database and resource foundation. Commit `50618050361ecfa8c9bb31dfea1f37202b011b40`.
-- WP-04 — Local owner authentication. Commit `12cd8cda20114193474baec2449098ae39814fe5`.
-- WP-05 — Walking journal slice. Commit `e7d9d4c2f0fe631f2768b970559a48c5364fc1af`.
+- WP-01 — Repository and quality foundation. Commit
+  `07f9fcfbb85ebc3f639f817f8b44bde771b233fa`.
+- WP-02 — Domain and application boundaries. Commit
+  `3099a3d601e17208af247a2ffbdd41e1ea4b4d1d`.
+- WP-03 — Database and resource foundation. Commit
+  `50618050361ecfa8c9bb31dfea1f37202b011b40`.
+- WP-04 — Local owner authentication. Commit
+  `12cd8cda20114193474baec2449098ae39814fe5`.
+- WP-05 — Walking journal slice. Commit
+  `e7d9d4c2f0fe631f2768b970559a48c5364fc1af`.
 - WP-06 — Worker and reliable event processing. Commit
   `2aa1d357fe6767788d7233932a84386f72e0762c`.
 - WP-07 — Microsoft connection and consent. Commit
   `a4255b680a9c374afa8dd7303e8126cc1b4d82c3`.
 - WP-08 — Model bake-off and gateway. Commit
   `907c8a239dfe87185b510e136df855fa2e16dca0`.
-- WP-09 — Interpretation, commands, and Triage. Completion commit is the
-  package-sized commit `930a4b567004589ec32a2268994ce0097b5316ff`.
-- WP-10 — Tasks and canonical reminders. Completion commit is the package-sized
-  WP-10 commit recorded in project history.
-
-## Active branches or worktrees
-
-- `wp-01-repository-quality-foundation` — WP-01 complete.
-- `wp-02-domain-application-boundaries` — WP-02 complete and ready for integration.
-- `wp-03-database-resource-foundation` — WP-03 complete.
-- `wp-04-local-owner-authentication` — WP-04 complete.
-- `wp-05-walking-journal-slice` — WP-05 complete.
-- `wp-06-worker-reliable-event-processing` — WP-06 complete and ready for
-  integration.
-- `wp-07-microsoft-connection-consent` — WP-07 complete, pushed, and remotely
-  verified at `a4255b680a9c374afa8dd7303e8126cc1b4d82c3`.
-- `wp-08-model-bakeoff-gateway` — complete at
-  `907c8a239dfe87185b510e136df855fa2e16dca0`.
-- `wp-09-interpretation-commands-triage` — complete and remotely verified at
+- WP-09 — Interpretation, commands, and Triage. Commit
   `930a4b567004589ec32a2268994ce0097b5316ff`.
-- `wp-10-tasks-canonical-reminders` — complete and ready for local integration.
-- Integration branch: remote `main` ends at
-  `930a4b567004589ec32a2268994ce0097b5316ff` after exact verification; remote
-  WP-08 and WP-09 branches retain their package commits.
+- WP-10 — Tasks and canonical reminders. Commit
+  `718bc897939017a641e6c3ee20f593c9c7c35516`.
 
-## Test status
+## Branch disposition
 
-- WP-01 green on Node.js 24.18.0 and pnpm 11.14.0: frozen install, format, lint, strict typecheck, dependency rules and negative fixture, Vitest, docs headers and links, and production build.
-- WP-02 green: 119 modules pass dependency rules, both prohibited-import fixtures are rejected, 5 test files and 16 tests pass, 80 documents pass, and all workspace builds pass.
-- WP-03 green: Drizzle snapshots are consistent; 5 unit files/16 tests and 1 live PostgreSQL file/4 tests pass, including empty and seeded migrations, non-owner two-user RLS, transactionality, and provenance deletion.
-- WP-04 green: 52 modules/67 dependencies pass architecture rules; 5 unit files/18 tests, 1 live PostgreSQL file/4 tests, and 7 live-server Playwright authentication journeys pass; 85 documents and generated dictionary are current; every workspace build passes.
-- WP-05 green: 67 modules/93 dependencies pass architecture rules; 6 unit files/20 tests, 1 live PostgreSQL file/5 tests, and all 8 authenticated Playwright scenarios pass, including the journal journey and SQL-level Private exclusion; 88 documents and the generated dictionary are current; every workspace build passes.
-- WP-06 green: formatting, lint, strict typecheck, 78 modules/126 dependencies
-  and negative fixture, Drizzle consistency, 7 unit files/23 tests, 1 live
-  PostgreSQL file/7 tests including concurrent dispatch and terminal pg-boss
-  dead letter, all 8 Playwright scenarios including owner-only worker health, 91
-  documents/current generated dictionary, and every workspace build.
-- WP-07 repository gate is green: formatting, lint, strict typecheck, 88
-  modules/151 dependencies and negative fixture, migration consistency, 8 unit
-  files/31 tests, 1 live PostgreSQL file/8 tests, all 8 live
-  Next.js/PostgreSQL journeys, 93-document/current generated dictionary,
-  OpenAPI YAML parse, and every workspace production build. Live owner
-  acceptance also passed: the consent ledger recorded a grant at 22:21:08 SAST
-  and disconnect at 22:22:55 SAST on 18 July 2026, both with exactly `openid
-profile offline_access User.Read Calendars.Read` and no additional permission.
-- WP-08 redesigned pre-paid gate is green: formatting, lint, strict typecheck,
-  92 modules/164 dependencies and negative fixture, migration consistency, 12
-  unit files/57 tests, 1 live PostgreSQL file/8 tests, all 8 live
-  Next.js/PostgreSQL journeys, 95 governed documents/current dictionary, and
-  every workspace production build. The OpenAI-only runner proves
-  no-confirmation, insufficient-ceiling, and missing-key refusal before network
-  I/O.
-- WP-08 paid synthetic evidence is complete: 33/33 fresh matrix calls, every
-  model/task aggregate at schema adherence 1.00, USD 0.134956 locally estimated
-  matrix cost, and USD 0.135877 cumulative with the separate smoke. Seventeen
-  of 27 aggregates failed at least one activation threshold. The owner approved
-  only the restricted provisional Alpha routes, with no automatic fallback.
-- WP-09 repository gate is green: formatting, lint, strict typecheck, 103
-  modules/191 dependencies and negative fixture, migration consistency, 14
-  unit files/71 tests, one live PostgreSQL file/8 tests, all 8 live-server
-  journeys, 96 governed documents/current dictionary, and every workspace
-  build. Verification used synthetic fixtures and a local model adapter only;
-  no provider request or cost occurred.
-- WP-10 repository gate is green: formatting, lint, strict typecheck, 117
-  modules/220 dependencies and negative fixture, Drizzle consistency, 15 unit
-  files/76 tests, one live PostgreSQL file/9 tests, 9 live-server owner
-  journeys, 97 governed documents/current dictionary, and every workspace
-  build. Tests prove deterministic DST-fail-closed resolution, forced RLS,
-  atomic proposal target/provenance, command idempotency, Edit/Undo, occurrence
-  cancellation, content-free events, and no external delivery/provider call.
-- Gitleaks is configured in CI; local binary is not required by the local gate.
+- `main` and `origin/main` were verified at WP-10 commit
+  `718bc897939017a641e6c3ee20f593c9c7c35516` before the governance package.
+- Remote `wp-11-microsoft-todo-delivery-spike` is preserved at
+  `7538b4123cfcba7b65765cd68c4b53c7193a6f15`.
+- The WP-11 branch is experimental, inactive, deliberately unmerged, and the
+  authoritative technical starting point if Microsoft work resumes.
 
-## Known risks
+## Verification status
 
-- The default shell remains Node.js 21.6.0, but Node.js 24.18.0 is installed and is the verified repository runtime.
-- Toolchain versions are current as of 18 July 2026 and must remain lockfile-pinned.
-- Authentication tables are a pre-owner-scope technical boundary and depend on least-privilege production database grants at deployment; content tables remain forced-RLS protected.
+- WP-01–WP-10 passed their recorded complete repository gates.
+- WP-10 passed formatting, lint, strict typecheck, architecture rules,
+  migration consistency, 76 unit tests, nine live PostgreSQL tests, nine
+  authenticated browser journeys, governed-document validation, and all
+  production builds. It proved forced RLS, deterministic DST-fail-closed time
+  resolution, atomic provenance, idempotency, Edit/Undo, content-free events,
+  and no external provider call.
+- WP-11 mocked implementation and local verification succeeded on its preserved
+  branch. Live personal-account validation did not complete acceptance and
+  remained fail closed. No live To Do delivery channel is accepted.
+- The default shell remains Node.js 21.6.0; Node.js 24.18.0 with pnpm 11.14.0
+  is the verified repository runtime.
+- Gitleaks runs in CI; the local repository gate does not require its binary.
 
-## Open decisions
+## Decisions and risks
 
-- ADR-0008 records the provider-neutral, privacy-first gateway and restricted
-  provisional Alpha routing. Model confidence is never sufficient alone;
-  deterministic validation, provenance, explicit uncertainty, and fail-closed
-  behaviour govern the two active bounded routes.
+- ADR-0008 retains restricted provisional model routing. No paid model use is
+  part of WP-13A.
+- ADR-0010 defers WP-11/WP-12 and sequences a provider-independent local Alpha.
+- Canonical task, reminder, journal, goal, planning, memory, and knowledge
+  models must remain independent of provider credentials and availability.
+- In-app reminder state must never be represented as external notification
+  delivery.
+- Authentication tables retain their narrow pre-owner technical boundary;
+  content tables remain forced-RLS protected.
 
 ## Human gates
 
-- WP-07's Stage-A permission and live owner-consent gates are satisfied. The
-  approved envelope remains exactly `openid profile offline_access User.Read
-Calendars.Read`; no write, To Do, mail, shared-calendar, or application
-  permission is approved for later packages by implication.
-- WP-08's paid and routing gates are satisfied. The gate was approved and
-  attempted on 19 July 2026. A retry stopped with
-  HTTP 429 while model metadata access remained HTTP 200. The owner confirmed
-  the cause was zero API credit and added prepaid credit. A separately approved
-  Luna smoke test succeeded with HTTP 200 for USD 0.000921 locally estimated
-  usage. Its single bounded-classification fixture passed schema and abstention
-  checks but scored 0.667 quality, below the 0.90 activation threshold. A fresh
-  33-call matrix then completed under the approved cumulative ceiling. The owner
-  approved only deterministic code, Sol/`none` bounded proposal extraction, and
-  Terra/`none` bounded classification/proposals as provisional Alpha routes.
-- Later gates include production secrets, real-device delivery testing, and
-  production deployment expenditure.
-- WP-11 is the next mandatory human gate. Microsoft To Do permission, a
-  dedicated list, provider mutations, device tests, and any delivery decision
-  require a separately reviewed scope request and explicit approval. WP-10 does
-  not pre-authorize them.
+- No further Microsoft authorization, Graph request, Entra change, list/task
+  mutation, consent change, or cleanup is authorised.
+- Google Calendar, web push, email, or another provider requires a separate
+  governed proposal; none is selected by this deferral.
+- Remaining mandatory gates include paid model use, personal-data transmission,
+  destructive operations, production deployment, and new external-provider
+  permissions.
 
 ## Deferred work
 
-- Provider identity, WebAuthn, password-reset email, recovery-code regeneration,
-  broader model routes, external-provider model evaluation, automatic model
-  invocation, embeddings, external reminder delivery, calendar data sync/writes,
-  voice/offline capture, vector search, downstream product consumers, and
-  broader product UI remain deferred. WP-10 adds only internal canonical tasks
-  and reminder intent.
+- WP-11 Microsoft To Do delivery and WP-12 Outlook read synchronisation.
+- WP-13B external agenda and notification projections.
+- WP-16 provider calendar writes, adoption, and reconciliation.
+- Provider identity, WebAuthn, password-reset email, recovery-code
+  regeneration, broader model routes/evaluations, automatic model invocation,
+  external reminder delivery, external calendar data, voice/offline capture,
+  and production deployment.
+
+No live Microsoft acceptance criterion is waived or marked passed. The
+deferral is based on programme sequencing and time-to-user-value, not a
+conclusion that Microsoft To Do is technically unsuitable.
 
 ## Next package
 
-- WP-10 is complete. Stop at the WP-11 Microsoft To Do permission and
-  real-device acceptance gate until the owner approves the exact delegated
-  scope and paid/device test plan.
+WP-13A delivers local Today over canonical tasks/reminders, up to three
+owner-selected priorities, manually entered agenda blocks, in-app completion,
+dismissal, edit and undo, and explicit external-delivery-inactive status.
+Provider-neutral `CalendarPort` and `ReminderDeliveryPort` boundaries remain.

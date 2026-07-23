@@ -42,3 +42,7 @@ related-docs: release.md
   time resolution, recurrence meaning, atomic proposal targets/provenance,
   compact Edit/Undo receipts, occurrence history, content-free audit, and no
   external delivery adapter or permission.
+- Programme decision to preserve the mocked WP-11 Microsoft To Do spike as an
+  inactive experimental branch, defer WP-11/WP-12 without waiving live
+  acceptance, and split WP-13 into provider-independent Local Alpha Today and
+  separately governed external agenda/delivery projections.

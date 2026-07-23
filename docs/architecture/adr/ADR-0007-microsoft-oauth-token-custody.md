@@ -57,6 +57,18 @@ revoke Microsoft-side consent.
 - Calendar data access remains deferred to WP-12; write, mail, To Do,
   shared-calendar, and application permissions require a separate gate.
 
+## Programme disposition
+
+Further Microsoft work was deferred on 23 July 2026 after WP-11 mocked
+implementation but before successful live personal-account acceptance. This
+does not revoke WP-07, alter Entra or local configuration, or mark Microsoft To
+Do unsuitable. The WP-11 experimental branch is preserved and unmerged; WP-12
+is also deferred. No Alpha capability may assume Microsoft connectivity.
+
+ADR-0010 governs the provider-independent sequence. Any resumption must begin
+from the preserved technical branch, reconcile it with current `main`, and
+repeat all still-open permission and live-evidence gates.
+
 ## Alternatives rejected
 
 - Device code or public-client flow: does not match the server-hosted callback

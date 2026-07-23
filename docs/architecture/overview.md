@@ -27,12 +27,15 @@ writes are atomic. Dispatch job insertion/in-flight state is also atomic.
 Content repositories use forced RLS with transaction-local owner scope; the
 pre-authentication singleton credential boundary remains narrow and server-only.
 
-The web composition root optionally constructs the Microsoft adapter. The
+The web composition root may optionally construct the WP-07 Microsoft adapter,
+but no Alpha capability may assume it is configured or connected. The
 application owns connection/refresh/disconnect policy through domain ports; the
 adapter owns consumers OAuth HTTP, S256 PKCE, and AES-256-GCM envelopes. A
 one-time technical OAuth session bridges the provider callback; persistent
 integration accounts and consent history remain owner-RLS scoped. No Microsoft
-type enters the domain and no Graph request exists outside the adapter.
+type enters the domain and no Graph request exists outside the adapter. WP-11
+and WP-12 are deferred; their experimental/provider work is not active on
+`main`.
 
 WP-08 adds a provider-neutral model invocation port. Application policy rejects
 Private and unconsented Sensitive processing before adapter invocation.
@@ -57,5 +60,6 @@ transaction.
 ADR-0001/0002 govern modularity/dependencies, ADR-0003 persistence/RLS,
 ADR-0004 authentication, ADR-0005 journal revision history, ADR-0006 reliable
 worker processing, ADR-0007 Microsoft OAuth/token custody, and ADR-0008 the
-model gateway/evidence gate. Notifications, calendar data sync, and external
+model gateway/evidence gate. ADR-0010 records the provider-independent Local
+Alpha sequence. External notifications, calendar data sync, and provider
 effects remain inactive until later governed packages.
