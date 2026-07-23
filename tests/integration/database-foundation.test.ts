@@ -58,7 +58,6 @@ import { PgBoss } from 'pg-boss';
 import {
   CryptoIdGenerator,
   NodeSecretService,
-  SystemClock,
 } from '../../packages/infrastructure-auth/src/index.js';
 import {
   Aes256GcmTokenCipher,
@@ -370,9 +369,10 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
     const transactions = new DrizzleTransactionManager(app.database);
     const ids = new CryptoIdGenerator();
     const secrets = new NodeSecretService();
+    const clock = { now: () => new Date(now) };
     const invalidations: MaterialChangeInvalidation[] = [];
     const proposalInvalidation = new ProposalMaterialChangeInvalidationHook(
-      new SystemClock(),
+      clock,
     );
     const invalidation: MaterialChangeInvalidationHook = {
       invalidate(change, ports) {
@@ -381,7 +381,7 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
       },
     };
     const journal = new JournalService({
-      clock: new SystemClock(),
+      clock,
       contentHasher: secrets,
       ids,
       invalidation,
@@ -444,12 +444,12 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
     ).toBe(false);
 
     const triage = new TriageService({
-      clock: new SystemClock(),
+      clock,
       ids,
       transactions,
     });
     const actions = new ActionService({
-      clock: new SystemClock(),
+      clock,
       ids,
       transactions,
     });
