@@ -138,7 +138,49 @@ function inlineCommonSchemaReferences(
       Object.entries(record).map(([key, item]) => [key, visit(item)]),
     );
   };
-  return `${JSON.stringify(visit(schema), null, 2)}\n`;
+  const normalizeForCli = (value: unknown): unknown => {
+    if (!value || typeof value !== 'object' || Array.isArray(value))
+      return value;
+    const record = value as Record<string, unknown>;
+    const normalized: Record<string, unknown> = {};
+    if (record.type !== undefined) normalized.type = record.type;
+    if (record.const !== undefined) {
+      normalized.enum = [record.const];
+      if (normalized.type === undefined) {
+        if (typeof record.const === 'string') normalized.type = 'string';
+        else if (typeof record.const === 'boolean') normalized.type = 'boolean';
+        else if (typeof record.const === 'number') normalized.type = 'number';
+      }
+    } else if (record.enum !== undefined) {
+      normalized.enum = record.enum;
+      if (
+        normalized.type === undefined &&
+        Array.isArray(record.enum) &&
+        record.enum.length > 0
+      ) {
+        if (record.enum.every((item) => typeof item === 'string'))
+          normalized.type = 'string';
+        else if (record.enum.every((item) => typeof item === 'boolean'))
+          normalized.type = 'boolean';
+        else if (record.enum.every((item) => typeof item === 'number'))
+          normalized.type = 'number';
+      }
+    }
+    if (record.properties && typeof record.properties === 'object') {
+      normalized.properties = Object.fromEntries(
+        Object.entries(record.properties as Record<string, unknown>).map(
+          ([key, item]) => [key, normalizeForCli(item)],
+        ),
+      );
+    }
+    if (record.required !== undefined) normalized.required = record.required;
+    if (record.additionalProperties !== undefined)
+      normalized.additionalProperties = record.additionalProperties;
+    if (record.items !== undefined)
+      normalized.items = normalizeForCli(record.items);
+    return normalized;
+  };
+  return `${JSON.stringify(normalizeForCli(visit(schema)), null, 2)}\n`;
 }
 
 function updateRun(
