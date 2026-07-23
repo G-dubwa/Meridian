@@ -112,3 +112,16 @@ Edges are `active → removed`; removal retains the row, timestamp, and version.
 `merged_into` is not independently removable. Duplicate active relationships,
 self-links, inverse conflict duplicates, cross-owner links, and dependency
 cycles fail closed.
+
+## Scheduling proposal and local calendar block
+
+Scheduling proposals follow `pending → accepted | dismissed | stale`.
+Acceptance requires the exact current version, a non-infeasible verdict,
+literal owner confirmation, and an unchanged deterministic recalculation.
+Accepted and dismissed are terminal. Stale creates no blocks and requires a new
+proposal.
+
+Local calendar blocks begin `planned`; WP-15 does not infer completion from
+their passage. They retain original and current time separately for later
+projection/reconciliation work. No WP-15 transition is a provider write or
+execution-evidence event.

@@ -12,7 +12,7 @@ related-docs: ../README.md
 | -------------- | -------- | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | Foundation     | WP-01–06 | Complete and independently deployable     | [Foundation report](../process/releases/Foundation-release-report.md)                                            |
 | Personal Alpha | WP-07–13 | Local provider-independent Alpha complete | [Local Alpha report](../process/releases/Personal-Alpha-local-release-report.md); provider addendum after WP-13B |
-| Personal Beta  | WP-14–18 | In progress; WP-14 complete               | Required at WP-18                                                                                                |
+| Personal Beta  | WP-14–18 | In progress; WP-14 and WP-15 complete     | Required at WP-18                                                                                                |
 | Personal v1    | WP-19–22 | Pending                                   | Required at WP-22                                                                                                |
 
 Each release is independently deployable and retains its own test, operations,

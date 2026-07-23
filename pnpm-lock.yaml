@@ -127,6 +127,9 @@ importers:
       '@meridian/domain':
         specifier: workspace:*
         version: link:../domain
+      '@meridian/scheduling':
+        specifier: workspace:*
+        version: link:../scheduling
 
   packages/domain:
     dependencies:
@@ -185,7 +188,11 @@ importers:
 
   packages/retrieval: {}
 
-  packages/scheduling: {}
+  packages/scheduling:
+    dependencies:
+      '@meridian/domain':
+        specifier: workspace:*
+        version: link:../domain
 
 packages:
 

@@ -5,6 +5,7 @@ export * from './client.js';
 export * from './goal-repositories.js';
 export * from './integration-repositories.js';
 export * from './repositories.js';
+export * from './scheduling-repositories.js';
 export * from './schema.js';
 export * from './transaction-manager.js';
 export * from './today-repositories.js';

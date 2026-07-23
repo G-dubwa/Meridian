@@ -53,3 +53,7 @@ related-docs: release.md
 - WP-14 provider-independent goals, registered owner-scoped resource edges,
   cycle-safe dependency guidance, a configurable soft active-goal guide with
   explicit over-limit acknowledgement, and a local Goals & Load view.
+- WP-15 provider-independent deterministic availability arithmetic, exact
+  owner-confirmed planning previews, explainable capacity/verdicts, forced-RLS
+  proposals and canonical local blocks, and an explicit no-provider/no-
+  execution-credit boundary.

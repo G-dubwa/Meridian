@@ -43,7 +43,7 @@ async function login(
   });
 }
 
-test.describe.serial('WP-04 through WP-14 authenticated acceptance', () => {
+test.describe.serial('WP-04 through WP-15 authenticated acceptance', () => {
   test('bootstraps exactly one owner and stores only Argon2id/recovery hashes', async () => {
     const first = spawnSync(
       'pnpm',
@@ -952,6 +952,119 @@ test.describe.serial('WP-04 through WP-14 authenticated acceptance', () => {
     } finally {
       await sql.end();
     }
+  });
+
+  test('previews and accepts exact local planning blocks without provider activity', async ({
+    playwright,
+  }) => {
+    const request = await playwright.request.newContext({
+      baseURL: baseUrl,
+      userAgent: 'meridian-planning-fixture',
+    });
+    expect((await request.get('/api/planning')).status()).toBe(401);
+    expect((await login(request)).status()).toBe(200);
+    const csrfToken = await csrfCookie(request);
+    const page = await request.get('/planning');
+    expect(page.status()).toBe(200);
+    expect(await page.text()).toContain('deterministic · local');
+
+    const taskResponse = await request.post('/api/actions/tasks', {
+      data: {
+        authority: {
+          ambiguous: false,
+          deterministic: true,
+          explicit: true,
+          externalEffect: false,
+          ownerConfirmed: true,
+        },
+        dueAt: null,
+        estimateMinutes: 120,
+        goalResourceId: null,
+        kind: 'task',
+        notes: 'E2E scheduling private notes',
+        title: 'E2E scheduling target',
+      },
+      headers: { 'x-csrf-token': csrfToken },
+    });
+    expect(taskResponse.status()).toBe(201);
+    const taskBody = (await taskResponse.json()) as {
+      target: { task: { id: string } };
+    };
+    const input = {
+      bufferMinutes: 15,
+      deadline: '2099-07-26T14:00:00.000Z',
+      earliestStart: '2099-07-26T08:00:00.000Z',
+      estimatedEffortMinutes: 120,
+      goalId: null,
+      maxBlockMinutes: 60,
+      maxDeepWorkMinutesPerDay: 180,
+      minBlockMinutes: 30,
+      ownerConfirmed: true,
+      taskId: taskBody.target.task.id,
+      timeZone: 'Africa/Johannesburg',
+      title: 'E2E private planning label',
+      workingWindows: [
+        {
+          endsAt: '2099-07-26T14:00:00.000Z',
+          startsAt: '2099-07-26T08:00:00.000Z',
+        },
+      ],
+    };
+    expect(
+      (await request.post('/api/planning', { data: input })).status(),
+    ).toBe(403);
+    const response = await request.post('/api/planning', {
+      data: input,
+      headers: { 'x-csrf-token': csrfToken },
+    });
+    expect(response.status()).toBe(201);
+    const proposal = (await response.json()) as {
+      candidates: unknown[];
+      id: string;
+      state: string;
+      verdict: string;
+      version: number;
+    };
+    expect(proposal).toMatchObject({
+      state: 'pending',
+      verdict: 'feasible',
+    });
+    expect(proposal.candidates).toHaveLength(2);
+    const accepted = await request.post(`/api/planning/${proposal.id}/accept`, {
+      data: {
+        expectedVersion: proposal.version,
+        ownerConfirmed: true,
+      },
+      headers: { 'x-csrf-token': csrfToken },
+    });
+    expect(accepted.status()).toBe(200);
+    expect(await accepted.json()).toMatchObject({ state: 'accepted' });
+    expect(await (await request.get('/api/planning')).json()).toMatchObject({
+      blocks: [{ state: 'planned' }, { state: 'planned' }],
+      providerStatus: 'not_configured',
+    });
+
+    const sql = postgres(databaseUrl, { prepare: false });
+    try {
+      const [audit] = await sql<
+        { content_leaks: string; provider_events: string }[]
+      >`
+        select
+          count(*) filter (
+            where payload::text like '%E2E private%'
+          )::text as content_leaks,
+          count(*) filter (
+            where event_type like 'integration.%'
+               or event_type like 'delivery.%'
+          )::text as provider_events
+        from domain_events
+        where event_type like 'scheduling.%'
+      `;
+      expect(audit).toEqual({ content_leaks: '0', provider_events: '0' });
+    } finally {
+      await sql.end();
+    }
+    await request.dispose();
   });
 
   test('locks the credential after repeated failures without revealing lock state', async ({

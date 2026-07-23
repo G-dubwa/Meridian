@@ -12,11 +12,11 @@ Last updated: 23 July 2026
 
 ## Current work package
 
-- WP-14 goals, edges, and soft load guidance is complete on
-  `wp-14-goals-edges-load-guidance`, based on verified WP-13A `main`.
-- The package adds only local canonical goal/load functionality and leaves
-  every provider-dependent package inactive.
-- WP-15 deterministic scheduling and local planning proposals is next.
+- WP-15 deterministic scheduling and local planning proposals is complete on
+  `wp-15-deterministic-local-scheduling`, based on verified WP-14 `main`.
+- The package adds only local canonical plan intent and leaves every
+  provider-dependent package inactive.
+- WP-17 execution evidence and The Weekly is next; WP-16 remains deferred.
 
 ## Completed packages
 
@@ -47,13 +47,16 @@ Last updated: 23 July 2026
 - WP-13A — Local Alpha Today. Commit
   `837443e9b779e727ea41f82f0ea2788e9d6530ec`.
 - WP-14 — Goals, edges, and soft load guidance. Package completion commit is
-  the current package-sized branch commit.
+  `50989cd0273324f32c110896b6aa5189c6a609ea`.
+- WP-15 — Deterministic scheduling and local proposals. Package completion
+  commit is the current package-sized branch commit.
 
 ## Branch disposition
 
-- `main`, `origin/main`, and remote `wp-13a-local-alpha-today` were verified at
-  `837443e9b779e727ea41f82f0ea2788e9d6530ec` before WP-14 began.
-- `wp-14-goals-edges-load-guidance` contains the provider-independent package.
+- `main` and `origin/main` were verified at WP-14 commit
+  `50989cd0273324f32c110896b6aa5189c6a609ea` before WP-15 began.
+- `wp-15-deterministic-local-scheduling` contains the provider-independent
+  package pending its package-sized integration.
 - Remote `wp-11-microsoft-todo-delivery-spike` is preserved at
   `7538b4123cfcba7b65765cd68c4b53c7193a6f15`.
 - The WP-11 branch is experimental, inactive, deliberately unmerged, and the
@@ -82,13 +85,19 @@ Last updated: 23 July 2026
   Evidence proves forced RLS, lifecycle/version rules, advisory load
   acknowledgement, dependency-cycle rejection, content-free goal events, and
   no provider call.
+- WP-15 passes formatting, lint, strict typecheck, architecture and migration
+  checks, 88 unit tests, 12 live PostgreSQL tests, 12 authenticated browser
+  journeys, 108 governed Markdown documents/current data dictionary, and all
+  production builds. Evidence proves exact buffered proposals, forced RLS,
+  owner isolation, idempotent acceptance/staleness, content-free events, no
+  execution credit, and no provider/model call.
 - The default shell remains Node.js 21.6.0; Node.js 24.18.0 with pnpm 11.14.0
   is the verified repository runtime.
 - Gitleaks runs in CI; the local repository gate does not require its binary.
 
 ## Decisions and risks
 
-- ADR-0008 retains restricted provisional model routing. WP-14 made no paid
+- ADR-0008 retains restricted provisional model routing. WP-15 made no paid
   model call.
 - ADR-0010 defers WP-11/WP-12 and sequences a provider-independent local Alpha.
 - Canonical task, reminder, journal, goal, planning, memory, and knowledge
@@ -124,7 +133,6 @@ conclusion that Microsoft To Do is technically unsuitable.
 
 ## Next package
 
-WP-15 introduces provider-independent deterministic scheduling and local
-planning proposals. It must preserve owner confirmation, canonical plan intent,
-explainable constraints, exact previews, no calendar-time progress credit, and
-the inactive external-provider boundary.
+WP-17 introduces provider-independent execution evidence and The Weekly. It
+must preserve confirmed-versus-planned separation, provenance, missing-data
+semantics, owner review authority, and the inactive provider boundary.

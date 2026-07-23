@@ -621,6 +621,7 @@ export class ActionService {
       title: input.title,
     });
     return this.dependencies.transactions.run(scope, async (ports) => {
+      await ports.schedulingProposals.acquirePlanningLock(scope);
       const receipt = await this.activeReceipt(
         ports,
         scope,
@@ -764,6 +765,7 @@ export class ActionService {
     if (!ownerConfirmed)
       throw new InvalidAuthorityError('Owner confirmation is required.');
     return this.dependencies.transactions.run(scope, async (ports) => {
+      await ports.schedulingProposals.acquirePlanningLock(scope);
       const receipt = await ports.commandReceipts.findById(scope, receiptId);
       if (!receipt) throw new NotFoundError('Command receipt was not found.');
       if (receipt.status !== 'active' || receipt.version !== expectedVersion)

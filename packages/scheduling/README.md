@@ -12,6 +12,13 @@ Responsibility: Deterministic availability and block proposals.
 
 Exclusions: Calendar writes and model-generated arithmetic.
 
-Allowed imports: May import domain types only.
+Allowed imports: May import domain contracts and deterministic time-zone invariants only.
 
-Tests: WP-01 supplies only the repository-wide placeholder and architecture fixture; behaviour tests arrive with the package's first scoped capability.
+WP-15 activates pure `proposeBlocks` arithmetic over exact availability and
+busy intervals. It applies buffers, block-size preferences, a daily deep-work
+bound, capacity arithmetic, and explainable verdicts. It performs no I/O,
+provider lookup, model inference, persistence, approval, or execution scoring.
+
+Tests: deterministic unit/property fixtures prove that candidates never overlap
+buffered busy intervals, respect block and daily limits, and report
+infeasibility without inventing capacity.

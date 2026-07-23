@@ -11,6 +11,7 @@ export * from './model.js';
 export type * from './ports.js';
 export * from './processing-class.js';
 export * from './proposal.js';
+export * from './scheduling.js';
 export * from './scope.js';
 export * from './today.js';
 export * from './worker.js';

@@ -6,6 +6,7 @@ import {
   JournalService,
   MicrosoftConnectionService,
   ModelGatewayService,
+  SchedulingService,
   ProposalMaterialChangeInvalidationHook,
   OutboxHealthService,
   TriageService,
@@ -41,6 +42,7 @@ export interface AuthenticationRuntime {
   readonly interpretation?: InterpretationService;
   readonly journal: JournalService;
   readonly microsoft: MicrosoftConnectionService;
+  readonly scheduling: SchedulingService;
   readonly triage: TriageService;
   readonly today: TodayService;
   readonly secrets: NodeSecretService;
@@ -124,6 +126,11 @@ function createRuntime(): AuthenticationRuntime {
         database.database,
       ),
       secrets,
+      transactions,
+    }),
+    scheduling: new SchedulingService({
+      clock: new SystemClock(),
+      ids,
       transactions,
     }),
     secrets,

@@ -1175,6 +1175,178 @@ export const edges = pgTable(
   ],
 );
 
+export const schedulingProposals = pgTable(
+  'scheduling_proposals',
+  {
+    id: uuid('id').primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    taskId: uuid('task_id'),
+    goalId: uuid('goal_id'),
+    earliestStart: timestamp('earliest_start', {
+      withTimezone: true,
+    }).notNull(),
+    deadline: timestamp('deadline', { withTimezone: true }).notNull(),
+    timeZone: text('time_zone').notNull(),
+    estimatedEffortMinutes: integer('estimated_effort_minutes').notNull(),
+    minBlockMinutes: integer('min_block_minutes').notNull(),
+    maxBlockMinutes: integer('max_block_minutes').notNull(),
+    bufferMinutes: integer('buffer_minutes').notNull(),
+    maxDeepWorkMinutesPerDay: integer(
+      'max_deep_work_minutes_per_day',
+    ).notNull(),
+    workingWindows: jsonb('working_windows').notNull(),
+    candidates: jsonb('candidates').notNull(),
+    capacityMinutes: integer('capacity_minutes').notNull(),
+    scheduledMinutes: integer('scheduled_minutes').notNull(),
+    verdict: text('verdict').notNull(),
+    exclusions: jsonb('exclusions').notNull(),
+    alternatives: jsonb('alternatives').notNull(),
+    state: text('state').notNull().default('pending'),
+    ...timestamps,
+    version: integer('version').notNull().default(1),
+  },
+  (table) => [
+    unique('scheduling_proposals_id_user_unique').on(table.id, table.userId),
+    foreignKey({
+      columns: [table.taskId, table.userId],
+      foreignColumns: [tasks.id, tasks.userId],
+      name: 'scheduling_proposals_task_owner_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.goalId, table.userId],
+      foreignColumns: [goals.id, goals.userId],
+      name: 'scheduling_proposals_goal_owner_fk',
+    }).onDelete('restrict'),
+    check(
+      'scheduling_proposals_target_valid',
+      sql`${table.taskId} is not null or ${table.goalId} is not null`,
+    ),
+    check(
+      'scheduling_proposals_horizon_valid',
+      sql`${table.deadline} > ${table.earliestStart}`,
+    ),
+    check(
+      'scheduling_proposals_title_valid',
+      sql`length(btrim(${table.title})) between 1 and 240`,
+    ),
+    check(
+      'scheduling_proposals_constraints_valid',
+      sql`${table.estimatedEffortMinutes} >= 15 and ${table.minBlockMinutes} >= 15 and ${table.maxBlockMinutes} >= ${table.minBlockMinutes} and ${table.bufferMinutes} between 0 and 240 and ${table.maxDeepWorkMinutesPerDay} >= ${table.minBlockMinutes}`,
+    ),
+    check(
+      'scheduling_proposals_json_valid',
+      sql`jsonb_typeof(${table.workingWindows}) = 'array' and jsonb_typeof(${table.candidates}) = 'array' and jsonb_typeof(${table.exclusions}) = 'array' and jsonb_typeof(${table.alternatives}) = 'array'`,
+    ),
+    check(
+      'scheduling_proposals_capacity_valid',
+      sql`${table.capacityMinutes} >= 0 and ${table.scheduledMinutes} >= 0 and ${table.scheduledMinutes} <= ${table.estimatedEffortMinutes}`,
+    ),
+    check(
+      'scheduling_proposals_verdict_valid',
+      sql`${table.verdict} in ('feasible', 'tight', 'infeasible')`,
+    ),
+    check(
+      'scheduling_proposals_state_valid',
+      sql`${table.state} in ('pending', 'accepted', 'dismissed', 'stale')`,
+    ),
+    check('scheduling_proposals_version_positive', sql`${table.version} > 0`),
+    index('scheduling_proposals_user_state_idx').on(
+      table.userId,
+      table.state,
+      table.updatedAt,
+    ),
+  ],
+);
+
+export const calendarBlocks = pgTable(
+  'calendar_blocks',
+  {
+    id: uuid('id').primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    proposalId: uuid('proposal_id').notNull(),
+    taskId: uuid('task_id'),
+    goalId: uuid('goal_id'),
+    ordinal: integer('ordinal').notNull(),
+    title: text('title').notNull(),
+    plannedEffortMinutes: integer('planned_effort_minutes').notNull(),
+    originalStartsAt: timestamp('original_starts_at', {
+      withTimezone: true,
+    }).notNull(),
+    originalEndsAt: timestamp('original_ends_at', {
+      withTimezone: true,
+    }).notNull(),
+    currentStartsAt: timestamp('current_starts_at', {
+      withTimezone: true,
+    }).notNull(),
+    currentEndsAt: timestamp('current_ends_at', {
+      withTimezone: true,
+    }).notNull(),
+    timeZone: text('time_zone').notNull(),
+    state: text('state').notNull().default('planned'),
+    approvalRecordedAt: timestamp('approval_recorded_at', {
+      withTimezone: true,
+    }).notNull(),
+    ...timestamps,
+    version: integer('version').notNull().default(1),
+  },
+  (table) => [
+    unique('calendar_blocks_id_user_unique').on(table.id, table.userId),
+    unique('calendar_blocks_proposal_ordinal_unique').on(
+      table.userId,
+      table.proposalId,
+      table.ordinal,
+    ),
+    foreignKey({
+      columns: [table.id, table.userId],
+      foreignColumns: [resources.id, resources.userId],
+      name: 'calendar_blocks_resource_owner_fk',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [table.proposalId, table.userId],
+      foreignColumns: [schedulingProposals.id, schedulingProposals.userId],
+      name: 'calendar_blocks_proposal_owner_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.taskId, table.userId],
+      foreignColumns: [tasks.id, tasks.userId],
+      name: 'calendar_blocks_task_owner_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.goalId, table.userId],
+      foreignColumns: [goals.id, goals.userId],
+      name: 'calendar_blocks_goal_owner_fk',
+    }).onDelete('restrict'),
+    check(
+      'calendar_blocks_title_valid',
+      sql`length(btrim(${table.title})) between 1 and 240`,
+    ),
+    check(
+      'calendar_blocks_time_valid',
+      sql`${table.originalEndsAt} > ${table.originalStartsAt} and ${table.currentEndsAt} > ${table.currentStartsAt}`,
+    ),
+    check(
+      'calendar_blocks_effort_valid',
+      sql`${table.plannedEffortMinutes} >= 15`,
+    ),
+    check('calendar_blocks_ordinal_valid', sql`${table.ordinal} > 0`),
+    check(
+      'calendar_blocks_state_valid',
+      sql`${table.state} in ('planned', 'cancelled')`,
+    ),
+    check('calendar_blocks_version_positive', sql`${table.version} > 0`),
+    index('calendar_blocks_user_window_idx').on(
+      table.userId,
+      table.currentStartsAt,
+      table.currentEndsAt,
+    ),
+  ],
+);
+
 export const domainEvents = pgTable(
   'domain_events',
   {
@@ -1258,6 +1430,7 @@ export const outboxMessages = pgTable(
 
 export const schemaTables = {
   agendaBlocks,
+  calendarBlocks,
   authCredentials,
   authEvents,
   authRateLimits,
@@ -1278,6 +1451,7 @@ export const schemaTables = {
   resources,
   recoveryCodes,
   schemaRegistry,
+  schedulingProposals,
   tasks,
   todayReceipts,
   users,

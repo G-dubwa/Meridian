@@ -321,6 +321,7 @@ export class GoalService {
       );
       const existing = await existingGoalResult(ports, scope, prior);
       if (existing) return existing;
+      await ports.schedulingProposals.acquirePlanningLock(scope);
       const current = await ports.goals.findById(scope, goalId);
       if (!current) throw new NotFoundError('Goal was not found.');
       if (['completed', 'retired', 'merged'].includes(current.state))
@@ -375,6 +376,7 @@ export class GoalService {
       );
       const existing = await existingGoalResult(ports, scope, prior);
       if (existing) return existing;
+      await ports.schedulingProposals.acquirePlanningLock(scope);
       const current = await ports.goals.findById(scope, goalId);
       if (!current) throw new NotFoundError('Goal was not found.');
       if (current.version !== input.expectedVersion)

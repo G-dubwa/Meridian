@@ -35,12 +35,17 @@ import {
   DrizzleEdgeRepository,
   DrizzleGoalRepository,
 } from './goal-repositories.js';
+import {
+  DrizzleCalendarBlockRepository,
+  DrizzleSchedulingProposalRepository,
+} from './scheduling-repositories.js';
 
 function createTransactionPorts(
   database: DatabaseTransaction,
 ): TransactionPorts {
   return {
     agendaBlocks: new DrizzleAgendaBlockRepository(database),
+    calendarBlocks: new DrizzleCalendarBlockRepository(database),
     commandReceipts: new DrizzleCommandReceiptRepository(database),
     consentRecords: new DrizzleConsentRecordRepository(database),
     dailyPriorities: new DrizzleDailyPriorityRepository(database),
@@ -55,6 +60,7 @@ function createTransactionPorts(
     proposals: new DrizzleProposalRepository(database),
     reminderOccurrences: new DrizzleReminderOccurrenceRepository(database),
     reminders: new DrizzleReminderRepository(database),
+    schedulingProposals: new DrizzleSchedulingProposalRepository(database),
     resources: new DrizzleResourceRepository(database),
     tasks: new DrizzleTaskRepository(database),
     todayReceipts: new DrizzleTodayReceiptRepository(database),

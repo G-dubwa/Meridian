@@ -16,6 +16,7 @@ export * from './actions.js';
 export * from './goals.js';
 export * from './journal.js';
 export * from './microsoft-integration.js';
+export * from './scheduling.js';
 export * from './worker-health.js';
 
 export const csrfResponseV1Schema = z

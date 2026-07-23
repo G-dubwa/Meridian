@@ -118,3 +118,17 @@ Payloads contain only action/state/edge enums, resource and edge identifiers,
 and the numeric soft guide where applicable. Goal title, narrative, success
 criteria, target date, life domain, and linked task content are prohibited.
 They are local audit events and provide no execution or provider evidence.
+
+## Local scheduling events v1
+
+| Event                              | Emitted when                           |
+| ---------------------------------- | -------------------------------------- |
+| `scheduling.proposal_created.v1`   | Deterministic local preview commits    |
+| `scheduling.proposal_accepted.v1`  | Exact owner-approved blocks commit     |
+| `scheduling.proposal_dismissed.v1` | Owner dismisses without block writes   |
+| `scheduling.proposal_staled.v1`    | Revalidation changes the exact preview |
+
+Payloads contain only proposal identifier, state, verdict, and block count.
+Titles, task/goal content, working windows, exact times, buffers, explanations,
+and provider material are prohibited. These events are local plan audit only,
+not external calendar, delivery, or execution evidence.

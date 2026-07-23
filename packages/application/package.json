@@ -10,7 +10,8 @@
     }
   },
   "dependencies": {
-    "@meridian/domain": "workspace:*"
+    "@meridian/domain": "workspace:*",
+    "@meridian/scheduling": "workspace:*"
   },
   "scripts": {
     "build": "tsc --build"

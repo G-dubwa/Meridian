@@ -78,6 +78,13 @@
       "when": 1784793486292,
       "tag": "0010_wp14_goals_edges_load_guidance",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1784796150260,
+      "tag": "0011_wp15_deterministic_local_scheduling",
+      "breakpoints": true
     }
   ]
 }

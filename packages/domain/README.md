@@ -36,3 +36,8 @@ WP-14 adds goal types/states, strict owner-authored inputs, registered edge
 semantics, lifecycle validation, and transparent active-goal arithmetic.
 Repository ports remain owner-scoped and contain no scheduler, model, analytic,
 or provider type.
+
+WP-15 adds strict local scheduling inputs, proposal/block states, content-free
+event schemas, and owner-scoped repository ports. The domain contains no
+scheduling algorithm, provider event, external identifier, or execution
+inference.

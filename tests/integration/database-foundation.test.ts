@@ -40,6 +40,7 @@ import {
 import { ActionService } from '../../packages/application/src/actions.js';
 import { TodayService } from '../../packages/application/src/today.js';
 import { GoalService } from '../../packages/application/src/goals.js';
+import { SchedulingService } from '../../packages/application/src/scheduling.js';
 import {
   ProposalMaterialChangeInvalidationHook,
   TriageService,
@@ -123,6 +124,7 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
       'auth_events',
       'auth_rate_limits',
       'auth_sessions',
+      'calendar_blocks',
       'command_receipts',
       'consent_records',
       'daily_priorities',
@@ -141,6 +143,7 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
       'reminder_occurrences',
       'reminders',
       'resources',
+      'scheduling_proposals',
       'schema_registry',
       'tasks',
       'today_receipts',
@@ -262,6 +265,14 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
           'utf8',
         ),
       );
+      await snapshotSql.unsafe(
+        readFileSync(
+          resolve(
+            'packages/infrastructure-db/migrations/0011_wp15_deterministic_local_scheduling.sql',
+          ),
+          'utf8',
+        ),
+      );
       const [seeded] = await snapshotSql<{ count: string }[]>`
         select count(*)::text as count from users
       `;
@@ -305,6 +316,10 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
         select to_regclass('public.goals')::text as name
       `;
       expect(goalTable?.name).toBe('goals');
+      const [planningTable] = await snapshotSql<{ name: string }[]>`
+        select to_regclass('public.scheduling_proposals')::text as name
+      `;
+      expect(planningTable?.name).toBe('scheduling_proposals');
     } finally {
       await snapshotSql.end();
       await admin.sql.unsafe(`drop database if exists ${snapshotDatabase}`);
@@ -321,7 +336,7 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
       `grant select on schema_registry, edge_type_registry to ${appRole}`,
     );
     await admin.sql.unsafe(
-      `grant select, insert, update, delete on users, resources, entries, entry_revisions, derivation_links, domain_events, outbox_messages, proposals, tasks, reminders, reminder_occurrences, command_receipts, agenda_blocks, daily_priorities, today_receipts, goals, edges, integration_accounts, consent_records, oauth_authorization_sessions to ${appRole}`,
+      `grant select, insert, update, delete on users, resources, entries, entry_revisions, derivation_links, domain_events, outbox_messages, proposals, tasks, reminders, reminder_occurrences, command_receipts, agenda_blocks, daily_priorities, today_receipts, goals, edges, scheduling_proposals, calendar_blocks, integration_accounts, consent_records, oauth_authorization_sessions to ${appRole}`,
     );
 
     app = createDatabaseClient(appUrl.toString());
@@ -1502,6 +1517,139 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
       await runtime.stop();
     }
   }, 30_000);
+
+  it('stores owner-confirmed deterministic plans without provider access or execution credit', async () => {
+    if (!app) throw new Error('Application database was not initialized.');
+    const transactions = new DrizzleTransactionManager(app.database);
+    const ids = new CryptoIdGenerator();
+    const clock = { now: () => new Date('2026-07-23T08:00:00.000Z') };
+    const actions = new ActionService({ clock, ids, transactions });
+    const scheduling = new SchedulingService({ clock, ids, transactions });
+    const today = new TodayService({ clock, ids, transactions });
+    const task = await actions.createTask(
+      scopeA,
+      {
+        authority: {
+          ambiguous: false,
+          deterministic: true,
+          explicit: true,
+          externalEffect: false,
+          ownerConfirmed: true,
+        },
+        dueAt: null,
+        estimateMinutes: 120,
+        goalResourceId: null,
+        kind: 'task',
+        notes: 'synthetic planning notes',
+        title: 'Synthetic local planning target',
+      },
+      { correlationId: ids.next() },
+    );
+    const createCorrelation = ids.next();
+    const input = {
+      bufferMinutes: 15,
+      deadline: '2026-07-25T14:00:00.000Z',
+      earliestStart: '2026-07-25T08:00:00.000Z',
+      estimatedEffortMinutes: 120,
+      goalId: null,
+      maxBlockMinutes: 60,
+      maxDeepWorkMinutesPerDay: 180,
+      minBlockMinutes: 30,
+      ownerConfirmed: true,
+      taskId: task.target.id,
+      timeZone: 'Africa/Johannesburg',
+      title: 'Private synthetic plan title',
+      workingWindows: [
+        {
+          endsAt: '2026-07-25T14:00:00.000Z',
+          startsAt: '2026-07-25T08:00:00.000Z',
+        },
+      ],
+    } as const;
+    const proposal = await scheduling.create(scopeA, input, {
+      correlationId: createCorrelation,
+    });
+    expect(proposal).toMatchObject({
+      scheduledMinutes: 120,
+      state: 'pending',
+      verdict: 'feasible',
+    });
+    await expect(
+      scheduling.create(scopeA, input, {
+        correlationId: createCorrelation,
+      }),
+    ).resolves.toMatchObject({ id: proposal.id });
+    const accepted = await scheduling.accept(
+      scopeA,
+      proposal.id,
+      { expectedVersion: proposal.version, ownerConfirmed: true },
+      { correlationId: ids.next() },
+    );
+    expect(accepted.state).toBe('accepted');
+    const snapshot = await scheduling.get(scopeA);
+    expect(snapshot.blocks).toHaveLength(2);
+    expect(snapshot.blocks.every((block) => block.state === 'planned')).toBe(
+      true,
+    );
+    const staleProposal = await scheduling.create(
+      scopeA,
+      {
+        ...input,
+        deadline: '2026-07-26T14:00:00.000Z',
+        earliestStart: '2026-07-26T08:00:00.000Z',
+        title: 'Private stale synthetic plan',
+        workingWindows: [
+          {
+            endsAt: '2026-07-26T14:00:00.000Z',
+            startsAt: '2026-07-26T08:00:00.000Z',
+          },
+        ],
+      },
+      { correlationId: ids.next() },
+    );
+    await today.createAgendaBlock(
+      scopeA,
+      {
+        endsAt: '2026-07-26T09:30:00.000Z',
+        notes: 'synthetic conflict',
+        ownerConfirmed: true,
+        startsAt: '2026-07-26T08:30:00.000Z',
+        timeZone: 'Africa/Johannesburg',
+        title: 'Synthetic intervening commitment',
+      },
+      { correlationId: ids.next() },
+    );
+    const staleCorrelation = ids.next();
+    const stale = await scheduling.accept(
+      scopeA,
+      staleProposal.id,
+      { expectedVersion: staleProposal.version, ownerConfirmed: true },
+      { correlationId: staleCorrelation },
+    );
+    expect(stale.state).toBe('stale');
+    await expect(
+      scheduling.accept(
+        scopeA,
+        staleProposal.id,
+        { expectedVersion: staleProposal.version, ownerConfirmed: true },
+        { correlationId: staleCorrelation },
+      ),
+    ).resolves.toMatchObject({ id: stale.id, state: 'stale' });
+    expect((await scheduling.get(scopeA)).blocks).toHaveLength(2);
+    expect(await scheduling.get(scopeB)).toMatchObject({
+      blocks: [],
+      proposals: [],
+      providerStatus: 'not_configured',
+    });
+    const events = await transactions.run(scopeA, (ports) =>
+      ports.domainEvents.listByTypePrefix(scopeA, 'scheduling.', 10),
+    );
+    expect(events).toHaveLength(4);
+    expect(JSON.stringify(events)).not.toContain('Private synthetic');
+    await expect(app.sql`select id from calendar_blocks`).resolves.toHaveLength(
+      0,
+    );
+  });
 
   it('stores an exact-scope Microsoft connection encrypted, refreshes it, and disconnects without affecting local ownership', async () => {
     if (!app) throw new Error('Application database was not initialized.');

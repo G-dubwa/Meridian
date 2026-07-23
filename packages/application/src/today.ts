@@ -277,6 +277,7 @@ export class TodayService {
         if (existing) return existing;
         throw new ConflictError('Stored agenda-block result is incomplete.');
       }
+      await ports.schedulingProposals.acquirePlanningLock(scope);
       const now = this.dependencies.clock.now();
       const id = agendaBlockIdV1Schema.parse(this.dependencies.ids.next());
       const record: AgendaBlockRecord = {
@@ -329,6 +330,7 @@ export class TodayService {
   ): Promise<AgendaBlockRecord> {
     const input = updateAgendaBlockInputV1Schema.parse(rawInput);
     return this.dependencies.transactions.run(scope, async (ports) => {
+      await ports.schedulingProposals.acquirePlanningLock(scope);
       const current = await ports.agendaBlocks.findById(scope, id);
       if (!current) throw new NotFoundError('Agenda block was not found.');
       if (current.version !== input.expectedVersion)
@@ -512,6 +514,7 @@ export class TodayService {
     return this.dependencies.transactions.run(scope, async (ports) => {
       const prior = await existingReceipt(ports, scope, context, eventType);
       if (prior) return prior;
+      await ports.schedulingProposals.acquirePlanningLock(scope);
       const current = await ports.agendaBlocks.findById(scope, id);
       if (!current) throw new NotFoundError('Agenda block was not found.');
       if (current.version !== expectedVersion)
@@ -569,6 +572,7 @@ export class TodayService {
     if (!ownerConfirmed)
       throw new InvalidAuthorityError('Owner confirmation is required.');
     return this.dependencies.transactions.run(scope, async (ports) => {
+      await ports.schedulingProposals.acquirePlanningLock(scope);
       const receipt = await ports.todayReceipts.findById(scope, id);
       if (!receipt) throw new NotFoundError('Today receipt was not found.');
       if (receipt.version !== expectedVersion)
@@ -623,6 +627,7 @@ export class TodayService {
         'today.task_completed.v1',
       );
       if (prior) return prior;
+      await ports.schedulingProposals.acquirePlanningLock(scope);
       const current = await ports.tasks.findById(scope, id);
       if (!current) throw new NotFoundError('Task was not found.');
       if (current.version !== expectedVersion)

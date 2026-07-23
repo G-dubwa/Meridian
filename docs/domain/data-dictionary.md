@@ -102,6 +102,38 @@ Foreign keys:
 
 Indexes: `auth_sessions_user_active_idx`.
 
+## calendar_blocks
+
+| Column | SQL type | Null | Default | Primary |
+|---|---|---|---|---|
+| `id` | `uuid` | no | no | yes |
+| `user_id` | `uuid` | no | no | no |
+| `proposal_id` | `uuid` | no | no | no |
+| `task_id` | `uuid` | yes | no | no |
+| `goal_id` | `uuid` | yes | no | no |
+| `ordinal` | `integer` | no | no | no |
+| `title` | `text` | no | no | no |
+| `planned_effort_minutes` | `integer` | no | no | no |
+| `original_starts_at` | `timestamp with time zone` | no | no | no |
+| `original_ends_at` | `timestamp with time zone` | no | no | no |
+| `current_starts_at` | `timestamp with time zone` | no | no | no |
+| `current_ends_at` | `timestamp with time zone` | no | no | no |
+| `time_zone` | `text` | no | no | no |
+| `state` | `text` | no | yes | no |
+| `approval_recorded_at` | `timestamp with time zone` | no | no | no |
+| `created_at` | `timestamp with time zone` | no | yes | no |
+| `updated_at` | `timestamp with time zone` | no | yes | no |
+| `version` | `integer` | no | yes | no |
+
+Foreign keys:
+- `calendar_blocks_user_id_users_id_fk`: (user_id) → `users` (id)
+- `calendar_blocks_resource_owner_fk`: (id, user_id) → `resources` (id, user_id)
+- `calendar_blocks_proposal_owner_fk`: (proposal_id, user_id) → `scheduling_proposals` (id, user_id)
+- `calendar_blocks_task_owner_fk`: (task_id, user_id) → `tasks` (id, user_id)
+- `calendar_blocks_goal_owner_fk`: (goal_id, user_id) → `goals` (id, user_id)
+
+Indexes: `calendar_blocks_user_window_idx`.
+
 ## command_receipts
 
 | Column | SQL type | Null | Default | Primary |
@@ -426,6 +458,42 @@ Foreign keys:
 - `resources_registered_type_fk`: (resource_type, resource_type_version) → `schema_registry` (key, version)
 
 Indexes: `resources_user_type_idx`, `resources_user_created_idx`.
+
+## scheduling_proposals
+
+| Column | SQL type | Null | Default | Primary |
+|---|---|---|---|---|
+| `id` | `uuid` | no | no | yes |
+| `user_id` | `uuid` | no | no | no |
+| `title` | `text` | no | no | no |
+| `task_id` | `uuid` | yes | no | no |
+| `goal_id` | `uuid` | yes | no | no |
+| `earliest_start` | `timestamp with time zone` | no | no | no |
+| `deadline` | `timestamp with time zone` | no | no | no |
+| `time_zone` | `text` | no | no | no |
+| `estimated_effort_minutes` | `integer` | no | no | no |
+| `min_block_minutes` | `integer` | no | no | no |
+| `max_block_minutes` | `integer` | no | no | no |
+| `buffer_minutes` | `integer` | no | no | no |
+| `max_deep_work_minutes_per_day` | `integer` | no | no | no |
+| `working_windows` | `jsonb` | no | no | no |
+| `candidates` | `jsonb` | no | no | no |
+| `capacity_minutes` | `integer` | no | no | no |
+| `scheduled_minutes` | `integer` | no | no | no |
+| `verdict` | `text` | no | no | no |
+| `exclusions` | `jsonb` | no | no | no |
+| `alternatives` | `jsonb` | no | no | no |
+| `state` | `text` | no | yes | no |
+| `created_at` | `timestamp with time zone` | no | yes | no |
+| `updated_at` | `timestamp with time zone` | no | yes | no |
+| `version` | `integer` | no | yes | no |
+
+Foreign keys:
+- `scheduling_proposals_user_id_users_id_fk`: (user_id) → `users` (id)
+- `scheduling_proposals_task_owner_fk`: (task_id, user_id) → `tasks` (id, user_id)
+- `scheduling_proposals_goal_owner_fk`: (goal_id, user_id) → `goals` (id, user_id)
+
+Indexes: `scheduling_proposals_user_state_idx`.
 
 ## schema_registry
 

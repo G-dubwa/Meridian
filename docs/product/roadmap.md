@@ -27,9 +27,9 @@ Status legend: `NEXT`, `PENDING`, `DEFERRED`, `COMPLETE`.
 | Personal Alpha | 13A | Local Alpha Today                               | COMPLETE                      |
 | Personal Alpha | 13B | External agenda and notification projections    | DEFERRED: provider gate       |
 | Personal Beta  |  14 | Goals, edges, and soft load guidance            | COMPLETE                      |
-| Personal Beta  |  15 | Deterministic scheduling and local proposals    | NEXT: provider-independent    |
+| Personal Beta  |  15 | Deterministic scheduling and local proposals    | COMPLETE                      |
 | Personal Beta  |  16 | Calendar writes, adoption, and reconciliation   | DEFERRED: provider gate       |
-| Personal Beta  |  17 | Execution evidence and The Weekly               | PENDING                       |
+| Personal Beta  |  17 | Execution evidence and The Weekly               | NEXT: provider-independent    |
 | Personal Beta  |  18 | Knowledge-source ingestion foundation           | PENDING                       |
 | Personal v1    |  19 | Embeddings, retrieval, and context manifests    | PENDING                       |
 | Personal v1    |  20 | Protocol registry, safety, and adoption         | PENDING                       |
@@ -42,5 +42,5 @@ WP-13 is split without rewriting the accepted v1.2 specification: WP-13A
 delivers a useful local Today surface from canonical Meridian data, while
 WP-13B retains provider-dependent agenda and notification projections behind
 future explicit gates. WP-16 is likewise non-blocking for the independent
-WP-17–WP-22 sequence. WP-15 is next. No deferred provider is substituted
+WP-17–WP-22 sequence. WP-17 is next. No deferred provider is substituted
 automatically.

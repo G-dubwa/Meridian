@@ -25,7 +25,7 @@ import {
 } from './auth-http';
 import { authenticationRuntime } from './composition';
 
-function goalResponse(goal: GoalRecord) {
+export function goalResponse(goal: GoalRecord) {
   return goalResponseV1Schema.parse({
     createdAt: goal.createdAt.toISOString(),
     creationAuthority: goal.creationAuthority,

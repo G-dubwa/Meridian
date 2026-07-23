@@ -10,18 +10,19 @@ related-docs: ../README.md
 
 ## Runtime and dependency flow
 
-`apps/web → application → domain ports ← infrastructure adapters` and `apps/worker → application`. Domain contains invariants and ports and imports no Meridian package. Application imports domain only. Prompts may import domain schemas, never the reverse. API contracts may register versioned domain boundary schemas; they contain no business rules.
+`apps/web → application → domain ports ← infrastructure adapters` and `apps/worker → application`. Domain contains invariants and ports and imports no Meridian package. Application imports domain and the deterministic scheduling policy package only. Scheduling imports domain contracts and deterministic time-zone invariants only. Prompts may import domain schemas, never the reverse. API contracts may register versioned domain boundary schemas; they contain no business rules.
 
 ## Package ownership
 
-| Package                   | Owns                                                               | Prohibited imports                           |
-| ------------------------- | ------------------------------------------------------------------ | -------------------------------------------- |
-| `domain`                  | IDs, owner scope, policies, errors, schemas, ports, event envelope | every other Meridian package                 |
-| `application`             | use-case and transaction orchestration                             | all infrastructure, presentation, prompts    |
-| `api-contracts`           | OpenAPI/schema-generation boundary                                 | application services and infrastructure      |
-| `infrastructure-*`        | adapters implementing domain ports                                 | web presentation and domain-policy invention |
-| `prompts`                 | versioned prompt definitions and output contracts                  | infrastructure provider SDKs                 |
-| `apps/web`, `apps/worker` | presentation, hosting, and explicit process composition            | adapter access outside composition roots     |
+| Package                   | Owns                                                               | Prohibited imports                            |
+| ------------------------- | ------------------------------------------------------------------ | --------------------------------------------- |
+| `domain`                  | IDs, owner scope, policies, errors, schemas, ports, event envelope | every other Meridian package                  |
+| `application`             | use-case and transaction orchestration                             | all infrastructure, presentation, prompts     |
+| `scheduling`              | deterministic availability and exact block proposal arithmetic     | infrastructure, presentation, prompts, models |
+| `api-contracts`           | OpenAPI/schema-generation boundary                                 | application services and infrastructure       |
+| `infrastructure-*`        | adapters implementing domain ports                                 | web presentation and domain-policy invention  |
+| `prompts`                 | versioned prompt definitions and output contracts                  | infrastructure provider SDKs                  |
+| `apps/web`, `apps/worker` | presentation, hosting, and explicit process composition            | adapter access outside composition roots      |
 
 `apps/web/app/_server/composition.ts` and `apps/worker/src/composition.ts` are
 the exact process composition roots allowed to construct infrastructure
@@ -67,6 +68,11 @@ validation in `domain`/`application`. `infrastructure-db` provides forced-RLS
 goal and edge repositories; `api-contracts` and `apps/web` expose local
 owner-confirmed controls. No goal module imports scheduling, models, analytics,
 or provider infrastructure.
+
+WP-15 activates `scheduling` as a pure deterministic policy package.
+Application orchestrates owner-scoped repositories and invokes that arithmetic;
+scheduling may import domain contracts and deterministic time-zone invariants but no adapter, model, presentation, or
+provider.
 
 `dependency-cruiser.config.mjs` is executable authority for accepted ADR-0002
 rules. Its negative fixtures prove both domain-to-infrastructure and

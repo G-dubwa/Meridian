@@ -15,6 +15,7 @@ import type {
 } from './integration.js';
 import type {
   AgendaBlockId,
+  CalendarBlockId,
   DailyPriorityId,
   DerivationLinkId,
   EdgeId,
@@ -30,9 +31,15 @@ import type {
   SessionId,
   TaskId,
   TodayReceiptId,
+  SchedulingProposalId,
   UserId,
   Uuid,
 } from './ids.js';
+import type {
+  SchedulingCandidate,
+  SchedulingProposalState,
+  SchedulingVerdict,
+} from './scheduling.js';
 import type { EdgeType, GoalState, GoalType } from './goal.js';
 import type {
   AgendaBlockState,
@@ -235,6 +242,58 @@ export interface AgendaBlockRecord {
   readonly endsAt: Date;
   readonly timeZone: string;
   readonly state: AgendaBlockState;
+  readonly createdAt: Date;
+  readonly updatedAt: Date;
+  readonly version: number;
+}
+
+export interface SchedulingProposalRecord {
+  readonly id: SchedulingProposalId;
+  readonly scope: UserScope;
+  readonly title: string;
+  readonly taskId: TaskId | null;
+  readonly goalId: GoalId | null;
+  readonly earliestStart: Date;
+  readonly deadline: Date;
+  readonly timeZone: string;
+  readonly estimatedEffortMinutes: number;
+  readonly minBlockMinutes: number;
+  readonly maxBlockMinutes: number;
+  readonly bufferMinutes: number;
+  readonly maxDeepWorkMinutesPerDay: number;
+  readonly workingWindows: readonly {
+    readonly startsAt: Date;
+    readonly endsAt: Date;
+  }[];
+  readonly candidates: readonly SchedulingCandidate[];
+  readonly capacityMinutes: number;
+  readonly scheduledMinutes: number;
+  readonly verdict: SchedulingVerdict;
+  readonly exclusions: readonly string[];
+  readonly alternatives: readonly string[];
+  readonly state: SchedulingProposalState;
+  readonly createdAt: Date;
+  readonly updatedAt: Date;
+  readonly version: number;
+}
+
+export interface CalendarBlockRecord {
+  readonly id: CalendarBlockId;
+  readonly resourceId: ResourceId;
+  readonly scope: UserScope;
+  readonly proposalId: SchedulingProposalId;
+  readonly taskId: TaskId | null;
+  readonly goalId: GoalId | null;
+  readonly ordinal: number;
+  readonly title: string;
+  readonly plannedEffortMinutes: number;
+  readonly originalStartsAt: Date;
+  readonly originalEndsAt: Date;
+  readonly currentStartsAt: Date;
+  readonly currentEndsAt: Date;
+  readonly timeZone: string;
+  readonly state: 'planned' | 'cancelled';
+  readonly approvalRecordedAt: Date;
   readonly createdAt: Date;
   readonly updatedAt: Date;
   readonly version: number;
@@ -505,6 +564,33 @@ export interface AgendaBlockRepository {
   update(record: AgendaBlockRecord, expectedVersion: number): Promise<boolean>;
 }
 
+export interface SchedulingProposalRepository {
+  acquirePlanningLock(scope: UserScope): Promise<void>;
+  findById(
+    scope: UserScope,
+    id: SchedulingProposalId,
+  ): Promise<SchedulingProposalRecord | null>;
+  list(scope: UserScope): Promise<readonly SchedulingProposalRecord[]>;
+  save(record: SchedulingProposalRecord): Promise<void>;
+  update(
+    record: SchedulingProposalRecord,
+    expectedVersion: number,
+  ): Promise<boolean>;
+}
+
+export interface CalendarBlockRepository {
+  listBetween(
+    scope: UserScope,
+    start: Date,
+    end: Date,
+  ): Promise<readonly CalendarBlockRecord[]>;
+  listForProposal(
+    scope: UserScope,
+    proposalId: SchedulingProposalId,
+  ): Promise<readonly CalendarBlockRecord[]>;
+  save(record: CalendarBlockRecord): Promise<void>;
+}
+
 export interface DailyPriorityRepository {
   acquireDateLock(scope: UserScope, localDate: LocalDateV1): Promise<void>;
   findById(
@@ -552,6 +638,7 @@ export interface EdgeRepository {
 
 export interface TransactionPorts {
   readonly agendaBlocks: AgendaBlockRepository;
+  readonly calendarBlocks: CalendarBlockRepository;
   readonly commandReceipts: CommandReceiptRepository;
   readonly consentRecords: ConsentRecordRepository;
   readonly dailyPriorities: DailyPriorityRepository;
@@ -566,6 +653,7 @@ export interface TransactionPorts {
   readonly proposals: ProposalRepository;
   readonly reminderOccurrences: ReminderOccurrenceRepository;
   readonly reminders: ReminderRepository;
+  readonly schedulingProposals: SchedulingProposalRepository;
   readonly resources: ResourceRepository;
   readonly tasks: TaskRepository;
   readonly todayReceipts: TodayReceiptRepository;

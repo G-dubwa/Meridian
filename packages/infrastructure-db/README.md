@@ -55,6 +55,11 @@ same-owner source/target foreign keys, partial active-edge uniqueness, and a
 transaction advisory lock for active-goal acknowledgement checks. Removed
 edges and terminal goals retain audit history.
 
+WP-15 adds forced-RLS scheduling proposals and canonical local calendar blocks,
+same-owner task/goal/proposal/resource relationships, exact proposal-version
+updates, and an owner planning advisory lock. Stored proposal content never
+enters domain-event or outbox payloads.
+
 Tests: `pnpm test:integration` creates a temporary PostgreSQL 18 cluster when
 `TEST_DATABASE_URL` is absent. It covers empty and seeded migration paths,
 installed-but-unused pgvector, unpartitioned tables, two-user isolation,
@@ -63,6 +68,7 @@ journal/worker migrations, immutable revisions, optimistic state, event/outbox
 atomicity, retry idempotency, concurrent queue dispatch, terminal dead letters,
 Private exclusion, Microsoft token lifecycle, exact-scope constraints, consent
 immutability, integration RLS, local Today isolation, priority limits,
-lifecycle undo, goal isolation, soft-load acknowledgement, and
-dependency-cycle rejection. Playwright proves journal, health, Microsoft
-Settings/status, local Today, and goal paths without contacting a provider.
+lifecycle undo, goal isolation, soft-load acknowledgement, dependency-cycle
+rejection, and deterministic local-plan isolation/acceptance. Playwright proves
+journal, health, Microsoft Settings/status, local Today, goal, and planning
+paths without contacting a provider.

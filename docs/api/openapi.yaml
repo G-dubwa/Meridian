@@ -596,6 +596,93 @@ paths:
               schema: { $ref: '#/components/schemas/GoalLimitResponseV1' }
         '400': { $ref: '#/components/responses/ValidationFailed' }
         '403': { $ref: '#/components/responses/CsrfInvalid' }
+  /api/planning:
+    get:
+      operationId: getLocalPlanning
+      summary: Read deterministic local proposals, blocks, and eligible targets.
+      security: [{ sessionCookie: [] }]
+      responses:
+        '200':
+          description: Local planning snapshot with inactive provider status.
+          content:
+            application/json:
+              schema:
+                { $ref: '#/components/schemas/SchedulingSnapshotResponseV1' }
+        '401': { $ref: '#/components/responses/SessionInvalid' }
+    post:
+      operationId: createLocalSchedulingProposal
+      summary: Calculate and retain one exact deterministic local preview.
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/CsrfHeader' }
+        - { $ref: '#/components/parameters/RequestIdHeader' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              { $ref: '#/components/schemas/CreateSchedulingProposalRequestV1' }
+      responses:
+        '201':
+          description: Pending exact local proposal.
+          content:
+            application/json:
+              schema:
+                { $ref: '#/components/schemas/SchedulingProposalResponseV1' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '403': { $ref: '#/components/responses/CsrfInvalid' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/planning/{schedulingProposalId}/accept:
+    post:
+      operationId: acceptLocalSchedulingProposal
+      summary: Revalidate and accept the exact preview into local plan blocks.
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/CsrfHeader' }
+        - { $ref: '#/components/parameters/RequestIdHeader' }
+        - { $ref: '#/components/parameters/SchedulingProposalIdPath' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SchedulingDecisionRequestV1' }
+      responses:
+        '200':
+          description: Accepted or fail-closed stale proposal.
+          content:
+            application/json:
+              schema:
+                { $ref: '#/components/schemas/SchedulingProposalResponseV1' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '403': { $ref: '#/components/responses/CsrfInvalid' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/planning/{schedulingProposalId}/dismiss:
+    post:
+      operationId: dismissLocalSchedulingProposal
+      summary: Dismiss one pending local proposal without creating blocks.
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/CsrfHeader' }
+        - { $ref: '#/components/parameters/RequestIdHeader' }
+        - { $ref: '#/components/parameters/SchedulingProposalIdPath' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SchedulingDecisionRequestV1' }
+      responses:
+        '200':
+          description: Dismissed local proposal.
+          content:
+            application/json:
+              schema:
+                { $ref: '#/components/schemas/SchedulingProposalResponseV1' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '403': { $ref: '#/components/responses/CsrfInvalid' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
   /api/today:
     get:
       operationId: getLocalToday
@@ -935,6 +1022,11 @@ components:
       schema: { type: string, format: uuid }
     GoalIdPath:
       name: goalId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    SchedulingProposalIdPath:
+      name: schedulingProposalId
       in: path
       required: true
       schema: { type: string, format: uuid }
@@ -1361,6 +1453,184 @@ components:
       properties:
         expectedVersion: { type: integer, minimum: 1 }
         ownerConfirmed: { type: boolean, const: true }
+    SchedulingIntervalV1:
+      type: object
+      additionalProperties: false
+      required: [endsAt, startsAt]
+      properties:
+        endsAt: { type: string, format: date-time }
+        startsAt: { type: string, format: date-time }
+    SchedulingCandidateV1:
+      type: object
+      additionalProperties: false
+      required: [endsAt, minutes, ordinal, startsAt]
+      properties:
+        endsAt: { type: string, format: date-time }
+        minutes: { type: integer, minimum: 1 }
+        ordinal: { type: integer, minimum: 1 }
+        startsAt: { type: string, format: date-time }
+    CreateSchedulingProposalRequestV1:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          bufferMinutes,
+          deadline,
+          earliestStart,
+          estimatedEffortMinutes,
+          goalId,
+          maxBlockMinutes,
+          maxDeepWorkMinutesPerDay,
+          minBlockMinutes,
+          ownerConfirmed,
+          taskId,
+          timeZone,
+          title,
+          workingWindows,
+        ]
+      properties:
+        bufferMinutes: { type: integer, minimum: 0, maximum: 240 }
+        deadline: { type: string, format: date-time }
+        earliestStart: { type: string, format: date-time }
+        estimatedEffortMinutes: { type: integer, minimum: 15, maximum: 10080 }
+        goalId: { type: [string, 'null'], format: uuid }
+        maxBlockMinutes: { type: integer, minimum: 15, maximum: 480 }
+        maxDeepWorkMinutesPerDay: { type: integer, minimum: 15, maximum: 960 }
+        minBlockMinutes: { type: integer, minimum: 15, maximum: 480 }
+        ownerConfirmed: { type: boolean, const: true }
+        taskId: { type: [string, 'null'], format: uuid }
+        timeZone: { type: string, minLength: 1, maxLength: 100 }
+        title: { type: string, minLength: 1, maxLength: 240 }
+        workingWindows:
+          type: array
+          minItems: 1
+          maxItems: 31
+          items: { $ref: '#/components/schemas/SchedulingIntervalV1' }
+    SchedulingDecisionRequestV1:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, ownerConfirmed]
+      properties:
+        expectedVersion: { type: integer, minimum: 1 }
+        ownerConfirmed: { type: boolean, const: true }
+    SchedulingProposalResponseV1:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          alternatives,
+          bufferMinutes,
+          candidates,
+          capacityMinutes,
+          createdAt,
+          deadline,
+          earliestStart,
+          estimatedEffortMinutes,
+          exclusions,
+          goalId,
+          id,
+          maxBlockMinutes,
+          maxDeepWorkMinutesPerDay,
+          minBlockMinutes,
+          scheduledMinutes,
+          state,
+          taskId,
+          timeZone,
+          title,
+          updatedAt,
+          verdict,
+          version,
+          workingWindows,
+        ]
+      properties:
+        alternatives: { type: array, items: { type: string } }
+        bufferMinutes: { type: integer, minimum: 0 }
+        candidates:
+          type: array
+          items: { $ref: '#/components/schemas/SchedulingCandidateV1' }
+        capacityMinutes: { type: integer, minimum: 0 }
+        createdAt: { type: string, format: date-time }
+        deadline: { type: string, format: date-time }
+        earliestStart: { type: string, format: date-time }
+        estimatedEffortMinutes: { type: integer, minimum: 1 }
+        exclusions: { type: array, items: { type: string } }
+        goalId: { type: [string, 'null'], format: uuid }
+        id: { type: string, format: uuid }
+        maxBlockMinutes: { type: integer, minimum: 1 }
+        maxDeepWorkMinutesPerDay: { type: integer, minimum: 1 }
+        minBlockMinutes: { type: integer, minimum: 1 }
+        scheduledMinutes: { type: integer, minimum: 0 }
+        state: { type: string, enum: [pending, accepted, dismissed, stale] }
+        taskId: { type: [string, 'null'], format: uuid }
+        timeZone: { type: string }
+        title: { type: string }
+        updatedAt: { type: string, format: date-time }
+        verdict: { type: string, enum: [feasible, tight, infeasible] }
+        version: { type: integer, minimum: 1 }
+        workingWindows:
+          type: array
+          items: { $ref: '#/components/schemas/SchedulingIntervalV1' }
+    CalendarBlockResponseV1:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          approvalRecordedAt,
+          createdAt,
+          currentEndsAt,
+          currentStartsAt,
+          goalId,
+          id,
+          ordinal,
+          originalEndsAt,
+          originalStartsAt,
+          plannedEffortMinutes,
+          proposalId,
+          resourceId,
+          state,
+          taskId,
+          timeZone,
+          title,
+          updatedAt,
+          version,
+        ]
+      properties:
+        approvalRecordedAt: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }
+        currentEndsAt: { type: string, format: date-time }
+        currentStartsAt: { type: string, format: date-time }
+        goalId: { type: [string, 'null'], format: uuid }
+        id: { type: string, format: uuid }
+        ordinal: { type: integer, minimum: 1 }
+        originalEndsAt: { type: string, format: date-time }
+        originalStartsAt: { type: string, format: date-time }
+        plannedEffortMinutes: { type: integer, minimum: 1 }
+        proposalId: { type: string, format: uuid }
+        resourceId: { type: string, format: uuid }
+        state: { type: string, enum: [planned, cancelled] }
+        taskId: { type: [string, 'null'], format: uuid }
+        timeZone: { type: string }
+        title: { type: string }
+        updatedAt: { type: string, format: date-time }
+        version: { type: integer, minimum: 1 }
+    SchedulingSnapshotResponseV1:
+      type: object
+      additionalProperties: false
+      required: [blocks, goals, proposals, providerStatus, tasks]
+      properties:
+        blocks:
+          type: array
+          items: { $ref: '#/components/schemas/CalendarBlockResponseV1' }
+        goals:
+          type: array
+          items: { $ref: '#/components/schemas/GoalResponseV1' }
+        proposals:
+          type: array
+          items: { $ref: '#/components/schemas/SchedulingProposalResponseV1' }
+        providerStatus: { type: string, const: not_configured }
+        tasks:
+          type: array
+          items: { $ref: '#/components/schemas/TaskResponseV1' }
     CreateAgendaBlockRequestV1:
       type: object
       additionalProperties: false
@@ -2149,8 +2419,8 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorResponseV1' }
 x-document-metadata:
-  purpose: Canonical local-owner authentication, journal, Triage, internal actions, local Today, goals, worker-health, and integration REST contract.
+  purpose: Canonical local-owner authentication, journal, Triage, internal actions, local Today, goals, deterministic planning, worker-health, and integration REST contract.
   audience: Contributors, clients, and coding agents.
-  authoritative-for: WP-04 authentication, WP-05 journal, WP-06 health, WP-07 Microsoft consent, WP-09 Triage, WP-10 tasks/reminders, WP-13A Today, and WP-14 goal HTTP request and response shapes.
+  authoritative-for: WP-04 authentication, WP-05 journal, WP-06 health, WP-07 Microsoft consent, WP-09 Triage, WP-10 tasks/reminders, WP-13A Today, WP-14 goals, and WP-15 local planning HTTP request and response shapes.
   update-triggers: Versioned API boundary schemas, authentication, journal, system-health, or integration routes change.
   related-docs: conventions.md
