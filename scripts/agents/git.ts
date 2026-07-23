@@ -5,7 +5,11 @@ import { safeChildEnvironment } from './security.js';
 
 const GIT_TIMEOUT_MS = 120_000;
 
-async function git(cwd: string, args: readonly string[]): Promise<string> {
+async function git(
+  cwd: string,
+  args: readonly string[],
+  preserveLeadingWhitespace = false,
+): Promise<string> {
   const result = await runCommand({
     args,
     command: 'git',
@@ -15,7 +19,9 @@ async function git(cwd: string, args: readonly string[]): Promise<string> {
   });
   if (result.exitCode !== 0)
     throw new Error(`Git command failed: git ${args.join(' ')}`);
-  return result.stdout.trim();
+  return preserveLeadingWhitespace
+    ? result.stdout.trimEnd()
+    : result.stdout.trim();
 }
 
 export async function resolveCommit(
@@ -74,11 +80,11 @@ export async function assertClean(cwd: string): Promise<void> {
 export async function workingTreePaths(
   cwd: string,
 ): Promise<readonly string[]> {
-  const output = await git(cwd, [
-    'status',
-    '--porcelain=v1',
-    '--untracked-files=all',
-  ]);
+  const output = await git(
+    cwd,
+    ['status', '--porcelain=v1', '--untracked-files=all'],
+    true,
+  );
   return output
     ? output
         .split('\n')

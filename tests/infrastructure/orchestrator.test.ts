@@ -1,8 +1,19 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { parseHandoff } from '../../scripts/agents/protocol.js';
+import {
+  commitValidatedWorkingTree,
+  workingTreePaths,
+} from '../../scripts/agents/git.js';
 import { parseRunRecord } from '../../scripts/agents/protocol.js';
 import { runCommand } from '../../scripts/agents/process-runner.js';
 import {
@@ -201,5 +212,35 @@ describe('governed agent orchestration', () => {
     expect(readFileSync(path, 'utf8')).not.toMatch(
       /token|cookie|password|authorization code/iu,
     );
+  });
+
+  it('preserves tracked status paths before a supervisor-owned commit', async () => {
+    const root = temporary();
+    const path = resolve(root, 'docs/qa/marker.md');
+    mkdirSync(resolve(root, 'docs/qa'), { recursive: true });
+    execFileSync('git', ['init'], { cwd: root, stdio: 'ignore' });
+    writeFileSync(path, 'candidate\n');
+    execFileSync('git', ['add', '--all'], { cwd: root });
+    execFileSync(
+      'git',
+      [
+        '-c',
+        'user.name=Test',
+        '-c',
+        'user.email=test@meridian.invalid',
+        'commit',
+        '-m',
+        'fixture',
+      ],
+      { cwd: root, stdio: 'ignore' },
+    );
+    writeFileSync(path, 'repaired\n');
+    expect(await workingTreePaths(root)).toEqual(['docs/qa/marker.md']);
+    const candidate = await commitValidatedWorkingTree(
+      root,
+      'INFRA-PILOT: supervised repair',
+    );
+    expect(candidate).toMatch(/^[0-9a-f]{40}$/u);
+    expect(await workingTreePaths(root)).toEqual([]);
   });
 });
