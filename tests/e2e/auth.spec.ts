@@ -43,7 +43,7 @@ async function login(
   });
 }
 
-test.describe.serial('WP-04 through WP-13A authenticated acceptance', () => {
+test.describe.serial('WP-04 through WP-14 authenticated acceptance', () => {
   test('bootstraps exactly one owner and stores only Argon2id/recovery hashes', async () => {
     const first = spawnSync(
       'pnpm',
@@ -800,6 +800,153 @@ test.describe.serial('WP-04 through WP-13A authenticated acceptance', () => {
           )::text as provider_events
         from domain_events
         where event_type like 'today.%'
+      `;
+      expect(audit).toEqual({ content_leaks: '0', provider_events: '0' });
+    } finally {
+      await sql.end();
+    }
+  });
+
+  test('manages local goals, dependency guidance, and acknowledged soft load without a provider', async ({
+    request,
+  }) => {
+    expect((await request.get('/api/goals')).status()).toBe(401);
+    expect((await login(request)).status()).toBe(200);
+    const csrfToken = await csrfCookie(request);
+    const page = await request.get('/goals');
+    expect(page.status()).toBe(200);
+    expect(await page.text()).toContain('Personal Beta · local');
+
+    const goalInput = (title: string) => ({
+      lifeDomain: 'E2E local domain',
+      narrative: `${title} private narrative`,
+      ownerConfirmed: true,
+      successCriteria: `${title} private criterion`,
+      targetDate: null,
+      title,
+      type: 'outcome',
+    });
+    expect(
+      (
+        await request.post('/api/goals', {
+          data: goalInput('E2E rejected goal'),
+        })
+      ).status(),
+    ).toBe(403);
+    const firstResponse = await request.post('/api/goals', {
+      data: goalInput('E2E local goal one'),
+      headers: { 'x-csrf-token': csrfToken },
+    });
+    const secondResponse = await request.post('/api/goals', {
+      data: goalInput('E2E local goal two'),
+      headers: { 'x-csrf-token': csrfToken },
+    });
+    expect(firstResponse.status()).toBe(201);
+    expect(secondResponse.status()).toBe(201);
+    const first = (await firstResponse.json()) as {
+      id: string;
+      resourceId: string;
+      version: number;
+    };
+    const second = (await secondResponse.json()) as {
+      id: string;
+      resourceId: string;
+      version: number;
+    };
+
+    const activate = (
+      id: string,
+      version: number,
+      acknowledgeActiveLimit: boolean,
+    ) =>
+      request.post(`/api/goals/${id}/transition`, {
+        data: {
+          acknowledgeActiveLimit,
+          expectedVersion: version,
+          mergedIntoGoalId: null,
+          nextState: 'active',
+          ownerConfirmed: true,
+        },
+        headers: { 'x-csrf-token': csrfToken },
+      });
+    const firstActiveResponse = await activate(first.id, first.version, false);
+    expect(firstActiveResponse.status()).toBe(200);
+    const firstActive = (await firstActiveResponse.json()) as {
+      version: number;
+    };
+    expect(
+      (
+        await request.post('/api/goals/load-limit', {
+          data: { ownerConfirmed: true, softActiveGoalLimit: 1 },
+          headers: { 'x-csrf-token': csrfToken },
+        })
+      ).status(),
+    ).toBe(200);
+    expect((await activate(second.id, second.version, false)).status()).toBe(
+      409,
+    );
+    expect((await activate(second.id, second.version, true)).status()).toBe(
+      200,
+    );
+
+    const edgeResponse = await request.post('/api/goals/edges', {
+      data: {
+        edgeType: 'depends_on',
+        ownerConfirmed: true,
+        sourceResourceId: second.resourceId,
+        targetResourceId: first.resourceId,
+      },
+      headers: { 'x-csrf-token': csrfToken },
+    });
+    expect(edgeResponse.status()).toBe(201);
+    const blocked = await request.get('/api/goals');
+    expect(blocked.status()).toBe(200);
+    expect(await blocked.json()).toMatchObject({
+      blockers: [
+        {
+          blockingResourceIds: [first.resourceId],
+          goalResourceId: second.resourceId,
+        },
+      ],
+      guidance: {
+        activeCount: 2,
+        limit: 1,
+        overBy: 1,
+        status: 'over_limit',
+      },
+    });
+
+    const completed = await request.post(`/api/goals/${first.id}/transition`, {
+      data: {
+        acknowledgeActiveLimit: false,
+        expectedVersion: firstActive.version,
+        mergedIntoGoalId: null,
+        nextState: 'completed',
+        ownerConfirmed: true,
+      },
+      headers: { 'x-csrf-token': csrfToken },
+    });
+    expect(completed.status()).toBe(200);
+    expect(await (await request.get('/api/goals')).json()).toMatchObject({
+      blockers: [],
+    });
+
+    const sql = postgres(databaseUrl, { prepare: false });
+    try {
+      const [audit] = await sql<
+        { content_leaks: string; provider_events: string }[]
+      >`
+        select
+          count(*) filter (
+            where payload::text like '%E2E local%'
+          )::text as content_leaks,
+          count(*) filter (
+            where event_type like 'integration.%'
+               or event_type like 'calendar.%'
+               or event_type like 'delivery.%'
+          )::text as provider_events
+        from domain_events
+        where event_type like 'goal.%'
       `;
       expect(audit).toEqual({ content_leaks: '0', provider_events: '0' });
     } finally {

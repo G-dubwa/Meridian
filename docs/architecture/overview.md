@@ -64,6 +64,12 @@ selection reversibly auditable with exact-version checks. `CalendarPort` and
 `ReminderDeliveryPort` remain uncomposed domain boundaries; every Today
 response declares external delivery inactive.
 
+WP-14 adds canonical owner goals and registered resource edges. Load guidance
+is deterministic active-count arithmetic against an owner-configurable soft
+guide. Dependency explanations read canonical edges and never infer execution,
+success probability, or personal quality. The package is entirely local and
+does not compose a model, calendar, reminder, or other provider.
+
 ADR-0001/0002 govern modularity/dependencies, ADR-0003 persistence/RLS,
 ADR-0004 authentication, ADR-0005 journal revision history, ADR-0006 reliable
 worker processing, ADR-0007 Microsoft OAuth/token custody, and ADR-0008 the

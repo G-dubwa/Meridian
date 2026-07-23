@@ -14,6 +14,7 @@ export default function ActionsPage() {
           </p>
         </div>
         <nav className="button-row" aria-label="Action navigation">
+          <Link href="/goals">Goals</Link>
           <Link href="/triage">Triage</Link>
           <Link href="/journal">Journal</Link>
         </nav>

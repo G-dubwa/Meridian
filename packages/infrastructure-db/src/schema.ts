@@ -26,14 +26,23 @@ const timestamps = {
     .defaultNow(),
 };
 
-export const users = pgTable('users', {
-  id: uuid('id').primaryKey(),
-  locale: text('locale').notNull().default('en-ZA'),
-  homeTimeZone: text('home_time_zone').notNull(),
-  softActiveGoalLimit: integer('soft_active_goal_limit').notNull().default(5),
-  settings: jsonb('settings').notNull().default({}),
-  ...timestamps,
-});
+export const users = pgTable(
+  'users',
+  {
+    id: uuid('id').primaryKey(),
+    locale: text('locale').notNull().default('en-ZA'),
+    homeTimeZone: text('home_time_zone').notNull(),
+    softActiveGoalLimit: integer('soft_active_goal_limit').notNull().default(5),
+    settings: jsonb('settings').notNull().default({}),
+    ...timestamps,
+  },
+  (table) => [
+    check(
+      'users_soft_active_goal_limit_valid',
+      sql`${table.softActiveGoalLimit} between 1 and 20`,
+    ),
+  ],
+);
 
 export const authCredentials = pgTable(
   'auth_credentials',
@@ -1015,6 +1024,157 @@ export const todayReceipts = pgTable(
   ],
 );
 
+export const goals = pgTable(
+  'goals',
+  {
+    id: uuid('id').primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    narrative: text('narrative').notNull().default(''),
+    type: text('type').notNull(),
+    successCriteria: text('success_criteria').notNull().default(''),
+    targetDate: date('target_date', { mode: 'string' }),
+    lifeDomain: text('life_domain').notNull(),
+    state: text('state').notNull().default('incubating'),
+    creationAuthority: text('creation_authority').notNull().default('manual'),
+    sourceProposalId: uuid('source_proposal_id'),
+    ...timestamps,
+    version: integer('version').notNull().default(1),
+  },
+  (table) => [
+    unique('goals_id_user_unique').on(table.id, table.userId),
+    foreignKey({
+      columns: [table.id, table.userId],
+      foreignColumns: [resources.id, resources.userId],
+      name: 'goals_resource_owner_fk',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [table.sourceProposalId, table.userId],
+      foreignColumns: [proposals.id, proposals.userId],
+      name: 'goals_source_proposal_owner_fk',
+    }).onDelete('restrict'),
+    check(
+      'goals_title_valid',
+      sql`length(btrim(${table.title})) between 1 and 240`,
+    ),
+    check('goals_narrative_valid', sql`length(${table.narrative}) <= 4000`),
+    check(
+      'goals_success_criteria_valid',
+      sql`length(${table.successCriteria}) <= 2000`,
+    ),
+    check(
+      'goals_life_domain_valid',
+      sql`length(btrim(${table.lifeDomain})) between 1 and 100`,
+    ),
+    check('goals_type_valid', sql`${table.type} in ('outcome', 'behavioural')`),
+    check(
+      'goals_state_valid',
+      sql`${table.state} in ('incubating', 'active', 'paused', 'completed', 'retired', 'merged')`,
+    ),
+    check(
+      'goals_creation_authority_valid',
+      sql`${table.creationAuthority} in ('manual', 'accepted_proposal')`,
+    ),
+    check(
+      'goals_source_authority_valid',
+      sql`(${table.creationAuthority} = 'manual' and ${table.sourceProposalId} is null) or (${table.creationAuthority} = 'accepted_proposal' and ${table.sourceProposalId} is not null)`,
+    ),
+    check('goals_version_positive', sql`${table.version} > 0`),
+    index('goals_user_state_updated_idx').on(
+      table.userId,
+      table.state,
+      table.updatedAt,
+    ),
+    index('goals_user_target_date_idx').on(table.userId, table.targetDate),
+  ],
+);
+
+export const edgeTypeRegistry = pgTable(
+  'edge_type_registry',
+  {
+    key: text('key').primaryKey(),
+    description: text('description').notNull(),
+    semanticsVersion: integer('semantics_version').notNull().default(1),
+    symmetric: boolean('symmetric').notNull().default(false),
+    ...timestamps,
+  },
+  (table) => [
+    check(
+      'edge_type_registry_key_valid',
+      sql`${table.key} ~ '^[a-z][a-z0-9_]{2,63}$'`,
+    ),
+    check(
+      'edge_type_registry_semantics_version_positive',
+      sql`${table.semanticsVersion} > 0`,
+    ),
+  ],
+);
+
+export const edges = pgTable(
+  'edges',
+  {
+    id: uuid('id').primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    sourceResourceId: uuid('source_resource_id').notNull(),
+    targetResourceId: uuid('target_resource_id').notNull(),
+    edgeType: text('edge_type')
+      .notNull()
+      .references(() => edgeTypeRegistry.key, { onDelete: 'restrict' }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    removedAt: timestamp('removed_at', { withTimezone: true }),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    version: integer('version').notNull().default(1),
+  },
+  (table) => [
+    unique('edges_id_user_unique').on(table.id, table.userId),
+    foreignKey({
+      columns: [table.sourceResourceId, table.userId],
+      foreignColumns: [resources.id, resources.userId],
+      name: 'edges_source_owner_fk',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [table.targetResourceId, table.userId],
+      foreignColumns: [resources.id, resources.userId],
+      name: 'edges_target_owner_fk',
+    }).onDelete('cascade'),
+    check(
+      'edges_distinct_resources',
+      sql`${table.sourceResourceId} <> ${table.targetResourceId}`,
+    ),
+    check(
+      'edges_removed_valid',
+      sql`${table.removedAt} is null or ${table.removedAt} >= ${table.createdAt}`,
+    ),
+    check('edges_version_positive', sql`${table.version} > 0`),
+    uniqueIndex('edges_active_relation_unique')
+      .on(
+        table.userId,
+        table.sourceResourceId,
+        table.targetResourceId,
+        table.edgeType,
+      )
+      .where(sql`${table.removedAt} is null`),
+    index('edges_user_source_idx').on(
+      table.userId,
+      table.sourceResourceId,
+      table.removedAt,
+    ),
+    index('edges_user_target_idx').on(
+      table.userId,
+      table.targetResourceId,
+      table.removedAt,
+    ),
+  ],
+);
+
 export const domainEvents = pgTable(
   'domain_events',
   {
@@ -1106,8 +1266,11 @@ export const schemaTables = {
   dailyPriorities,
   derivationLinks,
   domainEvents,
+  edges,
+  edgeTypeRegistry,
   entries,
   entryRevisions,
+  goals,
   outboxMessages,
   proposals,
   reminderOccurrences,

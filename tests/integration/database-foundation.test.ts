@@ -39,6 +39,7 @@ import {
 } from '../../packages/application/src/journal.js';
 import { ActionService } from '../../packages/application/src/actions.js';
 import { TodayService } from '../../packages/application/src/today.js';
+import { GoalService } from '../../packages/application/src/goals.js';
 import {
   ProposalMaterialChangeInvalidationHook,
   TriageService,
@@ -127,8 +128,11 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
       'daily_priorities',
       'derivation_links',
       'domain_events',
+      'edge_type_registry',
+      'edges',
       'entries',
       'entry_revisions',
+      'goals',
       'integration_accounts',
       'oauth_authorization_sessions',
       'outbox_messages',
@@ -250,6 +254,14 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
           'utf8',
         ),
       );
+      await snapshotSql.unsafe(
+        readFileSync(
+          resolve(
+            'packages/infrastructure-db/migrations/0010_wp14_goals_edges_load_guidance.sql',
+          ),
+          'utf8',
+        ),
+      );
       const [seeded] = await snapshotSql<{ count: string }[]>`
         select count(*)::text as count from users
       `;
@@ -289,6 +301,10 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
         select to_regclass('public.agenda_blocks')::text as name
       `;
       expect(agendaTable?.name).toBe('agenda_blocks');
+      const [goalTable] = await snapshotSql<{ name: string }[]>`
+        select to_regclass('public.goals')::text as name
+      `;
+      expect(goalTable?.name).toBe('goals');
     } finally {
       await snapshotSql.end();
       await admin.sql.unsafe(`drop database if exists ${snapshotDatabase}`);
@@ -301,9 +317,11 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
       `create role ${appRole} login password '${appPassword}'`,
     );
     await admin.sql.unsafe(`grant usage on schema public to ${appRole}`);
-    await admin.sql.unsafe(`grant select on schema_registry to ${appRole}`);
     await admin.sql.unsafe(
-      `grant select, insert, update, delete on users, resources, entries, entry_revisions, derivation_links, domain_events, outbox_messages, proposals, tasks, reminders, reminder_occurrences, command_receipts, agenda_blocks, daily_priorities, today_receipts, integration_accounts, consent_records, oauth_authorization_sessions to ${appRole}`,
+      `grant select on schema_registry, edge_type_registry to ${appRole}`,
+    );
+    await admin.sql.unsafe(
+      `grant select, insert, update, delete on users, resources, entries, entry_revisions, derivation_links, domain_events, outbox_messages, proposals, tasks, reminders, reminder_occurrences, command_receipts, agenda_blocks, daily_priorities, today_receipts, goals, edges, integration_accounts, consent_records, oauth_authorization_sessions to ${appRole}`,
     );
 
     app = createDatabaseClient(appUrl.toString());
@@ -1076,6 +1094,242 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
     expect(eventText).not.toContain('Today fixture');
     expect(eventText).not.toContain('private agenda notes');
     expect(eventText).not.toContain('private notes');
+  });
+
+  it('keeps goals, dependencies, and soft load guidance local and owner-controlled', async () => {
+    if (!app) throw new Error('Application database was not initialized.');
+    const transactions = new DrizzleTransactionManager(app.database);
+    const ids = new CryptoIdGenerator();
+    const clock = { now: () => new Date('2026-07-23T10:00:00.000Z') };
+    const goals = new GoalService({ clock, ids, transactions });
+    const created = [];
+    for (let index = 1; index <= 6; index += 1) {
+      created.push(
+        await goals.create(
+          scopeA,
+          {
+            lifeDomain: 'Synthetic domain',
+            narrative: `Private goal narrative ${String(index)}`,
+            ownerConfirmed: true,
+            successCriteria: `Private success criterion ${String(index)}`,
+            targetDate: index % 2 === 0 ? '2026-12-31' : null,
+            title: `Private goal title ${String(index)}`,
+            type: index % 2 === 0 ? 'behavioural' : 'outcome',
+          },
+          { correlationId: ids.next() },
+        ),
+      );
+    }
+
+    const activated = [];
+    for (const goal of created.slice(0, 5)) {
+      activated.push(
+        await goals.transition(
+          scopeA,
+          goal.id,
+          {
+            acknowledgeActiveLimit: false,
+            expectedVersion: goal.version,
+            mergedIntoGoalId: null,
+            nextState: 'active',
+            ownerConfirmed: true,
+          },
+          { correlationId: ids.next() },
+        ),
+      );
+    }
+    const sixthCreated = created[5];
+    const firstActivated = activated[0];
+    if (!sixthCreated || !firstActivated)
+      throw new Error('Goal activation fixtures were not created.');
+    await expect(
+      goals.transition(
+        scopeA,
+        sixthCreated.id,
+        {
+          acknowledgeActiveLimit: false,
+          expectedVersion: sixthCreated.version,
+          mergedIntoGoalId: null,
+          nextState: 'active',
+          ownerConfirmed: true,
+        },
+        { correlationId: ids.next() },
+      ),
+    ).rejects.toMatchObject({
+      code: 'CONFLICT',
+      details: { activeCount: 5, limit: 5, requiresAcknowledgement: true },
+    });
+    const sixth = await goals.transition(
+      scopeA,
+      sixthCreated.id,
+      {
+        acknowledgeActiveLimit: true,
+        expectedVersion: sixthCreated.version,
+        mergedIntoGoalId: null,
+        nextState: 'active',
+        ownerConfirmed: true,
+      },
+      { correlationId: ids.next() },
+    );
+
+    const dependency = await goals.createEdge(
+      scopeA,
+      {
+        edgeType: 'depends_on',
+        ownerConfirmed: true,
+        sourceResourceId: sixth.resourceId,
+        targetResourceId: firstActivated.resourceId,
+      },
+      { correlationId: ids.next() },
+    );
+    await expect(
+      goals.createEdge(
+        scopeA,
+        {
+          edgeType: 'depends_on',
+          ownerConfirmed: true,
+          sourceResourceId: firstActivated.resourceId,
+          targetResourceId: sixth.resourceId,
+        },
+        { correlationId: ids.next() },
+      ),
+    ).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
+    await expect(
+      goals.removeEdge(scopeB, dependency.id, dependency.version, true, {
+        correlationId: ids.next(),
+      }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+
+    const actions = new ActionService({ clock, ids, transactions });
+    const linked = await actions.createTask(
+      scopeA,
+      {
+        authority: {
+          ambiguous: false,
+          deterministic: true,
+          explicit: true,
+          externalEffect: false,
+          ownerConfirmed: true,
+        },
+        dueAt: null,
+        estimateMinutes: 30,
+        goalResourceId: sixth.resourceId,
+        kind: 'milestone',
+        notes: 'Private linked-task notes',
+        title: 'Private linked-task title',
+      },
+      { correlationId: ids.next() },
+    );
+
+    const overLimit = await goals.get(scopeA);
+    expect(overLimit.guidance).toEqual({
+      activeCount: 6,
+      limit: 5,
+      overBy: 1,
+      requiresAcknowledgement: true,
+      status: 'over_limit',
+    });
+    expect(overLimit.linkedTasks).toContainEqual(
+      expect.objectContaining({ id: linked.target.id }),
+    );
+    expect(overLimit.blockers).toContainEqual({
+      blockingResourceIds: [firstActivated.resourceId],
+      goalResourceId: sixth.resourceId,
+    });
+    await expect(goals.get(scopeB)).resolves.toMatchObject({
+      blockers: [],
+      edges: [],
+      goals: [],
+    });
+
+    await goals.transition(
+      scopeA,
+      firstActivated.id,
+      {
+        acknowledgeActiveLimit: false,
+        expectedVersion: firstActivated.version,
+        mergedIntoGoalId: null,
+        nextState: 'completed',
+        ownerConfirmed: true,
+      },
+      { correlationId: ids.next() },
+    );
+    expect((await goals.get(scopeA)).blockers).not.toContainEqual(
+      expect.objectContaining({ goalResourceId: sixth.resourceId }),
+    );
+
+    const updatedOwner = await goals.updateSoftLimit(
+      scopeA,
+      { ownerConfirmed: true, softActiveGoalLimit: 3 },
+      { correlationId: ids.next() },
+    );
+    expect(updatedOwner.softActiveGoalLimit).toBe(3);
+    expect((await goals.get(scopeA)).guidance).toMatchObject({
+      activeCount: 5,
+      limit: 3,
+      overBy: 2,
+      status: 'over_limit',
+    });
+
+    const concurrentGoals = await Promise.all(
+      ['Concurrent edge A', 'Concurrent edge B'].map((title) =>
+        goals.create(
+          scopeA,
+          {
+            lifeDomain: 'Synthetic domain',
+            narrative: '',
+            ownerConfirmed: true,
+            successCriteria: '',
+            targetDate: null,
+            title,
+            type: 'outcome',
+          },
+          { correlationId: ids.next() },
+        ),
+      ),
+    );
+    const concurrentA = concurrentGoals[0];
+    const concurrentB = concurrentGoals[1];
+    if (!concurrentA || !concurrentB)
+      throw new Error('Concurrent edge fixtures were not created.');
+    const concurrentEdges = await Promise.allSettled([
+      goals.createEdge(
+        scopeA,
+        {
+          edgeType: 'depends_on',
+          ownerConfirmed: true,
+          sourceResourceId: concurrentA.resourceId,
+          targetResourceId: concurrentB.resourceId,
+        },
+        { correlationId: ids.next() },
+      ),
+      goals.createEdge(
+        scopeA,
+        {
+          edgeType: 'depends_on',
+          ownerConfirmed: true,
+          sourceResourceId: concurrentB.resourceId,
+          targetResourceId: concurrentA.resourceId,
+        },
+        { correlationId: ids.next() },
+      ),
+    ]);
+    expect(
+      concurrentEdges.filter((result) => result.status === 'fulfilled'),
+    ).toHaveLength(1);
+    expect(
+      concurrentEdges.filter((result) => result.status === 'rejected'),
+    ).toHaveLength(1);
+
+    const goalEvents = await transactions.run(scopeA, (ports) =>
+      ports.domainEvents.listByTypePrefix(scopeA, 'goal.', 40),
+    );
+    const eventText = JSON.stringify(goalEvents);
+    expect(goalEvents.length).toBeGreaterThanOrEqual(15);
+    expect(eventText).not.toContain('Private goal');
+    expect(eventText).not.toContain('Private success');
+    expect(eventText).not.toContain('Private linked');
+    expect(eventText).not.toContain('Synthetic domain');
   });
 
   it('cascades revision-derived provenance when an entry is deleted', async () => {

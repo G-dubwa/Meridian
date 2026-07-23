@@ -17,7 +17,10 @@ related-docs: ../README.md
   sent, received, or acted on.
 - Daily priorities are deliberately capped at three and are selected per
   owner-local date; no automatic ranking is active.
-- Goals, load guidance, deterministic scheduling proposals, execution evidence,
-  Weekly Review, retrieval, and analytics remain later packages.
+- Goals and transparent load guidance are local and active. Inferred goals,
+  automatic prioritisation, deterministic scheduling proposals, execution
+  evidence, Weekly Review, retrieval, and analytics remain later packages.
+- Dependency guidance reflects explicit canonical edges only. It is not a
+  success forecast, performance score, or proof that work occurred.
 - The preserved Microsoft branch is experimental and does not provide an
   active capability on `main`.

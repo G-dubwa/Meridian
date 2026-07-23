@@ -49,8 +49,13 @@ blocks, and three daily priority references. It owns content-free lifecycle
 events and exact-version receipts for completion, dismissal, and undo. It does
 not receive or call a calendar or reminder-delivery adapter in WP-13A.
 
+`GoalService` owns manual goal commands, lifecycle/merge orchestration,
+registered edge writes, dependency-cycle checks, blocker explanations,
+owner-configurable soft-load acknowledgement, and content-free goal events. It
+uses domain ports only and makes no model or provider call.
+
 Tests: dependency-cruiser proves application-to-infrastructure imports fail.
-Authentication, journal, Today, and event services use live
+Authentication, journal, Today, goals, and event services use live
 PostgreSQL/pg-boss/Next.js
 journeys; model gateway and routing use isolated mock adapters. Unit tests cover
 schemas, policy, retry/terminal transitions, and content-safe observations.

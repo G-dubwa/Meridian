@@ -102,3 +102,19 @@ Payloads contain only action enum, target resource ID/type, and nullable Today
 receipt ID. Agenda/task/reminder content, dates, time zones, and priority dates
 are prohibited. These are local application events, not notification or
 calendar-provider evidence.
+
+## Goal and edge events v1
+
+| Event                        | Emitted when                                 |
+| ---------------------------- | -------------------------------------------- |
+| `goal.created.v1`            | Manual incubating goal commits               |
+| `goal.updated.v1`            | Version-guarded goal content edit commits    |
+| `goal.transitioned.v1`       | Valid lifecycle transition commits           |
+| `goal.edge_created.v1`       | Registered owner-scoped relationship commits |
+| `goal.edge_removed.v1`       | Removable relationship is terminally removed |
+| `goal.load_limit_updated.v1` | Owner changes the advisory active-goal guide |
+
+Payloads contain only action/state/edge enums, resource and edge identifiers,
+and the numeric soft guide where applicable. Goal title, narrative, success
+criteria, target date, life domain, and linked task content are prohibited.
+They are local audit events and provide no execution or provider evidence.

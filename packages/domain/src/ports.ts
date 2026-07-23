@@ -17,9 +17,11 @@ import type {
   AgendaBlockId,
   DailyPriorityId,
   DerivationLinkId,
+  EdgeId,
   CommandReceiptId,
   EntryId,
   EntryRevisionId,
+  GoalId,
   OutboxMessageId,
   ProposalId,
   ReminderId,
@@ -31,6 +33,7 @@ import type {
   UserId,
   Uuid,
 } from './ids.js';
+import type { EdgeType, GoalState, GoalType } from './goal.js';
 import type {
   AgendaBlockState,
   LocalDateV1,
@@ -261,6 +264,36 @@ export interface TodayReceiptRecord {
   readonly createdAt: Date;
   readonly updatedAt: Date;
   readonly undoneAt: Date | null;
+  readonly version: number;
+}
+
+export interface GoalRecord {
+  readonly id: GoalId;
+  readonly resourceId: ResourceId;
+  readonly scope: UserScope;
+  readonly title: string;
+  readonly narrative: string;
+  readonly type: GoalType;
+  readonly successCriteria: string;
+  readonly targetDate: string | null;
+  readonly lifeDomain: string;
+  readonly state: GoalState;
+  readonly creationAuthority: 'manual' | 'accepted_proposal';
+  readonly sourceProposalId: ProposalId | null;
+  readonly createdAt: Date;
+  readonly updatedAt: Date;
+  readonly version: number;
+}
+
+export interface EdgeRecord {
+  readonly id: EdgeId;
+  readonly scope: UserScope;
+  readonly sourceResourceId: ResourceId;
+  readonly targetResourceId: ResourceId;
+  readonly edgeType: EdgeType;
+  readonly createdAt: Date;
+  readonly removedAt: Date | null;
+  readonly updatedAt: Date;
   readonly version: number;
 }
 
@@ -495,6 +528,28 @@ export interface TodayReceiptRepository {
   update(record: TodayReceiptRecord, expectedVersion: number): Promise<boolean>;
 }
 
+export interface GoalRepository {
+  acquireActiveGoalLock(scope: UserScope): Promise<void>;
+  findById(scope: UserScope, id: GoalId): Promise<GoalRecord | null>;
+  list(scope: UserScope): Promise<readonly GoalRecord[]>;
+  save(goal: GoalRecord): Promise<void>;
+  update(goal: GoalRecord, expectedVersion: number): Promise<boolean>;
+}
+
+export interface EdgeRepository {
+  acquireGraphLock(scope: UserScope): Promise<void>;
+  findById(scope: UserScope, id: EdgeId): Promise<EdgeRecord | null>;
+  findActive(
+    scope: UserScope,
+    sourceResourceId: ResourceId,
+    targetResourceId: ResourceId,
+    edgeType: EdgeType,
+  ): Promise<EdgeRecord | null>;
+  list(scope: UserScope): Promise<readonly EdgeRecord[]>;
+  save(edge: EdgeRecord): Promise<void>;
+  update(edge: EdgeRecord, expectedVersion: number): Promise<boolean>;
+}
+
 export interface TransactionPorts {
   readonly agendaBlocks: AgendaBlockRepository;
   readonly commandReceipts: CommandReceiptRepository;
@@ -502,9 +557,11 @@ export interface TransactionPorts {
   readonly dailyPriorities: DailyPriorityRepository;
   readonly derivationLinks: DerivationLinkRepository;
   readonly domainEvents: DomainEventRepository;
+  readonly edges: EdgeRepository;
   readonly entries: EntryRepository;
   readonly entryRevisions: EntryRevisionRepository;
   readonly integrationAccounts: IntegrationAccountRepository;
+  readonly goals: GoalRepository;
   readonly outbox: OutboxRepository;
   readonly proposals: ProposalRepository;
   readonly reminderOccurrences: ReminderOccurrenceRepository;

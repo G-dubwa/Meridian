@@ -5,6 +5,7 @@ import type {
 } from '@meridian/domain';
 
 export * from './authentication.js';
+export * from './goals.js';
 export * from './actions.js';
 export * from './interpretation.js';
 export * from './journal.js';

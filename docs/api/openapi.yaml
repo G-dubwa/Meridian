@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: Meridian API
-  version: 0.13.0
-  description: Same-origin REST contract for owner authentication, journal evidence, Triage, internal tasks/reminders, provider-independent Today, worker health, and Microsoft consent.
+  version: 0.14.0
+  description: Same-origin REST contract for owner authentication, journal evidence, Triage, internal tasks/reminders, provider-independent Today and goals, worker health, and Microsoft consent.
 paths:
   /api/auth/csrf:
     get:
@@ -447,6 +447,155 @@ paths:
         '403': { $ref: '#/components/responses/CsrfInvalid' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+  /api/goals:
+    get:
+      operationId: getLocalGoals
+      summary: Read canonical goals, active edges, linked tasks, blockers, and soft load guidance.
+      security: [{ sessionCookie: [] }]
+      responses:
+        '200':
+          description: Provider-independent local goal view.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GoalSnapshotResponseV1' }
+        '401': { $ref: '#/components/responses/SessionInvalid' }
+    post:
+      operationId: createLocalGoal
+      summary: Create one owner-confirmed incubating goal.
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/CsrfHeader' }
+        - { $ref: '#/components/parameters/RequestIdHeader' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateGoalRequestV1' }
+      responses:
+        '201':
+          description: Canonical local goal.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GoalResponseV1' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '403': { $ref: '#/components/responses/CsrfInvalid' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/goals/{goalId}/edit:
+    post:
+      operationId: editLocalGoal
+      summary: Edit one non-terminal goal under its expected version.
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/CsrfHeader' }
+        - { $ref: '#/components/parameters/RequestIdHeader' }
+        - { $ref: '#/components/parameters/GoalIdPath' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateGoalRequestV1' }
+      responses:
+        '200':
+          description: Updated canonical goal.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GoalResponseV1' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '403': { $ref: '#/components/responses/CsrfInvalid' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/goals/{goalId}/transition:
+    post:
+      operationId: transitionLocalGoal
+      summary: Apply one owner-confirmed goal lifecycle transition.
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/CsrfHeader' }
+        - { $ref: '#/components/parameters/RequestIdHeader' }
+        - { $ref: '#/components/parameters/GoalIdPath' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TransitionGoalRequestV1' }
+      responses:
+        '200':
+          description: Transitioned canonical goal.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GoalResponseV1' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '403': { $ref: '#/components/responses/CsrfInvalid' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/goals/edges:
+    post:
+      operationId: createLocalResourceEdge
+      summary: Create one registered owner-scoped resource relationship.
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/CsrfHeader' }
+        - { $ref: '#/components/parameters/RequestIdHeader' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateEdgeRequestV1' }
+      responses:
+        '201':
+          description: Canonical active edge.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EdgeResponseV1' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '403': { $ref: '#/components/responses/CsrfInvalid' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/goals/edges/{edgeId}/remove:
+    post:
+      operationId: removeLocalResourceEdge
+      summary: Terminally remove one version-matched non-merge edge.
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/CsrfHeader' }
+        - { $ref: '#/components/parameters/RequestIdHeader' }
+        - { $ref: '#/components/parameters/EdgeIdPath' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RemoveEdgeRequestV1' }
+      responses:
+        '200':
+          description: Removed edge with retained audit state.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EdgeResponseV1' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '403': { $ref: '#/components/responses/CsrfInvalid' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/goals/load-limit:
+    post:
+      operationId: updateSoftActiveGoalLimit
+      summary: Change the owner-configurable advisory active-goal guide.
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/CsrfHeader' }
+        - { $ref: '#/components/parameters/RequestIdHeader' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateGoalLimitRequestV1' }
+      responses:
+        '200':
+          description: Updated owner guide and timestamp.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GoalLimitResponseV1' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '403': { $ref: '#/components/responses/CsrfInvalid' }
   /api/today:
     get:
       operationId: getLocalToday
@@ -781,6 +930,16 @@ components:
       description: Stable command correlation identity; reuse it when retrying the same mutation.
     EntryIdPath:
       name: entryId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    GoalIdPath:
+      name: goalId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    EdgeIdPath:
+      name: edgeId
       in: path
       required: true
       schema: { type: string, format: uuid }
@@ -1377,6 +1536,200 @@ components:
                   - { type: 'null' }
               task: { $ref: '#/components/schemas/TaskResponseV1' }
         timeZone: { type: string, minLength: 1, maxLength: 100 }
+    GoalStateV1:
+      type: string
+      enum: [incubating, active, paused, completed, retired, merged]
+    GoalTypeV1:
+      type: string
+      enum: [outcome, behavioural]
+    EdgeTypeV1:
+      type: string
+      enum: [part_of, depends_on, blocks, conflicts_with, supports, merged_into]
+    CreateGoalRequestV1:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          lifeDomain,
+          narrative,
+          ownerConfirmed,
+          successCriteria,
+          targetDate,
+          title,
+          type,
+        ]
+      properties:
+        lifeDomain: { type: string, minLength: 1, maxLength: 100 }
+        narrative: { type: string, maxLength: 4000 }
+        ownerConfirmed: { type: boolean, const: true }
+        successCriteria: { type: string, maxLength: 2000 }
+        targetDate: { type: [string, 'null'], format: date }
+        title: { type: string, minLength: 1, maxLength: 240 }
+        type: { $ref: '#/components/schemas/GoalTypeV1' }
+    UpdateGoalRequestV1:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          expectedVersion,
+          lifeDomain,
+          narrative,
+          ownerConfirmed,
+          successCriteria,
+          targetDate,
+          title,
+          type,
+        ]
+      properties:
+        expectedVersion: { type: integer, minimum: 1 }
+        lifeDomain: { type: string, minLength: 1, maxLength: 100 }
+        narrative: { type: string, maxLength: 4000 }
+        ownerConfirmed: { type: boolean, const: true }
+        successCriteria: { type: string, maxLength: 2000 }
+        targetDate: { type: [string, 'null'], format: date }
+        title: { type: string, minLength: 1, maxLength: 240 }
+        type: { $ref: '#/components/schemas/GoalTypeV1' }
+    TransitionGoalRequestV1:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          acknowledgeActiveLimit,
+          expectedVersion,
+          mergedIntoGoalId,
+          nextState,
+          ownerConfirmed,
+        ]
+      properties:
+        acknowledgeActiveLimit: { type: boolean }
+        expectedVersion: { type: integer, minimum: 1 }
+        mergedIntoGoalId: { type: [string, 'null'], format: uuid }
+        nextState: { $ref: '#/components/schemas/GoalStateV1' }
+        ownerConfirmed: { type: boolean, const: true }
+    CreateEdgeRequestV1:
+      type: object
+      additionalProperties: false
+      required: [edgeType, ownerConfirmed, sourceResourceId, targetResourceId]
+      properties:
+        edgeType: { $ref: '#/components/schemas/EdgeTypeV1' }
+        ownerConfirmed: { type: boolean, const: true }
+        sourceResourceId: { type: string, format: uuid }
+        targetResourceId: { type: string, format: uuid }
+    RemoveEdgeRequestV1:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, ownerConfirmed]
+      properties:
+        expectedVersion: { type: integer, minimum: 1 }
+        ownerConfirmed: { type: boolean, const: true }
+    UpdateGoalLimitRequestV1:
+      type: object
+      additionalProperties: false
+      required: [ownerConfirmed, softActiveGoalLimit]
+      properties:
+        ownerConfirmed: { type: boolean, const: true }
+        softActiveGoalLimit: { type: integer, minimum: 1, maximum: 20 }
+    GoalLimitResponseV1:
+      type: object
+      additionalProperties: false
+      required: [softActiveGoalLimit, updatedAt]
+      properties:
+        softActiveGoalLimit: { type: integer, minimum: 1, maximum: 20 }
+        updatedAt: { type: string, format: date-time }
+    GoalResponseV1:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          resourceId,
+          title,
+          narrative,
+          type,
+          successCriteria,
+          targetDate,
+          lifeDomain,
+          state,
+          creationAuthority,
+          sourceProposalId,
+          createdAt,
+          updatedAt,
+          version,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        resourceId: { type: string, format: uuid }
+        title: { type: string }
+        narrative: { type: string }
+        type: { $ref: '#/components/schemas/GoalTypeV1' }
+        successCriteria: { type: string }
+        targetDate: { type: [string, 'null'], format: date }
+        lifeDomain: { type: string }
+        state: { $ref: '#/components/schemas/GoalStateV1' }
+        creationAuthority: { type: string, enum: [manual, accepted_proposal] }
+        sourceProposalId: { type: [string, 'null'], format: uuid }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        version: { type: integer, minimum: 1 }
+    EdgeResponseV1:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          sourceResourceId,
+          targetResourceId,
+          edgeType,
+          createdAt,
+          removedAt,
+          updatedAt,
+          version,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        sourceResourceId: { type: string, format: uuid }
+        targetResourceId: { type: string, format: uuid }
+        edgeType: { $ref: '#/components/schemas/EdgeTypeV1' }
+        createdAt: { type: string, format: date-time }
+        removedAt: { type: [string, 'null'], format: date-time }
+        updatedAt: { type: string, format: date-time }
+        version: { type: integer, minimum: 1 }
+    ActiveGoalGuidanceResponseV1:
+      type: object
+      additionalProperties: false
+      required: [activeCount, limit, overBy, requiresAcknowledgement, status]
+      properties:
+        activeCount: { type: integer, minimum: 0 }
+        limit: { type: integer, minimum: 1, maximum: 20 }
+        overBy: { type: integer, minimum: 0 }
+        requiresAcknowledgement: { type: boolean }
+        status: { type: string, enum: [within_limit, at_limit, over_limit] }
+    GoalSnapshotResponseV1:
+      type: object
+      additionalProperties: false
+      required: [blockers, edges, goals, guidance, linkedTasks]
+      properties:
+        blockers:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [blockingResourceIds, goalResourceId]
+            properties:
+              blockingResourceIds:
+                type: array
+                items: { type: string, format: uuid }
+              goalResourceId: { type: string, format: uuid }
+        edges:
+          type: array
+          items: { $ref: '#/components/schemas/EdgeResponseV1' }
+        goals:
+          type: array
+          items: { $ref: '#/components/schemas/GoalResponseV1' }
+        guidance: { $ref: '#/components/schemas/ActiveGoalGuidanceResponseV1' }
+        linkedTasks:
+          type: array
+          items: { $ref: '#/components/schemas/TaskResponseV1' }
     TaskResponseV1:
       type: object
       additionalProperties: false
@@ -1796,8 +2149,8 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorResponseV1' }
 x-document-metadata:
-  purpose: Canonical local-owner authentication, journal, Triage, internal actions, local Today, worker-health, and integration REST contract.
+  purpose: Canonical local-owner authentication, journal, Triage, internal actions, local Today, goals, worker-health, and integration REST contract.
   audience: Contributors, clients, and coding agents.
-  authoritative-for: WP-04 authentication, WP-05 journal, WP-06 health, WP-07 Microsoft consent, WP-09 Triage, WP-10 tasks/reminders, and WP-13A Today HTTP request and response shapes.
+  authoritative-for: WP-04 authentication, WP-05 journal, WP-06 health, WP-07 Microsoft consent, WP-09 Triage, WP-10 tasks/reminders, WP-13A Today, and WP-14 goal HTTP request and response shapes.
   update-triggers: Versioned API boundary schemas, authentication, journal, system-health, or integration routes change.
   related-docs: conventions.md

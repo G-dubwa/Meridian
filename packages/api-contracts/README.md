@@ -43,7 +43,11 @@ WP-13A adds strict Today snapshot, agenda, daily-priority, lifecycle, and undo
 schemas. The response has a literal inactive external-delivery status and no
 field capable of claiming a provider notification.
 
+WP-14 adds strict goal, lifecycle, edge, load-setting, and combined goal-view
+schemas. Responses expose canonical local state and transparent count guidance;
+no contract carries provider status, inferred success, or execution claims.
+
 Tests: Type checking and Playwright exercise authentication, journal, health,
-Microsoft, and Today schemas
+Microsoft, Today, and goal schemas
 against the live boundary. `docs/api/openapi.yaml` is reviewed and documentation
 checked; automated OpenAPI generation/diff remains later tooling.

@@ -35,6 +35,10 @@ export const dailyPriorityIdV1Schema = z.uuid().brand<'DailyPriorityId'>();
 export type DailyPriorityId = z.infer<typeof dailyPriorityIdV1Schema>;
 export const todayReceiptIdV1Schema = z.uuid().brand<'TodayReceiptId'>();
 export type TodayReceiptId = z.infer<typeof todayReceiptIdV1Schema>;
+export const goalIdV1Schema = z.uuid().brand<'GoalId'>();
+export type GoalId = z.infer<typeof goalIdV1Schema>;
+export const edgeIdV1Schema = z.uuid().brand<'EdgeId'>();
+export type EdgeId = z.infer<typeof edgeIdV1Schema>;
 export const sessionIdV1Schema = z.uuid().brand<'SessionId'>();
 export type SessionId = z.infer<typeof sessionIdV1Schema>;
 
@@ -46,6 +50,8 @@ export const idSchemasV1 = {
   domainEventId: domainEventIdV1Schema,
   entryId: entryIdV1Schema,
   entryRevisionId: entryRevisionIdV1Schema,
+  edgeId: edgeIdV1Schema,
+  goalId: goalIdV1Schema,
   outboxMessageId: outboxMessageIdV1Schema,
   proposalId: proposalIdV1Schema,
   taskId: taskIdV1Schema,

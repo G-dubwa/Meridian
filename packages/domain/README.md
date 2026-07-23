@@ -31,3 +31,8 @@ WP-13A adds local-date/agenda/priority/lifecycle schemas and provider-neutral
 `CalendarPort` and `ReminderDeliveryPort` contracts. These ports contain
 normalised Meridian types only. No provider credential, Graph type, or delivery
 claim enters the domain.
+
+WP-14 adds goal types/states, strict owner-authored inputs, registered edge
+semantics, lifecycle validation, and transparent active-goal arithmetic.
+Repository ports remain owner-scoped and contain no scheduler, model, analytic,
+or provider type.

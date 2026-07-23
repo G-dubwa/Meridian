@@ -31,6 +31,10 @@ import {
   DrizzleDailyPriorityRepository,
   DrizzleTodayReceiptRepository,
 } from './today-repositories.js';
+import {
+  DrizzleEdgeRepository,
+  DrizzleGoalRepository,
+} from './goal-repositories.js';
 
 function createTransactionPorts(
   database: DatabaseTransaction,
@@ -42,9 +46,11 @@ function createTransactionPorts(
     dailyPriorities: new DrizzleDailyPriorityRepository(database),
     derivationLinks: new DrizzleDerivationLinkRepository(database),
     domainEvents: new DrizzleDomainEventRepository(database),
+    edges: new DrizzleEdgeRepository(database),
     entries: new DrizzleEntryRepository(database),
     entryRevisions: new DrizzleEntryRevisionRepository(database),
     integrationAccounts: new DrizzleIntegrationAccountRepository(database),
+    goals: new DrizzleGoalRepository(database),
     outbox: new DrizzleOutboxRepository(database),
     proposals: new DrizzleProposalRepository(database),
     reminderOccurrences: new DrizzleReminderOccurrenceRepository(database),

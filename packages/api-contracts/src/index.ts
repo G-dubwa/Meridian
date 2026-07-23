@@ -13,6 +13,7 @@ import { microsoftConnectionStatusResponseV1Schema } from './microsoft-integrati
 
 export * from './journal-client.js';
 export * from './actions.js';
+export * from './goals.js';
 export * from './journal.js';
 export * from './microsoft-integration.js';
 export * from './worker-health.js';

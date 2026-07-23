@@ -10,7 +10,7 @@ related-docs: ../../docs/architecture/module-map.md
 
 Responsibility: mobile-responsive UI, thin REST presentation, and explicit
 server-process composition. It includes `/login`, `/settings/security`,
-`/journal`, `/journal/[entryId]`, `/today`, `/settings/health`, and the
+`/journal`, `/journal/[entryId]`, `/today`, `/goals`, `/settings/health`, and the
 auth/journal/worker-health REST routes while preserving `/health`.
 
 Exclusions: domain invariants, persistence policy, provider calls, and business
@@ -32,3 +32,7 @@ most three owner-selected priorities. It offers owner-confirmed in-app
 completion, dismissal, edit, and guarded undo while explicitly stating that
 external phone delivery is inactive. It has no provider import or credential
 dependency.
+
+Goals & Load exposes manual goal creation/edit/lifecycle, registered goal
+relationships, linked tasks, deterministic blockers, and the acknowledged soft
+active-goal guide. It contains no model, score, provider, or execution claim.

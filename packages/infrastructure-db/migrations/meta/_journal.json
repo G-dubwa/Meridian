@@ -71,6 +71,13 @@
       "when": 1784791433637,
       "tag": "0009_wp13a_local_alpha_today",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1784793486292,
+      "tag": "0010_wp14_goals_edges_load_guidance",
+      "breakpoints": true
     }
   ]
 }

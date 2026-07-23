@@ -14,6 +14,7 @@ export default function TodayPage() {
         </div>
         <nav className="button-row" aria-label="Meridian">
           <a href="/actions">Tasks &amp; reminders</a>
+          <a href="/goals">Goals</a>
           <a href="/journal">Journal</a>
           <a href="/triage">Triage</a>
         </nav>

@@ -99,3 +99,16 @@ undo can restore the recorded `planned` state. Today receipts follow
 `active → undone`; undo fails if the target changed after the recorded effect.
 Priority selection creates a receipt whose undo removes only that exact
 unchanged priority row.
+
+## Goal and edge
+
+Goals follow `incubating → active | retired`; `active → paused | completed |
+retired | merged`; and `paused → active | retired`. Completed, retired, and
+merged are terminal. Activation at or above the soft guide requires a literal
+acknowledgement but is not prohibited. Merge also creates one lifecycle-owned
+`merged_into` edge in the same transaction.
+
+Edges are `active → removed`; removal retains the row, timestamp, and version.
+`merged_into` is not independently removable. Duplicate active relationships,
+self-links, inverse conflict duplicates, cross-owner links, and dependency
+cycles fail closed.

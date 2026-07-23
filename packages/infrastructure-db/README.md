@@ -50,6 +50,11 @@ relationships, unique date/position constraints plus a transaction advisory
 lock enforce three priorities under concurrency, and optimistic versions make
 undo fail closed after intervening changes.
 
+WP-14 adds forced-RLS goals and edges, a system-owned edge-type registry,
+same-owner source/target foreign keys, partial active-edge uniqueness, and a
+transaction advisory lock for active-goal acknowledgement checks. Removed
+edges and terminal goals retain audit history.
+
 Tests: `pnpm test:integration` creates a temporary PostgreSQL 18 cluster when
 `TEST_DATABASE_URL` is absent. It covers empty and seeded migration paths,
 installed-but-unused pgvector, unpartitioned tables, two-user isolation,
@@ -57,6 +62,7 @@ transactional resource creation, provenance deletion, authentication schema,
 journal/worker migrations, immutable revisions, optimistic state, event/outbox
 atomicity, retry idempotency, concurrent queue dispatch, terminal dead letters,
 Private exclusion, Microsoft token lifecycle, exact-scope constraints, consent
-immutability, integration RLS, local Today isolation, priority limits, and
-lifecycle undo. Playwright proves journal, health, Microsoft Settings/status,
-and local Today paths without contacting a provider.
+immutability, integration RLS, local Today isolation, priority limits,
+lifecycle undo, goal isolation, soft-load acknowledgement, and
+dependency-cycle rejection. Playwright proves journal, health, Microsoft
+Settings/status, local Today, and goal paths without contacting a provider.

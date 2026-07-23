@@ -50,3 +50,6 @@ related-docs: release.md
   concurrent-safe three-priority limit, canonical local tasks/reminders,
   in-app completion/dismissal/edit, exact-version lifecycle undo, content-free
   audit, and literal external-delivery-inactive status.
+- WP-14 provider-independent goals, registered owner-scoped resource edges,
+  cycle-safe dependency guidance, a configurable soft active-goal guide with
+  explicit over-limit acknowledgement, and a local Goals & Load view.

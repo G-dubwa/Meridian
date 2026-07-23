@@ -62,6 +62,12 @@ and content-free events. `infrastructure-db` implements their forced-RLS
 repositories; `api-contracts` and `apps/web` expose the same-origin Today
 boundary. No Today module imports Microsoft or assumes provider state.
 
+WP-14 keeps goal lifecycle, edge vocabulary, load arithmetic, and cycle
+validation in `domain`/`application`. `infrastructure-db` provides forced-RLS
+goal and edge repositories; `api-contracts` and `apps/web` expose local
+owner-confirmed controls. No goal module imports scheduling, models, analytics,
+or provider infrastructure.
+
 `dependency-cruiser.config.mjs` is executable authority for accepted ADR-0002
 rules. Its negative fixtures prove both domain-to-infrastructure and
 application-to-infrastructure imports are rejected, while the exact composition
