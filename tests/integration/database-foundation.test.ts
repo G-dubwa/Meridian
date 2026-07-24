@@ -41,6 +41,7 @@ import { ActionService } from '../../packages/application/src/actions.js';
 import { TodayService } from '../../packages/application/src/today.js';
 import { GoalService } from '../../packages/application/src/goals.js';
 import { SchedulingService } from '../../packages/application/src/scheduling.js';
+import { ExecutionService } from '../../packages/application/src/execution.js';
 import {
   ProposalMaterialChangeInvalidationHook,
   TriageService,
@@ -134,6 +135,7 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
       'edges',
       'entries',
       'entry_revisions',
+      'execution_records',
       'goals',
       'integration_accounts',
       'oauth_authorization_sessions',
@@ -273,6 +275,14 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
           'utf8',
         ),
       );
+      await snapshotSql.unsafe(
+        readFileSync(
+          resolve(
+            'packages/infrastructure-db/migrations/0012_wp17_execution_evidence_weekly.sql',
+          ),
+          'utf8',
+        ),
+      );
       const [seeded] = await snapshotSql<{ count: string }[]>`
         select count(*)::text as count from users
       `;
@@ -320,6 +330,10 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
         select to_regclass('public.scheduling_proposals')::text as name
       `;
       expect(planningTable?.name).toBe('scheduling_proposals');
+      const [executionTable] = await snapshotSql<{ name: string }[]>`
+        select to_regclass('public.execution_records')::text as name
+      `;
+      expect(executionTable?.name).toBe('execution_records');
     } finally {
       await snapshotSql.end();
       await admin.sql.unsafe(`drop database if exists ${snapshotDatabase}`);
@@ -336,7 +350,7 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
       `grant select on schema_registry, edge_type_registry to ${appRole}`,
     );
     await admin.sql.unsafe(
-      `grant select, insert, update, delete on users, resources, entries, entry_revisions, derivation_links, domain_events, outbox_messages, proposals, tasks, reminders, reminder_occurrences, command_receipts, agenda_blocks, daily_priorities, today_receipts, goals, edges, scheduling_proposals, calendar_blocks, integration_accounts, consent_records, oauth_authorization_sessions to ${appRole}`,
+      `grant select, insert, update, delete on users, resources, entries, entry_revisions, derivation_links, domain_events, outbox_messages, proposals, tasks, reminders, reminder_occurrences, command_receipts, agenda_blocks, daily_priorities, today_receipts, goals, edges, scheduling_proposals, calendar_blocks, execution_records, integration_accounts, consent_records, oauth_authorization_sessions to ${appRole}`,
     );
 
     app = createDatabaseClient(appUrl.toString());
@@ -1649,6 +1663,155 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
     await expect(app.sql`select id from calendar_blocks`).resolves.toHaveLength(
       0,
     );
+  });
+
+  it('separates planned time from owner-confirmed and unknown execution evidence', async () => {
+    if (!app) throw new Error('Application database was not initialized.');
+    const transactions = new DrizzleTransactionManager(app.database);
+    const ids = new CryptoIdGenerator();
+    let currentTime = new Date('2026-08-23T08:00:00.000Z');
+    const clock = { now: () => currentTime };
+    const actions = new ActionService({ clock, ids, transactions });
+    const scheduling = new SchedulingService({ clock, ids, transactions });
+    const execution = new ExecutionService({ clock, ids, transactions });
+    const today = new TodayService({ clock, ids, transactions });
+    const task = await actions.createTask(
+      scopeA,
+      {
+        authority: {
+          ambiguous: false,
+          deterministic: true,
+          explicit: true,
+          externalEffect: false,
+          ownerConfirmed: true,
+        },
+        dueAt: null,
+        estimateMinutes: 120,
+        goalResourceId: null,
+        kind: 'task',
+        notes: 'synthetic evidence notes',
+        title: 'Private evidence target',
+      },
+      { correlationId: ids.next() },
+    );
+    const proposal = await scheduling.create(
+      scopeA,
+      {
+        bufferMinutes: 0,
+        deadline: '2026-08-24T12:00:00.000Z',
+        earliestStart: '2026-08-24T10:00:00.000Z',
+        estimatedEffortMinutes: 120,
+        goalId: null,
+        maxBlockMinutes: 60,
+        maxDeepWorkMinutesPerDay: 180,
+        minBlockMinutes: 30,
+        ownerConfirmed: true,
+        taskId: task.target.id,
+        timeZone: 'Africa/Johannesburg',
+        title: 'Private execution plan',
+        workingWindows: [
+          {
+            endsAt: '2026-08-24T12:00:00.000Z',
+            startsAt: '2026-08-24T10:00:00.000Z',
+          },
+        ],
+      },
+      { correlationId: ids.next() },
+    );
+    await scheduling.accept(
+      scopeA,
+      proposal.id,
+      { expectedVersion: proposal.version, ownerConfirmed: true },
+      { correlationId: ids.next() },
+    );
+    const blocks = (await scheduling.get(scopeA)).blocks.filter(
+      (block) => block.proposalId === proposal.id,
+    );
+    expect(blocks).toHaveLength(2);
+    const first = blocks[0];
+    if (!first) throw new Error('Execution block fixture is missing.');
+    currentTime = new Date('2026-08-25T08:00:00.000Z');
+    const responseCorrelation = ids.next();
+    const partial = await execution.respondToBlock(
+      scopeA,
+      first.id,
+      {
+        expectedBlockVersion: first.version,
+        ownerConfirmed: true,
+        reportedDurationMinutes: 30,
+        response: 'partly_done',
+      },
+      { correlationId: responseCorrelation },
+    );
+    expect(partial).toMatchObject({
+      confidenceClass: 'owner_confirmed',
+      evidenceType: 'post_block_confirmed',
+      outcome: 'confirmed_partial',
+      reportedDurationMinutes: 30,
+    });
+    await expect(
+      execution.respondToBlock(
+        scopeA,
+        first.id,
+        {
+          expectedBlockVersion: first.version,
+          ownerConfirmed: true,
+          reportedDurationMinutes: 30,
+          response: 'partly_done',
+        },
+        { correlationId: responseCorrelation },
+      ),
+    ).resolves.toMatchObject({ id: partial.id });
+    const reconciliation = await execution.reconcileElapsed(
+      scopeA,
+      { through: currentTime.toISOString() },
+      { correlationId: ids.next() },
+    );
+    expect(reconciliation.recorded).toBe(3);
+    const completion = await today.completeTask(
+      scopeA,
+      task.target.id,
+      task.target.version,
+      true,
+      { correlationId: ids.next() },
+    );
+    let weekly = await execution.weekly(scopeA, {
+      timeZone: 'Africa/Johannesburg',
+      weekStartsOn: '2026-08-24',
+    });
+    expect(weekly).toMatchObject({
+      completedTaskCount: 1,
+      confirmedPartialMinutes: 30,
+      plannedMinutes: 120,
+      unknownElapsedMinutes: 60,
+    });
+    expect(weekly.confirmedCompletedMinutes).toBe(0);
+    expect(weekly.inbox).toHaveLength(2);
+    await today.undo(scopeA, completion.id, completion.version, true, {
+      correlationId: ids.next(),
+    });
+    weekly = await execution.weekly(scopeA, {
+      timeZone: 'Africa/Johannesburg',
+      weekStartsOn: '2026-08-24',
+    });
+    expect(weekly.completedTaskCount).toBe(0);
+    await expect(
+      execution.weekly(scopeB, {
+        timeZone: 'Africa/Johannesburg',
+        weekStartsOn: '2026-08-24',
+      }),
+    ).resolves.toMatchObject({
+      completedTaskCount: 0,
+      plannedMinutes: 0,
+    });
+    const events = await transactions.run(scopeA, (ports) =>
+      ports.domainEvents.listByTypePrefix(scopeA, 'execution.', 20),
+    );
+    expect(events.length).toBeGreaterThanOrEqual(4);
+    expect(JSON.stringify(events)).not.toContain('Private execution');
+    await expect(
+      app.sql`select id from execution_records`,
+    ).resolves.toHaveLength(0);
   });
 
   it('stores an exact-scope Microsoft connection encrypted, refreshes it, and disconnects without affecting local ownership', async () => {

@@ -3,6 +3,7 @@ export * from './action.js';
 export * from './auth.js';
 export * from './errors.js';
 export * from './events.js';
+export * from './execution.js';
 export * from './goal.js';
 export * from './ids.js';
 export * from './integration.js';

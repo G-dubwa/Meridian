@@ -62,3 +62,7 @@ related-docs: release.md
   owner-confirmed planning previews, explainable capacity/verdicts, forced-RLS
   proposals and canonical local blocks, and an explicit no-provider/no-
   execution-credit boundary.
+- WP-17 provider-independent E1–E6 execution evidence, deterministic confidence
+  classes, owner-confirmed post-block responses, elapsed-unknown reconciliation,
+  atomic Today completion evidence/undo, and a descriptive local Weekly with no
+  provider or model dependency.

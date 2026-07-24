@@ -51,7 +51,7 @@ function proposalResponse(record: SchedulingProposalRecord) {
   });
 }
 
-function blockResponse(record: CalendarBlockRecord) {
+export function blockResponse(record: CalendarBlockRecord) {
   return calendarBlockResponseV1Schema.parse({
     approvalRecordedAt: record.approvalRecordedAt.toISOString(),
     createdAt: record.createdAt.toISOString(),

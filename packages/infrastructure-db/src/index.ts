@@ -3,6 +3,7 @@ export * from './action-repositories.js';
 export * from './authentication-transaction-manager.js';
 export * from './client.js';
 export * from './goal-repositories.js';
+export * from './execution-repositories.js';
 export * from './integration-repositories.js';
 export * from './repositories.js';
 export * from './scheduling-repositories.js';

@@ -2,6 +2,7 @@ import {
   ActionService,
   AuthenticationService,
   GoalService,
+  ExecutionService,
   InterpretationService,
   JournalService,
   MicrosoftConnectionService,
@@ -38,6 +39,7 @@ import {
 export interface AuthenticationRuntime {
   readonly actions: ActionService;
   readonly goals: GoalService;
+  readonly execution: ExecutionService;
   readonly ids: CryptoIdGenerator;
   readonly interpretation?: InterpretationService;
   readonly journal: JournalService;
@@ -101,6 +103,11 @@ function createRuntime(): AuthenticationRuntime {
       transactions,
     }),
     goals: new GoalService({
+      clock: new SystemClock(),
+      ids,
+      transactions,
+    }),
+    execution: new ExecutionService({
       clock: new SystemClock(),
       ids,
       transactions,

@@ -17,11 +17,18 @@ related-docs: ../README.md
   sent, received, or acted on.
 - Daily priorities are deliberately capped at three and are selected per
   owner-local date; no automatic ranking is active.
-- Goals, transparent load guidance, and deterministic local planning proposals
-  are active. Inferred goals, automatic prioritisation, execution evidence,
-  Weekly Review, retrieval, and analytics remain later packages.
+- Goals, transparent load guidance, deterministic local planning proposals,
+  owner-confirmed execution evidence, and a descriptive local Weekly are
+  active. Inferred goals, automatic prioritisation, retrieval, and broader
+  analytics remain later packages.
 - Accepted planning blocks are intent only. They are not external calendar
   bookings, notification receipts, or evidence that work occurred.
+- The Weekly uses only local plans and explicit evidence. Elapsed unconfirmed
+  blocks stay unknown with zero progress credit; observations are descriptive,
+  evidence-linked, and deliberately not productivity scores or forecasts.
+- Focus-session and external-task evidence types are reserved but no active
+  capture adapter emits them. Calibration and longitudinal trends remain later
+  work and require at least ten comparable observations.
 - Dependency guidance reflects explicit canonical edges only. It is not a
   success forecast, performance score, or proof that work occurred.
 - The preserved Microsoft branch is experimental and does not provide an

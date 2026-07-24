@@ -43,7 +43,7 @@ async function login(
   });
 }
 
-test.describe.serial('WP-04 through WP-15 authenticated acceptance', () => {
+test.describe.serial('WP-04 through WP-17 authenticated acceptance', () => {
   test('bootstraps exactly one owner and stores only Argon2id/recovery hashes', async () => {
     const first = spawnSync(
       'pnpm',
@@ -1065,6 +1065,225 @@ test.describe.serial('WP-04 through WP-15 authenticated acceptance', () => {
       await sql.end();
     }
     await request.dispose();
+  });
+
+  test('records owner-confirmed execution and a local Weekly without inferring elapsed work', async ({
+    playwright,
+  }) => {
+    const request = await playwright.request.newContext({
+      baseURL: baseUrl,
+      userAgent: 'meridian-execution-fixture',
+    });
+    expect((await request.get('/api/execution/weekly')).status()).toBe(401);
+    expect((await login(request)).status()).toBe(200);
+    const csrfToken = await csrfCookie(request);
+    const page = await request.get('/weekly');
+    expect(page.status()).toBe(200);
+    expect(await page.text()).toContain('evidence, not inference');
+
+    const taskResponse = await request.post('/api/actions/tasks', {
+      data: {
+        authority: {
+          ambiguous: false,
+          deterministic: true,
+          explicit: true,
+          externalEffect: false,
+          ownerConfirmed: true,
+        },
+        dueAt: null,
+        estimateMinutes: 120,
+        goalResourceId: null,
+        kind: 'task',
+        notes: 'E2E execution private notes',
+        title: 'E2E execution target',
+      },
+      headers: { 'x-csrf-token': csrfToken },
+    });
+    expect(taskResponse.status()).toBe(201);
+    const task = (await taskResponse.json()) as {
+      target: { task: { id: string } };
+    };
+    const proposalResponse = await request.post('/api/planning', {
+      data: {
+        bufferMinutes: 15,
+        deadline: '2099-08-02T14:00:00.000Z',
+        earliestStart: '2099-08-02T08:00:00.000Z',
+        estimatedEffortMinutes: 120,
+        goalId: null,
+        maxBlockMinutes: 60,
+        maxDeepWorkMinutesPerDay: 180,
+        minBlockMinutes: 30,
+        ownerConfirmed: true,
+        taskId: task.target.task.id,
+        timeZone: 'Africa/Johannesburg',
+        title: 'E2E execution private plan',
+        workingWindows: [
+          {
+            endsAt: '2099-08-02T14:00:00.000Z',
+            startsAt: '2099-08-02T08:00:00.000Z',
+          },
+        ],
+      },
+      headers: { 'x-csrf-token': csrfToken },
+    });
+    expect(proposalResponse.status()).toBe(201);
+    const proposal = (await proposalResponse.json()) as {
+      id: string;
+      version: number;
+    };
+    expect(
+      (
+        await request.post(`/api/planning/${proposal.id}/accept`, {
+          data: {
+            expectedVersion: proposal.version,
+            ownerConfirmed: true,
+          },
+          headers: { 'x-csrf-token': csrfToken },
+        })
+      ).status(),
+    ).toBe(200);
+    const planning = (await (await request.get('/api/planning')).json()) as {
+      blocks: { id: string; proposalId: string; version: number }[];
+    };
+    const testBlocks = planning.blocks.filter(
+      (block) => block.proposalId === proposal.id,
+    );
+    const blockIds = testBlocks.map((block) => block.id);
+    expect(blockIds).toHaveLength(2);
+
+    const now = new Date();
+    const firstStartsAt = new Date(now.getTime() - 180 * 60_000);
+    const firstEndsAt = new Date(now.getTime() - 120 * 60_000);
+    const secondStartsAt = new Date(now.getTime() - 105 * 60_000);
+    const secondEndsAt = new Date(now.getTime() - 45 * 60_000);
+    const sql = postgres(databaseUrl, { prepare: false });
+    try {
+      await sql`
+        update calendar_blocks
+        set original_starts_at = ${firstStartsAt},
+            original_ends_at = ${firstEndsAt},
+            current_starts_at = ${firstStartsAt},
+            current_ends_at = ${firstEndsAt},
+            updated_at = now()
+        where id = ${blockIds[0] ?? ''}
+      `;
+      await sql`
+        update calendar_blocks
+        set original_starts_at = ${secondStartsAt},
+            original_ends_at = ${secondEndsAt},
+            current_starts_at = ${secondStartsAt},
+            current_ends_at = ${secondEndsAt},
+            updated_at = now()
+        where id = ${blockIds[1] ?? ''}
+      `;
+
+      const noCsrf = await request.post(
+        `/api/execution/blocks/${blockIds[0] ?? ''}/respond`,
+        {
+          data: {
+            expectedBlockVersion: 1,
+            ownerConfirmed: true,
+            reportedDurationMinutes: 30,
+            response: 'partly_done',
+          },
+        },
+      );
+      expect(noCsrf.status()).toBe(403);
+      const noOwnerConfirmation = await request.post(
+        `/api/execution/blocks/${blockIds[0] ?? ''}/respond`,
+        {
+          data: {
+            expectedBlockVersion: 1,
+            ownerConfirmed: false,
+            reportedDurationMinutes: 30,
+            response: 'partly_done',
+          },
+          headers: { 'x-csrf-token': csrfToken },
+        },
+      );
+      expect(noOwnerConfirmation.status()).toBe(400);
+      const confirmed = await request.post(
+        `/api/execution/blocks/${blockIds[0] ?? ''}/respond`,
+        {
+          data: {
+            expectedBlockVersion: 1,
+            ownerConfirmed: true,
+            reportedDurationMinutes: 30,
+            response: 'partly_done',
+          },
+          headers: { 'x-csrf-token': csrfToken },
+        },
+      );
+      expect(confirmed.status()).toBe(201);
+      expect(await confirmed.json()).toMatchObject({
+        confidenceClass: 'owner_confirmed',
+        evidenceType: 'post_block_confirmed',
+        outcome: 'confirmed_partial',
+        reportedDurationMinutes: 30,
+      });
+      const reconciled = await request.post('/api/execution/reconcile', {
+        data: { through: now.toISOString() },
+        headers: { 'x-csrf-token': csrfToken },
+      });
+      expect(reconciled.status()).toBe(200);
+      expect(await reconciled.json()).toEqual({ recorded: 1 });
+
+      const localDate = firstStartsAt.toLocaleDateString('en-CA', {
+        timeZone: 'Africa/Johannesburg',
+      });
+      const localDay = new Date(`${localDate}T00:00:00.000Z`);
+      const day = localDay.getUTCDay() === 0 ? 7 : localDay.getUTCDay();
+      localDay.setUTCDate(localDay.getUTCDate() - day + 1);
+      const weekStartsOn = localDay.toISOString().slice(0, 10);
+      const query = new URLSearchParams({
+        timeZone: 'Africa/Johannesburg',
+        weekStartsOn,
+      });
+      const weekly = await request.get(
+        `/api/execution/weekly?${query.toString()}`,
+      );
+      expect(weekly.status()).toBe(200);
+      expect(await weekly.json()).toMatchObject({
+        confirmedCompletedMinutes: 0,
+        confirmedPartialMinutes: 30,
+        plannedMinutes: 120,
+        unknownElapsedMinutes: 60,
+      });
+
+      const [audit] = await sql<
+        {
+          content_leaks: string;
+          provider_events: string;
+          unknown_confidence: string;
+        }[]
+      >`
+        select
+          (
+            select count(*)::text from domain_events
+            where event_type like 'execution.%'
+              and payload::text like '%E2E execution%'
+          ) as content_leaks,
+          (
+            select count(*)::text from domain_events
+            where event_type like 'integration.%'
+               or event_type like 'delivery.%'
+          ) as provider_events,
+          (
+            select count(*)::text from execution_records
+            where evidence_type = 'calendar_elapsed_unknown'
+              and confidence_class = 'unknown'
+              and outcome = 'unknown'
+          ) as unknown_confidence
+      `;
+      expect(audit).toEqual({
+        content_leaks: '0',
+        provider_events: '0',
+        unknown_confidence: '1',
+      });
+    } finally {
+      await sql.end();
+      await request.dispose();
+    }
   });
 
   test('locks the credential after repeated failures without revealing lock state', async ({

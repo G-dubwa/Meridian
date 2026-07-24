@@ -15,6 +15,7 @@ export default function PlanningPage() {
         </div>
         <nav className="button-row" aria-label="Meridian">
           <Link href="/today">Today</Link>
+          <Link href="/weekly">The Weekly</Link>
           <Link href="/goals">Goals</Link>
           <Link href="/actions">Tasks</Link>
         </nav>

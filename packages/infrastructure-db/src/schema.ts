@@ -990,6 +990,7 @@ export const todayReceipts = pgTable(
     version: integer('version').notNull().default(1),
   },
   (table) => [
+    unique('today_receipts_id_user_unique').on(table.id, table.userId),
     foreignKey({
       columns: [table.targetResourceId, table.userId],
       foreignColumns: [resources.id, resources.userId],
@@ -1343,6 +1344,94 @@ export const calendarBlocks = pgTable(
       table.userId,
       table.currentStartsAt,
       table.currentEndsAt,
+    ),
+  ],
+);
+
+export const executionRecords = pgTable(
+  'execution_records',
+  {
+    id: uuid('id').primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    calendarBlockId: uuid('calendar_block_id'),
+    taskId: uuid('task_id'),
+    sourceReceiptId: uuid('source_receipt_id'),
+    confidenceClass: text('confidence_class').notNull(),
+    evidenceType: text('evidence_type').notNull(),
+    outcome: text('outcome').notNull(),
+    source: text('source').notNull(),
+    reportedDurationMinutes: integer('reported_duration_minutes'),
+    occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull(),
+    recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull(),
+    retractedAt: timestamp('retracted_at', { withTimezone: true }),
+    retractionReason: text('retraction_reason'),
+  },
+  (table) => [
+    unique('execution_records_id_user_unique').on(table.id, table.userId),
+    unique('execution_records_block_user_unique').on(
+      table.calendarBlockId,
+      table.userId,
+    ),
+    unique('execution_records_receipt_user_unique').on(
+      table.sourceReceiptId,
+      table.userId,
+    ),
+    foreignKey({
+      columns: [table.calendarBlockId, table.userId],
+      foreignColumns: [calendarBlocks.id, calendarBlocks.userId],
+      name: 'execution_records_block_owner_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.taskId, table.userId],
+      foreignColumns: [tasks.id, tasks.userId],
+      name: 'execution_records_task_owner_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.sourceReceiptId, table.userId],
+      foreignColumns: [todayReceipts.id, todayReceipts.userId],
+      name: 'execution_records_receipt_owner_fk',
+    }).onDelete('restrict'),
+    check(
+      'execution_records_target_valid',
+      sql`${table.calendarBlockId} is not null or ${table.taskId} is not null`,
+    ),
+    check(
+      'execution_records_evidence_type_valid',
+      sql`${table.evidenceType} in ('user_completed_task', 'post_block_confirmed', 'focus_session_recorded', 'external_task_completed', 'calendar_elapsed_unknown', 'user_reported_not_done')`,
+    ),
+    check(
+      'execution_records_confidence_class_valid',
+      sql`${table.confidenceClass} in ('owner_confirmed', 'locally_observed', 'externally_confirmed', 'unknown')`,
+    ),
+    check(
+      'execution_records_evidence_confidence_valid',
+      sql`(${table.evidenceType} in ('user_completed_task', 'post_block_confirmed', 'user_reported_not_done') and ${table.confidenceClass} = 'owner_confirmed') or (${table.evidenceType} = 'focus_session_recorded' and ${table.confidenceClass} = 'locally_observed') or (${table.evidenceType} = 'external_task_completed' and ${table.confidenceClass} = 'externally_confirmed') or (${table.evidenceType} = 'calendar_elapsed_unknown' and ${table.confidenceClass} = 'unknown')`,
+    ),
+    check(
+      'execution_records_outcome_valid',
+      sql`${table.outcome} in ('confirmed_completed', 'confirmed_partial', 'unknown', 'not_completed', 'rescheduled')`,
+    ),
+    check(
+      'execution_records_source_valid',
+      sql`${table.source} in ('today_task_completion', 'post_block_confirmation', 'elapsed_block_reconciliation')`,
+    ),
+    check(
+      'execution_records_duration_valid',
+      sql`${table.reportedDurationMinutes} is null or ${table.reportedDurationMinutes} > 0`,
+    ),
+    check(
+      'execution_records_retraction_valid',
+      sql`(${table.retractedAt} is null and ${table.retractionReason} is null) or (${table.retractedAt} is not null and ${table.retractionReason} = 'owner_undo')`,
+    ),
+    index('execution_records_user_occurred_idx').on(
+      table.userId,
+      table.occurredAt,
+    ),
+    index('execution_records_user_block_idx').on(
+      table.userId,
+      table.calendarBlockId,
     ),
   ],
 );

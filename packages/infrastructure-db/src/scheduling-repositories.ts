@@ -183,6 +183,20 @@ function mapBlock(
 export class DrizzleCalendarBlockRepository implements CalendarBlockRepository {
   public constructor(private readonly database: DatabaseExecutor) {}
 
+  public async findById(
+    scope: UserScope,
+    id: CalendarBlockRecord['id'],
+  ): Promise<CalendarBlockRecord | null> {
+    const [row] = await this.database
+      .select()
+      .from(calendarBlocks)
+      .where(
+        and(eq(calendarBlocks.userId, scope.userId), eq(calendarBlocks.id, id)),
+      )
+      .limit(1);
+    return row ? mapBlock(row, scope) : null;
+  }
+
   public async listBetween(
     scope: UserScope,
     start: Date,

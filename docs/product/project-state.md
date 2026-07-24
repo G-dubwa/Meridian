@@ -8,15 +8,14 @@ related-docs: roadmap.md
 
 # Project state
 
-Last updated: 23 July 2026
+Last updated: 24 July 2026
 
 ## Current work package
 
-- INFRA-01 governed Codex–Claude orchestration is the active standalone
-  infrastructure workstream on `infra/codex-claude-orchestrator`, based on
-  exact `origin/main` at WP-15.
-- No product work package is active in this branch. WP-17 remains next but is
-  paused until the owner reviews the orchestration pilot.
+- WP-17 execution evidence and The Weekly is complete on
+  `wp-17-execution-evidence-weekly`, pending owner integration approval.
+- The package is provider-independent and makes no model, calendar, task,
+  notification, or other external request.
 - Microsoft-dependent work remains deferred and untouched.
 
 ## Completed packages
@@ -50,14 +49,18 @@ Last updated: 23 July 2026
 - WP-14 — Goals, edges, and soft load guidance. Package completion commit is
   `50989cd0273324f32c110896b6aa5189c6a609ea`.
 - WP-15 — Deterministic scheduling and local proposals. Package completion
-  commit is the current package-sized branch commit.
+  commit `fbc86fc4adb53648caef403e2a79a09e35e0cba6`.
+- INFRA-01 — Governed Codex–Claude orchestration. Integrated completion commit
+  `c586b173db9d9f9e219c6321040fd868bccb772e`.
+- WP-17 — Execution evidence and The Weekly. Package completion commit is the
+  current `wp-17-execution-evidence-weekly` branch head.
 
 ## Branch disposition
 
-- `origin/main` is the exact INFRA-01 product baseline at
-  `fbc86fc4adb53648caef403e2a79a09e35e0cba6`.
-- `infra/codex-claude-orchestrator` contains only the governed supervisor,
-  protocol, tests, and documentation.
+- `origin/main` is the exact verified INFRA-01 baseline at
+  `c586b173db9d9f9e219c6321040fd868bccb772e`.
+- `wp-17-execution-evidence-weekly` contains one provider-independent product
+  package on that baseline.
 - Remote `wp-11-microsoft-todo-delivery-spike` is preserved at
   `7538b4123cfcba7b65765cd68c4b53c7193a6f15`.
 - The WP-11 branch is experimental, inactive, deliberately unmerged, and the
@@ -92,6 +95,15 @@ Last updated: 23 July 2026
   production builds. Evidence proves exact buffered proposals, forced RLS,
   owner isolation, idempotent acceptance/staleness, content-free events, no
   execution credit, and no provider/model call.
+- INFRA-01 completed its governed live orchestration pilot and was integrated
+  into `main` without advancing or waiving a product acceptance criterion.
+- WP-17 passes formatting, lint, strict typecheck, architecture and migration
+  checks, 20 unit files/98 tests, one live PostgreSQL file/13 tests, 13
+  authenticated browser journeys, 113 governed Markdown documents/current data
+  dictionary, and all production builds. Evidence proves forced RLS, owner
+  isolation, deterministic evidence-confidence mapping, atomic E1/undo,
+  owner-confirmed E2, E5 unknown with zero progress credit, idempotency,
+  content-free audit, and no provider/model call.
 - The default shell remains Node.js 21.6.0; Node.js 24.18.0 with pnpm 11.14.0
   is the verified repository runtime.
 - Gitleaks runs in CI; the local repository gate does not require its binary.
@@ -134,7 +146,7 @@ conclusion that Microsoft To Do is technically unsuitable.
 
 ## Next package
 
-Owner review of the INFRA-01 offline pilot is next. A real Codex–Claude pilot
-requires a separate approval because Claude Code is not installed and this
-workstream authorizes no external model service. WP-17 remains the next product
-package only after that review.
+WP-18 knowledge-source ingestion foundation is next after owner approval and
+integration of WP-17. File ingestion and parsing must remain local; any paid
+model use, personal-data transmission, destructive operation, production
+deployment, or external provider still requires its mandatory gate.

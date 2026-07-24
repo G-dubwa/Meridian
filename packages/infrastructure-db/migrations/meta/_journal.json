@@ -85,6 +85,13 @@
       "when": 1784796150260,
       "tag": "0011_wp15_deterministic_local_scheduling",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1784798885917,
+      "tag": "0012_wp17_execution_evidence_weekly",
+      "breakpoints": true
     }
   ]
 }

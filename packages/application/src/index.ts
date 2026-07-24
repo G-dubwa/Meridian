@@ -6,6 +6,7 @@ import type {
 
 export * from './authentication.js';
 export * from './goals.js';
+export * from './execution.js';
 export * from './actions.js';
 export * from './interpretation.js';
 export * from './journal.js';

@@ -78,6 +78,8 @@ function actionEventFor(
   target: TaskRecord | ReminderRecord,
   receipt: CommandReceiptRecord | null,
   now: Date,
+  dueDateChange:
+    'added' | 'earlier' | 'later' | 'removed' | 'unchanged' | null = null,
 ): DomainEventEnvelopeV1 {
   const targetType = 'title' in target ? 'task' : 'reminder';
   return domainEventEnvelopeV1Schema.parse({
@@ -87,6 +89,7 @@ function actionEventFor(
     eventType,
     occurredAt: now.toISOString(),
     payload: actionEventPayloadV1Schema.parse({
+      dueDateChange,
       receiptId: receipt?.id ?? null,
       targetResourceId: target.resourceId,
       targetState: target.state,
@@ -663,6 +666,19 @@ export class ActionService {
           updated,
           receipt,
           now,
+          task.dueAt === null && updated.dueAt !== null
+            ? 'added'
+            : task.dueAt !== null && updated.dueAt === null
+              ? 'removed'
+              : task.dueAt !== null &&
+                  updated.dueAt !== null &&
+                  updated.dueAt > task.dueAt
+                ? 'later'
+                : task.dueAt !== null &&
+                    updated.dueAt !== null &&
+                    updated.dueAt < task.dueAt
+                  ? 'earlier'
+                  : 'unchanged',
         ),
         now,
       );

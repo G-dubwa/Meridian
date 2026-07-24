@@ -74,6 +74,14 @@ Application orchestrates owner-scoped repositories and invokes that arithmetic;
 scheduling may import domain contracts and deterministic time-zone invariants but no adapter, model, presentation, or
 provider.
 
+WP-17 keeps the E1–E6 evidence vocabulary, outcome and confidence classes, and
+strict post-block confirmation inputs in `domain`. Application atomically joins
+Today completion, accepted local blocks, execution records, and content-free
+events, then computes descriptive Weekly aggregates. `infrastructure-db`
+provides forced-RLS evidence storage; `api-contracts` and `apps/web` expose the
+owner-only confirmation inbox and review. No execution module imports a model,
+calendar provider, reminder-delivery provider, or analytics package.
+
 `dependency-cruiser.config.mjs` is executable authority for accepted ADR-0002
 rules. Its negative fixtures prove both domain-to-infrastructure and
 application-to-infrastructure imports are rejected, while the exact composition

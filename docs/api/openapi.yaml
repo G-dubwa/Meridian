@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: Meridian API
-  version: 0.14.0
-  description: Same-origin REST contract for owner authentication, journal evidence, Triage, internal tasks/reminders, provider-independent Today and goals, worker health, and Microsoft consent.
+  version: 0.17.0
+  description: Same-origin REST contract for owner authentication, journal evidence, Triage, internal tasks/reminders, provider-independent Today, goals, local planning, execution evidence, The Weekly, worker health, and Microsoft consent.
 paths:
   /api/auth/csrf:
     get:
@@ -683,6 +683,76 @@ paths:
         '403': { $ref: '#/components/responses/CsrfInvalid' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+  /api/execution/blocks/{blockId}/respond:
+    post:
+      operationId: recordPostBlockExecutionResponse
+      summary: Record one explicit owner response for an ended local block.
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/CsrfHeader' }
+        - { $ref: '#/components/parameters/RequestIdHeader' }
+        - { $ref: '#/components/parameters/BlockIdPath' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PostBlockResponseRequestV1' }
+      responses:
+        '201':
+          description: Owner-confirmed execution evidence.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ExecutionRecordResponseV1' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '401': { $ref: '#/components/responses/SessionInvalid' }
+        '403': { $ref: '#/components/responses/CsrfInvalid' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/execution/reconcile:
+    post:
+      operationId: reconcileElapsedLocalBlocks
+      summary: Record ended unconfirmed blocks as unknown with zero progress credit.
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/CsrfHeader' }
+        - { $ref: '#/components/parameters/RequestIdHeader' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReconcileElapsedRequestV1' }
+      responses:
+        '200':
+          description: Number of newly recorded E5 unknown records.
+          content:
+            application/json:
+              schema:
+                { $ref: '#/components/schemas/ReconcileElapsedResponseV1' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '401': { $ref: '#/components/responses/SessionInvalid' }
+        '403': { $ref: '#/components/responses/CsrfInvalid' }
+  /api/execution/weekly:
+    get:
+      operationId: getLocalWeeklyReview
+      summary: Read planned-versus-confirmed evidence for one owner-local week.
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - name: weekStartsOn
+          in: query
+          required: true
+          schema: { type: string, format: date, pattern: '^\d{4}-\d{2}-\d{2}$' }
+        - name: timeZone
+          in: query
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 100 }
+      responses:
+        '200':
+          description: Descriptive local Weekly with evidence-linked observations.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WeeklyReviewResponseV1' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '401': { $ref: '#/components/responses/SessionInvalid' }
   /api/today:
     get:
       operationId: getLocalToday
@@ -1027,6 +1097,11 @@ components:
       schema: { type: string, format: uuid }
     SchedulingProposalIdPath:
       name: schedulingProposalId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    BlockIdPath:
+      name: blockId
       in: path
       required: true
       schema: { type: string, format: uuid }
@@ -1631,6 +1706,186 @@ components:
         tasks:
           type: array
           items: { $ref: '#/components/schemas/TaskResponseV1' }
+    PostBlockResponseRequestV1:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          expectedBlockVersion,
+          ownerConfirmed,
+          reportedDurationMinutes,
+          response,
+        ]
+      properties:
+        expectedBlockVersion: { type: integer, minimum: 1 }
+        ownerConfirmed: { type: boolean, const: true }
+        reportedDurationMinutes: { type: [integer, 'null'], minimum: 1 }
+        response:
+          {
+            type: string,
+            enum: [done, partly_done, not_done, rescheduled, skip],
+          }
+    ReconcileElapsedRequestV1:
+      type: object
+      additionalProperties: false
+      required: [through]
+      properties:
+        through: { type: string, format: date-time }
+    ReconcileElapsedResponseV1:
+      type: object
+      additionalProperties: false
+      required: [recorded]
+      properties:
+        recorded: { type: integer, minimum: 0 }
+    ExecutionRecordResponseV1:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          calendarBlockId,
+          confidenceClass,
+          evidenceType,
+          id,
+          occurredAt,
+          outcome,
+          recordedAt,
+          reportedDurationMinutes,
+          retractedAt,
+          source,
+          sourceReceiptId,
+          taskId,
+        ]
+      properties:
+        calendarBlockId: { type: [string, 'null'], format: uuid }
+        confidenceClass:
+          {
+            type: string,
+            enum:
+              [
+                owner_confirmed,
+                locally_observed,
+                externally_confirmed,
+                unknown,
+              ],
+          }
+        evidenceType:
+          {
+            type: string,
+            enum:
+              [
+                user_completed_task,
+                post_block_confirmed,
+                focus_session_recorded,
+                external_task_completed,
+                calendar_elapsed_unknown,
+                user_reported_not_done,
+              ],
+          }
+        id: { type: string, format: uuid }
+        occurredAt: { type: string, format: date-time }
+        outcome:
+          {
+            type: string,
+            enum:
+              [
+                confirmed_completed,
+                confirmed_partial,
+                unknown,
+                not_completed,
+                rescheduled,
+              ],
+          }
+        recordedAt: { type: string, format: date-time }
+        reportedDurationMinutes: { type: [integer, 'null'], minimum: 1 }
+        retractedAt: { type: [string, 'null'], format: date-time }
+        source:
+          {
+            type: string,
+            enum:
+              [
+                today_task_completion,
+                post_block_confirmation,
+                elapsed_block_reconciliation,
+              ],
+          }
+        sourceReceiptId: { type: [string, 'null'], format: uuid }
+        taskId: { type: [string, 'null'], format: uuid }
+    WeeklyObservationResponseV1:
+      type: object
+      additionalProperties: false
+      required: [code, evidenceRecordIds]
+      properties:
+        code:
+          {
+            type: string,
+            enum:
+              [
+                insufficient_evidence,
+                unknown_exceeds_confirmed,
+                confirmed_matches_plan,
+                postponements_repeated,
+              ],
+          }
+        evidenceRecordIds:
+          type: array
+          items: { type: string, format: uuid }
+    ExecutionInboxItemResponseV1:
+      type: object
+      additionalProperties: false
+      required: [block, record, status]
+      properties:
+        block: { $ref: '#/components/schemas/CalendarBlockResponseV1' }
+        record:
+          oneOf:
+            - { $ref: '#/components/schemas/ExecutionRecordResponseV1' }
+            - { type: 'null' }
+        status: { type: string, enum: [awaiting_confirmation, recorded] }
+    WeeklyReviewResponseV1:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          completedTaskCount,
+          confirmedCompletedMinutes,
+          confirmedPartialMinutes,
+          explicitlyNotCompletedMinutes,
+          inbox,
+          observations,
+          openTriageCount,
+          plannedMinutes,
+          postponedTaskEditCount,
+          reminderCompletedCount,
+          reminderDismissedCount,
+          rescheduledMinutes,
+          timeZone,
+          unknownElapsedMinutes,
+          weekEndsBefore,
+          weekStartsAt,
+          weekStartsOn,
+        ]
+      properties:
+        completedTaskCount: { type: integer, minimum: 0 }
+        confirmedCompletedMinutes: { type: integer, minimum: 0 }
+        confirmedPartialMinutes: { type: integer, minimum: 0 }
+        explicitlyNotCompletedMinutes: { type: integer, minimum: 0 }
+        inbox:
+          type: array
+          items: { $ref: '#/components/schemas/ExecutionInboxItemResponseV1' }
+        observations:
+          type: array
+          maxItems: 3
+          items: { $ref: '#/components/schemas/WeeklyObservationResponseV1' }
+        openTriageCount: { type: integer, minimum: 0 }
+        plannedMinutes: { type: integer, minimum: 0 }
+        postponedTaskEditCount: { type: integer, minimum: 0 }
+        reminderCompletedCount: { type: integer, minimum: 0 }
+        reminderDismissedCount: { type: integer, minimum: 0 }
+        rescheduledMinutes: { type: integer, minimum: 0 }
+        timeZone: { type: string }
+        unknownElapsedMinutes: { type: integer, minimum: 0 }
+        weekEndsBefore: { type: string, format: date-time }
+        weekStartsAt: { type: string, format: date-time }
+        weekStartsOn: { type: string, format: date }
     CreateAgendaBlockRequestV1:
       type: object
       additionalProperties: false
@@ -2419,8 +2674,8 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorResponseV1' }
 x-document-metadata:
-  purpose: Canonical local-owner authentication, journal, Triage, internal actions, local Today, goals, deterministic planning, worker-health, and integration REST contract.
+  purpose: Canonical local-owner authentication, journal, Triage, internal actions, local Today, goals, deterministic planning, execution evidence, The Weekly, worker-health, and integration REST contract.
   audience: Contributors, clients, and coding agents.
-  authoritative-for: WP-04 authentication, WP-05 journal, WP-06 health, WP-07 Microsoft consent, WP-09 Triage, WP-10 tasks/reminders, WP-13A Today, WP-14 goals, and WP-15 local planning HTTP request and response shapes.
+  authoritative-for: WP-04 authentication, WP-05 journal, WP-06 health, WP-07 Microsoft consent, WP-09 Triage, WP-10 tasks/reminders, WP-13A Today, WP-14 goals, WP-15 local planning, and WP-17 execution evidence HTTP request and response shapes.
   update-triggers: Versioned API boundary schemas, authentication, journal, system-health, or integration routes change.
   related-docs: conventions.md

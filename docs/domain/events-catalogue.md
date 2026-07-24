@@ -132,3 +132,23 @@ Payloads contain only proposal identifier, state, verdict, and block count.
 Titles, task/goal content, working windows, exact times, buffers, explanations,
 and provider material are prohibited. These events are local plan audit only,
 not external calendar, delivery, or execution evidence.
+
+## Execution evidence events v1
+
+| Event                             | Emitted when                                      |
+| --------------------------------- | ------------------------------------------------- |
+| `execution.recorded.v1`           | One owner-confirmed execution record commits      |
+| `execution.record_retracted.v1`   | Today completion evidence is undone and retracted |
+| `execution.elapsed_reconciled.v1` | Elapsed unconfirmed blocks are recorded unknown   |
+
+Individual record payloads contain only record, block, and task identifiers
+plus evidence, confidence, and outcome enums. Reconciliation contains only the
+number of E5 records created. Task/block labels, notes, exact times, reported
+duration, provider material, and owner content are prohibited. A calendar block
+ending never emits confirmed progress: absent confirmation is E5
+`calendar_elapsed_unknown` with confidence `unknown` and zero progress credit.
+
+`action.task_updated.v1` additionally carries a nullable content-free
+`dueDateChange` enum (`added`, `earlier`, `later`, `removed`, `unchanged`) so
+The Weekly can count repeated postponement without retaining due dates in an
+event.

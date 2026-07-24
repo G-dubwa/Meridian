@@ -37,6 +37,8 @@ export const schedulingProposalIdV1Schema = z
 export type SchedulingProposalId = z.infer<typeof schedulingProposalIdV1Schema>;
 export const calendarBlockIdV1Schema = z.uuid().brand<'CalendarBlockId'>();
 export type CalendarBlockId = z.infer<typeof calendarBlockIdV1Schema>;
+export const executionRecordIdV1Schema = z.uuid().brand<'ExecutionRecordId'>();
+export type ExecutionRecordId = z.infer<typeof executionRecordIdV1Schema>;
 export const dailyPriorityIdV1Schema = z.uuid().brand<'DailyPriorityId'>();
 export type DailyPriorityId = z.infer<typeof dailyPriorityIdV1Schema>;
 export const todayReceiptIdV1Schema = z.uuid().brand<'TodayReceiptId'>();
@@ -58,6 +60,7 @@ export const idSchemasV1 = {
   entryId: entryIdV1Schema,
   entryRevisionId: entryRevisionIdV1Schema,
   edgeId: edgeIdV1Schema,
+  executionRecordId: executionRecordIdV1Schema,
   goalId: goalIdV1Schema,
   outboxMessageId: outboxMessageIdV1Schema,
   proposalId: proposalIdV1Schema,

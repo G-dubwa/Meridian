@@ -342,6 +342,11 @@ export type ActionEventType = z.infer<typeof actionEventTypeV1Schema>;
 
 export const actionEventPayloadV1Schema = z
   .object({
+    dueDateChange: z
+      .enum(['added', 'earlier', 'later', 'removed', 'unchanged'])
+      .nullable()
+      .optional()
+      .default(null),
     targetResourceId: resourceIdV1Schema,
     targetType: z.enum(['task', 'reminder']),
     targetState: z.string().min(1).max(40),

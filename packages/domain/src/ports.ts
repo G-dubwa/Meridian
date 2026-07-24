@@ -19,6 +19,7 @@ import type {
   DailyPriorityId,
   DerivationLinkId,
   EdgeId,
+  ExecutionRecordId,
   CommandReceiptId,
   EntryId,
   EntryRevisionId,
@@ -35,6 +36,12 @@ import type {
   UserId,
   Uuid,
 } from './ids.js';
+import type {
+  ExecutionConfidenceClass,
+  ExecutionEvidenceType,
+  ExecutionOutcome,
+  ExecutionSource,
+} from './execution.js';
 import type {
   SchedulingCandidate,
   SchedulingProposalState,
@@ -297,6 +304,23 @@ export interface CalendarBlockRecord {
   readonly createdAt: Date;
   readonly updatedAt: Date;
   readonly version: number;
+}
+
+export interface ExecutionRecord {
+  readonly id: ExecutionRecordId;
+  readonly scope: UserScope;
+  readonly calendarBlockId: CalendarBlockId | null;
+  readonly taskId: TaskId | null;
+  readonly sourceReceiptId: TodayReceiptId | null;
+  readonly confidenceClass: ExecutionConfidenceClass;
+  readonly evidenceType: ExecutionEvidenceType;
+  readonly outcome: ExecutionOutcome;
+  readonly source: ExecutionSource;
+  readonly reportedDurationMinutes: number | null;
+  readonly occurredAt: Date;
+  readonly recordedAt: Date;
+  readonly retractedAt: Date | null;
+  readonly retractionReason: 'owner_undo' | null;
 }
 
 export interface DailyPriorityRecord {
@@ -579,6 +603,10 @@ export interface SchedulingProposalRepository {
 }
 
 export interface CalendarBlockRepository {
+  findById(
+    scope: UserScope,
+    id: CalendarBlockId,
+  ): Promise<CalendarBlockRecord | null>;
   listBetween(
     scope: UserScope,
     start: Date,
@@ -589,6 +617,29 @@ export interface CalendarBlockRepository {
     proposalId: SchedulingProposalId,
   ): Promise<readonly CalendarBlockRecord[]>;
   save(record: CalendarBlockRecord): Promise<void>;
+}
+
+export interface ExecutionRecordRepository {
+  acquireEvidenceLock(scope: UserScope): Promise<void>;
+  findActiveForBlock(
+    scope: UserScope,
+    blockId: CalendarBlockId,
+  ): Promise<ExecutionRecord | null>;
+  findBySourceReceipt(
+    scope: UserScope,
+    receiptId: TodayReceiptId,
+  ): Promise<ExecutionRecord | null>;
+  listBetween(
+    scope: UserScope,
+    start: Date,
+    end: Date,
+  ): Promise<readonly ExecutionRecord[]>;
+  save(record: ExecutionRecord): Promise<void>;
+  retractForReceipt(
+    scope: UserScope,
+    receiptId: TodayReceiptId,
+    at: Date,
+  ): Promise<ExecutionRecord | null>;
 }
 
 export interface DailyPriorityRepository {
@@ -645,6 +696,7 @@ export interface TransactionPorts {
   readonly derivationLinks: DerivationLinkRepository;
   readonly domainEvents: DomainEventRepository;
   readonly edges: EdgeRepository;
+  readonly executionRecords: ExecutionRecordRepository;
   readonly entries: EntryRepository;
   readonly entryRevisions: EntryRevisionRepository;
   readonly integrationAccounts: IntegrationAccountRepository;

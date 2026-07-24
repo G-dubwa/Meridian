@@ -10,9 +10,8 @@ related-docs: spec.md
 
 Status legend: `NEXT`, `PENDING`, `DEFERRED`, `COMPLETE`.
 
-INFRA-01 governed agent orchestration temporarily pauses product sequencing.
-WP-17 remains the next product package but must not begin until the owner
-reviews the orchestration pilot. INFRA-01 does not change release scope.
+INFRA-01 is integrated delivery infrastructure and does not change release
+scope. Provider-dependent packages remain deferred.
 
 | Release        |  WP | Title                                           | Status                        |
 | -------------- | --: | ----------------------------------------------- | ----------------------------- |
@@ -33,8 +32,8 @@ reviews the orchestration pilot. INFRA-01 does not change release scope.
 | Personal Beta  |  14 | Goals, edges, and soft load guidance            | COMPLETE                      |
 | Personal Beta  |  15 | Deterministic scheduling and local proposals    | COMPLETE                      |
 | Personal Beta  |  16 | Calendar writes, adoption, and reconciliation   | DEFERRED: provider gate       |
-| Personal Beta  |  17 | Execution evidence and The Weekly               | NEXT: provider-independent    |
-| Personal Beta  |  18 | Knowledge-source ingestion foundation           | PENDING                       |
+| Personal Beta  |  17 | Execution evidence and The Weekly               | COMPLETE                      |
+| Personal Beta  |  18 | Knowledge-source ingestion foundation           | NEXT: provider-independent    |
 | Personal v1    |  19 | Embeddings, retrieval, and context manifests    | PENDING                       |
 | Personal v1    |  20 | Protocol registry, safety, and adoption         | PENDING                       |
 | Personal v1    |  21 | Summaries, metrics, trends, and v1 dashboard    | PENDING                       |
@@ -46,5 +45,5 @@ WP-13 is split without rewriting the accepted v1.2 specification: WP-13A
 delivers a useful local Today surface from canonical Meridian data, while
 WP-13B retains provider-dependent agenda and notification projections behind
 future explicit gates. WP-16 is likewise non-blocking for the independent
-WP-17–WP-22 sequence. WP-17 remains next after the standalone INFRA-01 pilot
-review. No deferred provider is substituted automatically.
+WP-17–WP-22 sequence. WP-17 is complete; WP-18 is next. No deferred provider is
+substituted automatically.

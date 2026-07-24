@@ -34,6 +34,14 @@ creates Private evidence, invokes the real owner-scoped AI query, and proves onl
 Standard returns. Integration tests prove content-free events/outbox,
 correlation retry, update-trigger rejection, privacy invalidation, and upgrade.
 
+WP-17 unit tests prove literal owner confirmation, partial-duration semantics,
+the complete E1–E6 confidence mapping, and strict local-week parsing. The live
+PostgreSQL suite proves forced RLS and owner isolation, E1 creation/retraction,
+post-block E2, elapsed E5 with zero progress credit, idempotency, content-free
+audit, and deterministic Weekly aggregation. The authenticated browser journey
+uses only synthetic local records, requires CSRF, rejects missing owner
+confirmation, displays the evidence boundary, and proves no provider event.
+
 WP-06 unit tests prove content-free job/observation schemas, idempotent duplicate
 completion, retry, and terminal classification. The live database suite installs
 real pg-boss, races two dispatchers, proves five outbox rows become five jobs,

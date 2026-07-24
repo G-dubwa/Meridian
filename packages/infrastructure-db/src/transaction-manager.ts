@@ -39,6 +39,7 @@ import {
   DrizzleCalendarBlockRepository,
   DrizzleSchedulingProposalRepository,
 } from './scheduling-repositories.js';
+import { DrizzleExecutionRecordRepository } from './execution-repositories.js';
 
 function createTransactionPorts(
   database: DatabaseTransaction,
@@ -52,6 +53,7 @@ function createTransactionPorts(
     derivationLinks: new DrizzleDerivationLinkRepository(database),
     domainEvents: new DrizzleDomainEventRepository(database),
     edges: new DrizzleEdgeRepository(database),
+    executionRecords: new DrizzleExecutionRecordRepository(database),
     entries: new DrizzleEntryRepository(database),
     entryRevisions: new DrizzleEntryRevisionRepository(database),
     integrationAccounts: new DrizzleIntegrationAccountRepository(database),

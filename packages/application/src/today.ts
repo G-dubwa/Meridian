@@ -48,6 +48,10 @@ import type {
   UserScope,
   Uuid,
 } from '@meridian/domain';
+import {
+  persistTaskCompletionEvidence,
+  retractTaskCompletionEvidence,
+} from './execution.js';
 
 export interface TodayServiceDependencies {
   readonly clock: Clock;
@@ -581,6 +585,14 @@ export class TodayService {
         throw new ConflictError('Today receipt was already undone.');
       const now = this.dependencies.clock.now();
       await this.reverseEffect(ports, scope, receipt, now);
+      await retractTaskCompletionEvidence(
+        this.dependencies,
+        ports,
+        scope,
+        receipt,
+        context,
+        now,
+      );
       const updated: TodayReceiptRecord = {
         ...receipt,
         status: 'undone',
@@ -655,6 +667,15 @@ export class TodayService {
       if (!(await ports.tasks.update(updated, current.version)))
         throw new ConflictError('Task changed concurrently.');
       await ports.todayReceipts.save(receipt);
+      await persistTaskCompletionEvidence(
+        this.dependencies,
+        ports,
+        scope,
+        updated,
+        receipt,
+        context,
+        now,
+      );
       await appendEvent(
         this.dependencies,
         ports,

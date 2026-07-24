@@ -15,6 +15,7 @@ export default function GoalsPage() {
         </div>
         <nav className="button-row" aria-label="Meridian">
           <Link href="/today">Today</Link>
+          <Link href="/weekly">The Weekly</Link>
           <Link href="/actions">Tasks &amp; reminders</Link>
           <Link href="/journal">Journal</Link>
         </nav>
