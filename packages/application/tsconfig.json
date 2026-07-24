@@ -5,5 +5,9 @@
     "rootDir": "src"
   },
   "include": ["src/**/*.ts"],
-  "references": [{ "path": "../domain" }, { "path": "../scheduling" }]
+  "references": [
+    { "path": "../domain" },
+    { "path": "../retrieval" },
+    { "path": "../scheduling" }
+  ]
 }

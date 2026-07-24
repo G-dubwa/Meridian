@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import {
   boolean,
   check,
+  customType,
   date,
   foreignKey,
   index,
@@ -16,6 +17,20 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
+
+const unconstrainedVector = customType<{
+  data: number[];
+  driverData: string;
+}>({
+  dataType: () => 'vector',
+  fromDriver: (value) =>
+    value
+      .slice(1, -1)
+      .split(',')
+      .filter((item) => item.length > 0)
+      .map(Number),
+  toDriver: (value) => `[${value.join(',')}]`,
+});
 
 const timestamps = {
   createdAt: timestamp('created_at', { withTimezone: true })
@@ -1732,6 +1747,190 @@ export const knowledgeClaimCitations = pgTable(
   ],
 );
 
+export const retrievalEmbeddings = pgTable(
+  'retrieval_embeddings',
+  {
+    id: uuid('id').primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    lane: text('lane').notNull(),
+    sourceKind: text('source_kind').notNull(),
+    entryRevisionId: uuid('entry_revision_id'),
+    knowledgeChunkId: uuid('knowledge_chunk_id'),
+    contentHash: text('content_hash').notNull(),
+    modelId: text('model_id').notNull(),
+    modelVersion: text('model_version').notNull(),
+    dimensions: integer('dimensions').notNull(),
+    embedding: unconstrainedVector('embedding').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    unique('retrieval_embeddings_id_user_unique').on(table.id, table.userId),
+    unique('retrieval_embeddings_entry_model_unique').on(
+      table.userId,
+      table.entryRevisionId,
+      table.modelId,
+      table.modelVersion,
+    ),
+    unique('retrieval_embeddings_chunk_model_unique').on(
+      table.userId,
+      table.knowledgeChunkId,
+      table.modelId,
+      table.modelVersion,
+    ),
+    foreignKey({
+      columns: [table.entryRevisionId, table.userId],
+      foreignColumns: [entryRevisions.id, entryRevisions.userId],
+      name: 'retrieval_embeddings_entry_owner_fk',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [table.knowledgeChunkId, table.userId],
+      foreignColumns: [knowledgeChunks.id, knowledgeChunks.userId],
+      name: 'retrieval_embeddings_chunk_owner_fk',
+    }).onDelete('cascade'),
+    check(
+      'retrieval_embeddings_lane_source_valid',
+      sql`(${table.lane} = 'personal' and ${table.sourceKind} = 'entry_revision' and ${table.entryRevisionId} is not null and ${table.knowledgeChunkId} is null) or (${table.lane} = 'external' and ${table.sourceKind} = 'knowledge_chunk' and ${table.entryRevisionId} is null and ${table.knowledgeChunkId} is not null)`,
+    ),
+    check(
+      'retrieval_embeddings_hash_length',
+      sql`length(${table.contentHash}) = 64`,
+    ),
+    check(
+      'retrieval_embeddings_model_valid',
+      sql`length(btrim(${table.modelId})) between 1 and 120 and length(btrim(${table.modelVersion})) between 1 and 120`,
+    ),
+    check(
+      'retrieval_embeddings_dimensions_valid',
+      sql`${table.dimensions} between 1 and 16000 and vector_dims(${table.embedding}) = ${table.dimensions}`,
+    ),
+    check(
+      'retrieval_embeddings_vector_nonzero',
+      sql`vector_norm(${table.embedding}) > 0`,
+    ),
+    index('retrieval_embeddings_user_lane_model_idx').on(
+      table.userId,
+      table.lane,
+      table.modelId,
+      table.modelVersion,
+    ),
+  ],
+);
+
+export const contextManifests = pgTable(
+  'context_manifests',
+  {
+    id: uuid('id').primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    purpose: text('purpose').notNull(),
+    policyVersion: text('policy_version').notNull(),
+    semanticRetrievalActive: boolean('semantic_retrieval_active')
+      .notNull()
+      .default(false),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    unique('context_manifests_id_user_unique').on(table.id, table.userId),
+    check(
+      'context_manifests_purpose_valid',
+      sql`${table.purpose} in ('recall_preview', 'material_response')`,
+    ),
+    check(
+      'context_manifests_policy_valid',
+      sql`length(btrim(${table.policyVersion})) between 1 and 80`,
+    ),
+    index('context_manifests_user_created_idx').on(
+      table.userId,
+      table.createdAt,
+    ),
+  ],
+);
+
+export const contextManifestItems = pgTable(
+  'context_manifest_items',
+  {
+    manifestId: uuid('manifest_id').notNull(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    ordinal: integer('ordinal').notNull(),
+    evidenceLane: text('evidence_lane').notNull(),
+    sourceKind: text('source_kind'),
+    resourceId: uuid('resource_id'),
+    entryRevisionId: uuid('entry_revision_id'),
+    knowledgeChunkId: uuid('knowledge_chunk_id'),
+    knowledgeSourceRevisionId: uuid('knowledge_source_revision_id'),
+    contentHash: text('content_hash'),
+    methods: text('methods').array().notNull().default([]),
+    score: numeric('score', { precision: 10, scale: 8 }),
+    policyReference: text('policy_reference'),
+  },
+  (table) => [
+    primaryKey({ columns: [table.manifestId, table.ordinal] }),
+    foreignKey({
+      columns: [table.manifestId, table.userId],
+      foreignColumns: [contextManifests.id, contextManifests.userId],
+      name: 'context_manifest_items_manifest_owner_fk',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [table.resourceId, table.userId],
+      foreignColumns: [resources.id, resources.userId],
+      name: 'context_manifest_items_resource_owner_fk',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [table.entryRevisionId, table.userId],
+      foreignColumns: [entryRevisions.id, entryRevisions.userId],
+      name: 'context_manifest_items_entry_owner_fk',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [table.knowledgeChunkId, table.userId],
+      foreignColumns: [knowledgeChunks.id, knowledgeChunks.userId],
+      name: 'context_manifest_items_chunk_owner_fk',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [table.knowledgeSourceRevisionId, table.userId],
+      foreignColumns: [
+        knowledgeSourceRevisions.id,
+        knowledgeSourceRevisions.userId,
+      ],
+      name: 'context_manifest_items_revision_owner_fk',
+    }).onDelete('cascade'),
+    check('context_manifest_items_ordinal_positive', sql`${table.ordinal} > 0`),
+    check(
+      'context_manifest_items_lane_valid',
+      sql`${table.evidenceLane} in ('personal_evidence', 'external_evidence', 'system_policy')`,
+    ),
+    check(
+      'context_manifest_items_methods_valid',
+      sql`${table.methods} <@ ARRAY['pinned', 'metadata', 'full_text', 'semantic']::text[]`,
+    ),
+    check(
+      'context_manifest_items_score_valid',
+      sql`${table.score} is null or (${table.score} >= 0 and ${table.score} <= 1)`,
+    ),
+    check(
+      'context_manifest_items_reference_valid',
+      sql`(${table.evidenceLane} = 'system_policy' and ${table.sourceKind} is null and ${table.resourceId} is null and ${table.entryRevisionId} is null and ${table.knowledgeChunkId} is null and ${table.knowledgeSourceRevisionId} is null and ${table.contentHash} is null and cardinality(${table.methods}) = 0 and ${table.score} is null and ${table.policyReference} is not null) or (${table.evidenceLane} = 'personal_evidence' and ${table.sourceKind} = 'entry_revision' and ${table.resourceId} is not null and ${table.entryRevisionId} is not null and ${table.knowledgeChunkId} is null and ${table.knowledgeSourceRevisionId} is null and ${table.contentHash} is not null and cardinality(${table.methods}) > 0 and ${table.score} is not null and ${table.policyReference} is null) or (${table.evidenceLane} = 'external_evidence' and ${table.sourceKind} = 'knowledge_chunk' and ${table.resourceId} is not null and ${table.entryRevisionId} is null and ${table.knowledgeChunkId} is not null and ${table.knowledgeSourceRevisionId} is not null and ${table.contentHash} is not null and cardinality(${table.methods}) > 0 and ${table.score} is not null and ${table.policyReference} is null)`,
+    ),
+    check(
+      'context_manifest_items_hash_length',
+      sql`${table.contentHash} is null or length(${table.contentHash}) = 64`,
+    ),
+    index('context_manifest_items_user_manifest_idx').on(
+      table.userId,
+      table.manifestId,
+      table.ordinal,
+    ),
+  ],
+);
+
 export const domainEvents = pgTable(
   'domain_events',
   {
@@ -1821,6 +2020,8 @@ export const schemaTables = {
   authRateLimits,
   authSessions,
   commandReceipts,
+  contextManifestItems,
+  contextManifests,
   dailyPriorities,
   derivationLinks,
   domainEvents,
@@ -1838,6 +2039,7 @@ export const schemaTables = {
   proposals,
   reminderOccurrences,
   reminders,
+  retrievalEmbeddings,
   resources,
   recoveryCodes,
   schemaRegistry,

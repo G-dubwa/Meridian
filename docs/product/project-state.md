@@ -12,10 +12,11 @@ Last updated: 24 July 2026
 
 ## Current work package
 
-- WP-18 local knowledge-source ingestion is complete on
-  `wp-18-knowledge-source-ingestion`, pending integration.
-- The package uses local parser and object-store adapters only and makes no
-  model, calendar, task, notification, or other external request.
+- WP-19 local retrieval/context-manifest checkpoint is implemented on
+  `wp-19-retrieval-context-manifests`; the complete local checkpoint gate is
+  green.
+- Hosted embedding evaluation/activation remains a mandatory human gate, so
+  WP-19 remains open and must not be presented as complete.
 - Microsoft-dependent work remains deferred and untouched.
 
 ## Completed packages
@@ -54,13 +55,15 @@ Last updated: 24 July 2026
   `c586b173db9d9f9e219c6321040fd868bccb772e`.
 - WP-17 — Execution evidence and The Weekly. Package completion commit is the
   integrated commit `21250fde1db25863fe5b04ff7ab900198f56fdd7`.
+- WP-18 — Knowledge-source ingestion foundation. Package completion commit is
+  the integrated commit `5215aa3d8fab08b202006f71bb3f2b2812511b0e`.
 
 ## Branch disposition
 
-- `origin/main` and `origin/wp-17-execution-evidence-weekly` are verified at
-  `21250fde1db25863fe5b04ff7ab900198f56fdd7`.
-- `wp-18-knowledge-source-ingestion` contains the next provider-independent
-  product package on that baseline.
+- `origin/main` and `origin/wp-18-knowledge-source-ingestion` are verified at
+  `5215aa3d8fab08b202006f71bb3f2b2812511b0e`.
+- `wp-19-retrieval-context-manifests` contains an unintegrated
+  provider-independent checkpoint on that baseline.
 - Remote `wp-11-microsoft-todo-delivery-spike` is preserved at
   `7538b4123cfcba7b65765cd68c4b53c7193a6f15`.
 - The WP-11 branch is experimental, inactive, deliberately unmerged, and the
@@ -112,6 +115,14 @@ Last updated: 24 July 2026
   round-trip, correction supersession, deletion-request freeze, content-free
   audit, and zero provider activity. The browser suite now runs from a
   sanitized temporary web workspace and never loads local environment files.
+- WP-19 checkpoint verification passes formatting, lint, strict typecheck,
+  architecture and migration checks, 22 unit files/107 tests, one live
+  PostgreSQL file/15 tests, 15 authenticated browser journeys, 117 governed
+  Markdown documents/current data dictionary, and all production builds.
+  Evidence proves Standard-only local retrieval, owner isolation, separate
+  personal/external evidence lanes, immutable reference-only manifests,
+  content-free events, dormant provenance-bound vector storage, zero browser
+  vectors, no environment loading, and no provider/model call.
 - The default shell remains Node.js 21.6.0; Node.js 24.18.0 with pnpm 11.14.0
   is the verified repository runtime.
 - Gitleaks runs in CI; the local repository gate does not require its binary.
@@ -121,6 +132,8 @@ Last updated: 24 July 2026
 - ADR-0008 retains restricted provisional model routing. WP-15 made no paid
   model call.
 - ADR-0010 defers WP-11/WP-12 and sequences a provider-independent local Alpha.
+- WP-19 retains separate personal/external evidence lanes and a disabled
+  embedding runtime; fixture vectors are test machinery, not product semantics.
 - Canonical task, reminder, journal, goal, planning, memory, and knowledge
   models must remain independent of provider credentials and availability.
 - In-app reminder state must never be represented as external notification
@@ -134,6 +147,9 @@ Last updated: 24 July 2026
   mutation, consent change, or cleanup is authorised.
 - Google Calendar, web push, email, or another provider requires a separate
   governed proposal; none is selected by this deferral.
+- Hosted embedding provider/model selection, paid evaluation, journal/source/
+  query transmission, backfill, and semantic activation require the exact
+  decision in `DN-0001-hosted-embedding-route.md`.
 - Remaining mandatory gates include paid model use, personal-data transmission,
   destructive operations, production deployment, and new external-provider
   permissions.
@@ -152,10 +168,10 @@ No live Microsoft acceptance criterion is waived or marked passed. The
 deferral is based on programme sequencing and time-to-user-value, not a
 conclusion that Microsoft To Do is technically unsuitable.
 
-## Next package
+## Next gate
 
-WP-19 embeddings, retrieval, and context manifests follows successful WP-18
-verification and integration. Any paid model use, personal-data transmission,
-destructive operation, production deployment, or external provider still
-requires its mandatory gate; local deterministic retrieval work may proceed
-independently.
+Commit and push the verified WP-19 local checkpoint, then stop before hosted
+embedding evaluation. The owner must review an exact provider/model, content
+boundary, privacy/retention posture, synthetic evaluation, and hard cost
+ceiling. WP-20 does not start while WP-19 remains open unless a later programme
+decision explicitly permits that sequencing.

@@ -17,6 +17,7 @@ export * from './goals.js';
 export * from './execution.js';
 export * from './journal.js';
 export * from './knowledge.js';
+export * from './retrieval.js';
 export * from './microsoft-integration.js';
 export * from './scheduling.js';
 export * from './worker-health.js';

@@ -18,6 +18,7 @@
     "@meridian/infrastructure-ms-graph": "workspace:*",
     "@meridian/knowledge": "workspace:*",
     "@meridian/prompts": "workspace:*",
+    "@meridian/retrieval": "workspace:*",
     "next": "16.2.10",
     "react": "19.2.7",
     "react-dom": "19.2.7",

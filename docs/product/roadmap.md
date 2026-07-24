@@ -34,7 +34,7 @@ scope. Provider-dependent packages remain deferred.
 | Personal Beta  |  16 | Calendar writes, adoption, and reconciliation   | DEFERRED: provider gate       |
 | Personal Beta  |  17 | Execution evidence and The Weekly               | COMPLETE                      |
 | Personal Beta  |  18 | Knowledge-source ingestion foundation           | COMPLETE                      |
-| Personal v1    |  19 | Embeddings, retrieval, and context manifests    | NEXT                          |
+| Personal v1    |  19 | Embeddings, retrieval, and context manifests    | IN PROGRESS: provider gate    |
 | Personal v1    |  20 | Protocol registry, safety, and adoption         | PENDING                       |
 | Personal v1    |  21 | Summaries, metrics, trends, and v1 dashboard    | PENDING                       |
 | Personal v1    |  22 | Memory manager, export, deletion, and hardening | PENDING                       |
@@ -45,6 +45,8 @@ WP-13 is split without rewriting the accepted v1.2 specification: WP-13A
 delivers a useful local Today surface from canonical Meridian data, while
 WP-13B retains provider-dependent agenda and notification projections behind
 future explicit gates. WP-16 is likewise non-blocking for the independent
-WP-17–WP-22 sequence. WP-17 is complete; WP-18 is next. No deferred provider is
-substituted automatically. WP-18 closes the provider-independent Personal Beta
-release; WP-19 is next after integration.
+WP-17–WP-22 sequence. No deferred provider is substituted automatically. WP-18
+closes the provider-independent Personal Beta release. WP-19’s local
+full-text/context-manifest checkpoint is implemented; hosted embedding
+evaluation and activation remain behind their explicit paid and
+personal-data-transmission gate.

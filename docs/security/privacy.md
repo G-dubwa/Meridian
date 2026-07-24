@@ -88,3 +88,20 @@ contain only IDs and lifecycle enums, never source/claim text, metadata,
 filenames, hashes, object references, or exact locators. A deletion request
 freezes the source but makes no erasure claim; WP-22 must prove removal from
 object storage, database relationships, exports, and backup lifecycle.
+
+WP-19 local Recall applies Standard/current/active eligibility in PostgreSQL
+before personal content becomes a result. External search requires Standard
+chunks from a latest reviewed/reference-only source that is not deletion
+pending, rejected, superseded, retracted, or under expression of concern.
+Personal and external rows are ranked and capped separately. Sensitive and
+Private content is never fetched for later caller-side filtering. Context
+manifests contain only policy plus ordered owner-scoped references; query text,
+query hash, excerpts, and copied content are not retained. Retrieval events are
+content-free counts/enums/IDs.
+
+No hosted embedding route is active. The database can store immutable
+model/version/dimension-tagged vectors, but a trigger requires an exact
+owner-matching Standard source and matching content hash. The web runtime
+composes a disabled adapter, and browser acceptance asserts zero vector rows.
+Any provider selection, paid evaluation, query/source transmission, or backfill
+requires explicit owner approval and a renewed privacy/threat review.

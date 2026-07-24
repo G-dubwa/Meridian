@@ -10,7 +10,9 @@ related-docs: ../../docs/architecture/adr/ADR-0003-postgresql-resource-foundatio
 
 Responsibility: PostgreSQL/Drizzle schema, forward migrations, transaction-local owner scope, and adapter implementations for domain ports.
 
-Exclusions: Domain policy, application orchestration, cryptographic implementation, HTTP, workers, provider integrations, embeddings, vector indexes, and partitioning.
+Exclusions: Domain policy, application orchestration, cryptographic
+implementation, HTTP, workers, provider integrations, embedding generation,
+approximate vector indexes, and partitioning.
 
 Allowed imports: May import domain ports and infrastructure libraries.
 
@@ -65,9 +67,15 @@ citation tables. Same-owner composite foreign keys prevent cross-owner
 provenance; hashes and exact spans have database constraints. A deletion
 request freezes the mutable source row but physical erasure remains WP-22.
 
+The WP-19 checkpoint adds forced-RLS retrieval embedding storage and immutable
+context manifests/items. Runtime search is Standard-only local full text with
+personal and external evidence kept in separate lanes. Vector rows require
+explicit model/version/dimension provenance and remain dormant because the
+runtime embedding adapter is disabled; no approximate vector index exists.
+
 Tests: `pnpm test:integration` creates a temporary PostgreSQL 18 cluster when
 `TEST_DATABASE_URL` is absent. It covers empty and seeded migration paths,
-installed-but-unused pgvector, unpartitioned tables, two-user isolation,
+pgvector storage without an approximate index, unpartitioned tables, two-user isolation,
 transactional resource creation, provenance deletion, authentication schema,
 journal/worker migrations, immutable revisions, optimistic state, event/outbox
 atomicity, retry idempotency, concurrent queue dispatch, terminal dead letters,
@@ -75,6 +83,7 @@ Private exclusion, Microsoft token lifecycle, exact-scope constraints, consent
 immutability, integration RLS, local Today isolation, priority limits,
 lifecycle undo, goal isolation, soft-load acknowledgement, dependency-cycle
 journal source ingestion, exact citations, deletion freeze, and deterministic
-local-plan isolation/acceptance. Playwright proves
-journal, health, Microsoft Settings/status, local Today, goal, and planning
-paths without contacting a provider.
+local-plan isolation/acceptance, retrieval filtering, immutable manifests, and
+dormant hybrid ranking. Playwright proves journal, health, Microsoft
+Settings/status, local Today, goal, planning, knowledge, and local recall paths
+without contacting a provider.

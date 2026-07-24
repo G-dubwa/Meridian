@@ -15,6 +15,7 @@ export * from './microsoft-connection.js';
 export * from './model-gateway.js';
 export * from './model-routing.js';
 export * from './reliable-events.js';
+export * from './retrieval.js';
 export * from './scheduling.js';
 export * from './triage.js';
 export * from './today.js';

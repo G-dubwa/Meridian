@@ -18,6 +18,7 @@ export default function TodayPage() {
           <a href="/goals">Goals</a>
           <a href="/journal">Journal</a>
           <a href="/knowledge">Knowledge</a>
+          <a href="/recall">Recall</a>
           <a href="/triage">Triage</a>
         </nav>
       </header>

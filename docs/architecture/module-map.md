@@ -10,20 +10,21 @@ related-docs: ../README.md
 
 ## Runtime and dependency flow
 
-`apps/web → application → domain ports ← infrastructure adapters` and `apps/worker → application`. Domain contains invariants and ports and imports no Meridian package. Application imports domain and the deterministic scheduling policy package only. Scheduling imports domain contracts and deterministic time-zone invariants only. Prompts may import domain schemas, never the reverse. API contracts may register versioned domain boundary schemas; they contain no business rules.
+`apps/web → application → domain ports ← infrastructure adapters` and `apps/worker → application`. Domain contains invariants and ports and imports no Meridian package. Application imports domain and the pure scheduling/retrieval policy packages only. Scheduling and retrieval import domain contracts but no adapters. Prompts may import domain schemas, never the reverse. API contracts may register versioned domain boundary schemas; they contain no business rules.
 
 ## Package ownership
 
-| Package                   | Owns                                                               | Prohibited imports                            |
-| ------------------------- | ------------------------------------------------------------------ | --------------------------------------------- |
-| `domain`                  | IDs, owner scope, policies, errors, schemas, ports, event envelope | every other Meridian package                  |
-| `application`             | use-case and transaction orchestration                             | all infrastructure, presentation, prompts     |
-| `scheduling`              | deterministic availability and exact block proposal arithmetic     | infrastructure, presentation, prompts, models |
-| `knowledge`               | local parsing, chunking, hashing, and original object storage      | application, database, web, models, providers |
-| `api-contracts`           | OpenAPI/schema-generation boundary                                 | application services and infrastructure       |
-| `infrastructure-*`        | adapters implementing domain ports                                 | web presentation and domain-policy invention  |
-| `prompts`                 | versioned prompt definitions and output contracts                  | infrastructure provider SDKs                  |
-| `apps/web`, `apps/worker` | presentation, hosting, and explicit process composition            | adapter access outside composition roots      |
+| Package                   | Owns                                                                 | Prohibited imports                            |
+| ------------------------- | -------------------------------------------------------------------- | --------------------------------------------- |
+| `domain`                  | IDs, owner scope, policies, errors, schemas, ports, event envelope   | every other Meridian package                  |
+| `application`             | use-case and transaction orchestration                               | all infrastructure, presentation, prompts     |
+| `scheduling`              | deterministic availability and exact block proposal arithmetic       | infrastructure, presentation, prompts, models |
+| `retrieval`               | privacy filtering, separated ranking, context assembly, test adapter | infrastructure, presentation, provider SDKs   |
+| `knowledge`               | local parsing, chunking, hashing, and original object storage        | application, database, web, models, providers |
+| `api-contracts`           | OpenAPI/schema-generation boundary                                   | application services and infrastructure       |
+| `infrastructure-*`        | adapters implementing domain ports                                   | web presentation and domain-policy invention  |
+| `prompts`                 | versioned prompt definitions and output contracts                    | infrastructure provider SDKs                  |
+| `apps/web`, `apps/worker` | presentation, hosting, and explicit process composition              | adapter access outside composition roots      |
 
 `apps/web/app/_server/composition.ts` and `apps/worker/src/composition.ts` are
 the exact process composition roots allowed to construct infrastructure
@@ -89,6 +90,13 @@ local parsing/object storage in `knowledge`; forced-RLS repositories in
 `infrastructure-db`; and same-origin presentation in `api-contracts`/`apps/web`.
 No knowledge path imports a model or provider adapter, and later retrieval can
 consume chunks without redesigning source provenance.
+
+WP-19 keeps eligibility/lane/reference invariants in `domain`; atomic manifest
+orchestration in `application`; pure normalization/ranking/fixture behavior in
+`retrieval`; full-text/pgvector persistence and source checks in
+`infrastructure-db`; and Recall presentation in `api-contracts`/`apps/web`.
+The runtime composes only a disabled embedding adapter. No provider SDK or
+credential enters the retrieval path.
 
 `dependency-cruiser.config.mjs` is executable authority for accepted ADR-0002
 rules. Its negative fixtures prove both domain-to-infrastructure and

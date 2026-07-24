@@ -255,9 +255,38 @@
   padding-top: 0.55rem;
 }
 
+.recall-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.recall-grid > :first-child,
+.manifest-panel {
+  grid-column: 1 / -1;
+}
+
+.recall-result {
+  border-top: 1px solid var(--line);
+  padding: 1rem 0;
+}
+
+.recall-result header {
+  align-items: start;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.manifest-panel li {
+  margin: 0.5rem 0;
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 760px) {
   .goals-grid,
   .load-panel,
+  .recall-grid,
   .field-pair {
     grid-template-columns: 1fr;
   }

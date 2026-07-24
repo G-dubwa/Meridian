@@ -16,6 +16,7 @@ import type {
 import type {
   AgendaBlockId,
   CalendarBlockId,
+  ContextManifestId,
   DailyPriorityId,
   DerivationLinkId,
   EdgeId,
@@ -31,6 +32,7 @@ import type {
   KnowledgeSourceRevisionId,
   OutboxMessageId,
   ProposalId,
+  RetrievalEmbeddingId,
   ReminderId,
   ReminderOccurrenceId,
   ResourceId,
@@ -52,6 +54,13 @@ import type {
   KnowledgeReviewStatus,
   KnowledgeSourceClass,
 } from './knowledge.js';
+import type {
+  ContextEvidenceLane,
+  ContextManifestPurpose,
+  RetrievalLane,
+  RetrievalMethod,
+  RetrievalSourceKind,
+} from './retrieval.js';
 import type {
   ExecutionConfidenceClass,
   ExecutionEvidenceType,
@@ -424,6 +433,81 @@ export interface KnowledgeClaimCitationRecord {
   readonly quotedTextHash: string;
   readonly locator: KnowledgeLocatorV1 | null;
   readonly createdAt: Date;
+}
+
+export interface RetrievalCandidateRecord {
+  readonly contentHash: string;
+  readonly entryRevisionId: EntryRevisionId | null;
+  readonly evidenceLane: Exclude<ContextEvidenceLane, 'system_policy'>;
+  readonly knowledgeChunkId: KnowledgeChunkId | null;
+  readonly knowledgeSourceRevisionId: KnowledgeSourceRevisionId | null;
+  readonly locator: KnowledgeLocatorV1 | null;
+  readonly methods: readonly RetrievalMethod[];
+  readonly occurredAt: Date;
+  readonly resourceId: ResourceId;
+  readonly score: number;
+  readonly sourceKind: RetrievalSourceKind;
+  readonly text: string;
+  readonly title: string;
+}
+
+export interface ContextManifestItemRecord {
+  readonly contentHash: string | null;
+  readonly entryRevisionId: EntryRevisionId | null;
+  readonly evidenceLane: ContextEvidenceLane;
+  readonly knowledgeChunkId: KnowledgeChunkId | null;
+  readonly knowledgeSourceRevisionId: KnowledgeSourceRevisionId | null;
+  readonly manifestId: ContextManifestId;
+  readonly methods: readonly RetrievalMethod[];
+  readonly ordinal: number;
+  readonly policyReference: string | null;
+  readonly resourceId: ResourceId | null;
+  readonly score: number | null;
+  readonly sourceKind: RetrievalSourceKind | null;
+}
+
+export interface ContextManifestRecord {
+  readonly createdAt: Date;
+  readonly id: ContextManifestId;
+  readonly items: readonly ContextManifestItemRecord[];
+  readonly policyVersion: string;
+  readonly purpose: ContextManifestPurpose;
+  readonly scope: UserScope;
+  readonly semanticRetrievalActive: boolean;
+}
+
+export interface RetrievalEmbeddingRecord {
+  readonly contentHash: string;
+  readonly createdAt: Date;
+  readonly dimensions: number;
+  readonly entryRevisionId: EntryRevisionId | null;
+  readonly id: RetrievalEmbeddingId;
+  readonly knowledgeChunkId: KnowledgeChunkId | null;
+  readonly lane: RetrievalLane;
+  readonly modelId: string;
+  readonly modelVersion: string;
+  readonly scope: UserScope;
+  readonly sourceKind: RetrievalSourceKind;
+  readonly vector: readonly number[];
+}
+
+export interface EmbeddingRequest {
+  readonly contentHash: string | null;
+  readonly lane: RetrievalLane;
+  readonly processingClass: ProcessingClass;
+  readonly text: string;
+}
+
+export interface EmbeddingResult {
+  readonly dimensions: number;
+  readonly modelId: string;
+  readonly modelVersion: string;
+  readonly vector: readonly number[];
+}
+
+export interface EmbeddingPort {
+  readonly active: boolean;
+  embed(request: EmbeddingRequest): Promise<EmbeddingResult>;
 }
 
 export interface KnowledgeUpload {
@@ -851,6 +935,33 @@ export interface KnowledgeClaimCitationRepository {
   save(citation: KnowledgeClaimCitationRecord): Promise<void>;
 }
 
+export interface RetrievalSearchRepository {
+  searchExternal(
+    scope: UserScope,
+    query: string,
+    limit: number,
+    queryEmbedding?: EmbeddingResult,
+  ): Promise<readonly RetrievalCandidateRecord[]>;
+  searchPersonal(
+    scope: UserScope,
+    query: string,
+    limit: number,
+    queryEmbedding?: EmbeddingResult,
+  ): Promise<readonly RetrievalCandidateRecord[]>;
+}
+
+export interface ContextManifestRepository {
+  findById(
+    scope: UserScope,
+    id: ContextManifestId,
+  ): Promise<ContextManifestRecord | null>;
+  save(manifest: ContextManifestRecord): Promise<void>;
+}
+
+export interface RetrievalEmbeddingRepository {
+  saveMany(embeddings: readonly RetrievalEmbeddingRecord[]): Promise<void>;
+}
+
 export interface DailyPriorityRepository {
   acquireDateLock(scope: UserScope, localDate: LocalDateV1): Promise<void>;
   findById(
@@ -901,6 +1012,7 @@ export interface TransactionPorts {
   readonly calendarBlocks: CalendarBlockRepository;
   readonly commandReceipts: CommandReceiptRepository;
   readonly consentRecords: ConsentRecordRepository;
+  readonly contextManifests: ContextManifestRepository;
   readonly dailyPriorities: DailyPriorityRepository;
   readonly derivationLinks: DerivationLinkRepository;
   readonly domainEvents: DomainEventRepository;
@@ -917,6 +1029,8 @@ export interface TransactionPorts {
   readonly goals: GoalRepository;
   readonly outbox: OutboxRepository;
   readonly proposals: ProposalRepository;
+  readonly retrievalEmbeddings: RetrievalEmbeddingRepository;
+  readonly retrievalSearch: RetrievalSearchRepository;
   readonly reminderOccurrences: ReminderOccurrenceRepository;
   readonly reminders: ReminderRepository;
   readonly schedulingProposals: SchedulingProposalRepository;

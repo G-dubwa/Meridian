@@ -15,10 +15,10 @@ export default {
       name: 'application-does-not-import-adapters',
       severity: 'error',
       comment:
-        'Application orchestration depends only on domain, scheduling, and their ports.',
+        'Application orchestration depends only on domain, pure scheduling/retrieval engines, and their ports.',
       from: { path: '(^|/)packages/application/' },
       to: {
-        path: '(^|/)(apps/|packages/(?!application/|domain/|scheduling/))',
+        path: '(^|/)(apps/|packages/(?!application/|domain/|retrieval/|scheduling/))',
       },
     },
     {

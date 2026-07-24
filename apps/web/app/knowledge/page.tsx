@@ -17,6 +17,7 @@ export default function KnowledgePage() {
           <Link href="/today">Today</Link>
           <Link href="/weekly">The Weekly</Link>
           <Link href="/journal">Journal</Link>
+          <Link href="/recall">Recall</Link>
         </nav>
       </header>
       <KnowledgeApp />

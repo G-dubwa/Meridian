@@ -31,14 +31,9 @@ async function availablePort() {
 }
 
 const inheritedUrl = process.env.TEST_DATABASE_URL;
+const vitest = resolve('node_modules/.bin/vitest');
 if (inheritedUrl) {
-  run('pnpm', [
-    'exec',
-    'vitest',
-    'run',
-    '--config',
-    'vitest.integration.config.ts',
-  ]);
+  run(vitest, ['run', '--config', 'vitest.integration.config.ts']);
   process.exit(0);
 }
 
@@ -69,16 +64,12 @@ try {
     'start',
   ]);
   started = true;
-  run(
-    'pnpm',
-    ['exec', 'vitest', 'run', '--config', 'vitest.integration.config.ts'],
-    {
-      env: {
-        ...process.env,
-        TEST_DATABASE_URL: `postgres://postgres@127.0.0.1:${String(port)}/postgres`,
-      },
+  run(vitest, ['run', '--config', 'vitest.integration.config.ts'], {
+    env: {
+      ...process.env,
+      TEST_DATABASE_URL: `postgres://postgres@127.0.0.1:${String(port)}/postgres`,
     },
-  );
+  });
 } finally {
   if (started) {
     spawnSync(

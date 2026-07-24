@@ -6,6 +6,7 @@ export * from './goal-repositories.js';
 export * from './execution-repositories.js';
 export * from './integration-repositories.js';
 export * from './knowledge-repositories.js';
+export * from './retrieval-repositories.js';
 export * from './repositories.js';
 export * from './scheduling-repositories.js';
 export * from './schema.js';

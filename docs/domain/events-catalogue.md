@@ -169,3 +169,15 @@ review enums. Titles, authors, source text, claim text, quoted text, filenames,
 URLs, DOI values, locators, offsets, hashes, notes, and object references are
 prohibited. Deletion request is audit evidence of intent, not evidence of
 physical erasure.
+
+## Retrieval events v1
+
+| Event                                   | Emitted when                             |
+| --------------------------------------- | ---------------------------------------- |
+| `retrieval.context_manifest_created.v1` | A local context preview manifest commits |
+
+The payload contains only manifest ID, purpose, policy version, per-lane item
+counts, and whether semantic retrieval participated. Query text, query hash,
+result excerpts/titles, source content/hashes, scores, locators, and evidence
+identifiers are prohibited. The owner-scoped immutable manifest—not the event—
+retains ordered source references.

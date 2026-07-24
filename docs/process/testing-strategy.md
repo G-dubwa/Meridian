@@ -53,6 +53,17 @@ journey uses a synthetic Markdown file only and proves session/CSRF controls,
 review, duplicate rejection, download, deletion request, and zero provider
 activity.
 
+WP-19 unit tests prove bounded normalization, strict evidence-lane shapes,
+deterministic ranking/deduplication, reference-only manifest assembly, disabled
+runtime semantics, and fixture-only deterministic vectors. Live PostgreSQL
+tests prove migration/pgvector shape, forced RLS, two-owner manifest isolation,
+Standard-only source/hash triggers, immutable vectors/manifests, current/latest
+full-text eligibility, Private/Sensitive exclusion, and synthetic hybrid
+ranking. The authenticated browser journey creates synthetic Standard personal
+and external evidence, verifies distinct lane labels/source links and an
+inspectable manifest, excludes Private search, asserts semantic status
+`inactive`, and proves zero vector/provider activity.
+
 WP-06 unit tests prove content-free job/observation schemas, idempotent duplicate
 completion, retry, and terminal classification. The live database suite installs
 real pg-boss, races two dispatchers, proves five outbox rows become five jobs,

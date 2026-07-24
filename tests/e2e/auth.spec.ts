@@ -43,12 +43,14 @@ async function login(
   });
 }
 
-test.describe.serial('WP-04 through WP-18 authenticated acceptance', () => {
+test.describe.serial('WP-04 through WP-19 authenticated acceptance', () => {
   test('bootstraps exactly one owner and stores only Argon2id/recovery hashes', async () => {
     const first = spawnSync(
-      'pnpm',
+      process.execPath,
       [
-        'auth:bootstrap',
+        '--import',
+        'tsx',
+        'scripts/bootstrap-owner.ts',
         '--password-stdin',
         '--identifier',
         'owner',
@@ -70,8 +72,15 @@ test.describe.serial('WP-04 through WP-18 authenticated acceptance', () => {
     recoveryCode = codes[0] ?? '';
 
     const second = spawnSync(
-      'pnpm',
-      ['auth:bootstrap', '--password-stdin', '--identifier', 'owner'],
+      process.execPath,
+      [
+        '--import',
+        'tsx',
+        'scripts/bootstrap-owner.ts',
+        '--password-stdin',
+        '--identifier',
+        'owner',
+      ],
       {
         encoding: 'utf8',
         env: process.env,
@@ -1469,6 +1478,191 @@ test.describe.serial('WP-04 through WP-18 authenticated acceptance', () => {
           from domain_events
         `;
         expect(audit).toEqual({ content_leaks: '0', provider_events: '0' });
+      } finally {
+        await sql.end();
+      }
+    } finally {
+      await request.dispose();
+    }
+  });
+
+  test('searches separated local evidence lanes and exposes a reference-only context manifest', async ({
+    playwright,
+  }) => {
+    const request = await playwright.request.newContext({
+      baseURL: baseUrl,
+      userAgent: 'meridian-retrieval-fixture',
+    });
+    const query = 'E2E bounded retrieval marker';
+    try {
+      expect((await request.get('/api/retrieval')).status()).toBe(401);
+      expect((await login(request)).status()).toBe(200);
+      const csrfToken = await csrfCookie(request);
+      const status = await request.get('/api/retrieval');
+      expect(status.status()).toBe(200);
+      expect(await status.json()).toEqual({
+        externalLane: 'local_full_text',
+        personalLane: 'local_full_text',
+        policyVersion: 'standard-separated-lanes-v1',
+        semanticRetrieval: 'inactive',
+      });
+
+      const journal = await request.post('/api/journal/entries', {
+        data: {
+          bodyMarkdown: `${query} appears in synthetic personal evidence.`,
+          processingClass: 'standard',
+        },
+        headers: { 'x-csrf-token': csrfToken },
+      });
+      expect(journal.status()).toBe(201);
+
+      const sourceText = `# Recall\n\n${query} appears in synthetic external evidence.`;
+      const uploaded = await request.post('/api/knowledge/sources', {
+        headers: { 'x-csrf-token': csrfToken },
+        multipart: {
+          file: {
+            buffer: Buffer.from(sourceText),
+            mimeType: 'text/markdown',
+            name: 'retrieval-e2e.md',
+          },
+          metadata: JSON.stringify({
+            authors: ['Synthetic Fixture'],
+            canonicalUrl: null,
+            copyrightAndUseNotes: 'Synthetic retrieval test content.',
+            doi: null,
+            evidenceDomain: ['testing'],
+            language: 'en',
+            ownerConfirmed: true,
+            ownerConfirmedRights: true,
+            ownerNotes: null,
+            processingClass: 'standard',
+            publicationDate: null,
+            publisherOrVenue: null,
+            sourceClass: 'personal_notes',
+            title: 'E2E bounded retrieval marker source',
+          }),
+        },
+      });
+      expect(uploaded.status()).toBe(201);
+      const source = (await uploaded.json()) as {
+        source: { id: string; version: number };
+      };
+      const reviewed = await request.post(
+        `/api/knowledge/sources/${source.source.id}/review`,
+        {
+          data: {
+            expectedVersion: source.source.version,
+            ownerConfirmed: true,
+            reviewStatus: 'reference_only',
+          },
+          headers: { 'x-csrf-token': csrfToken },
+        },
+      );
+      expect(reviewed.status()).toBe(200);
+
+      const missingCsrf = await request.post('/api/retrieval', {
+        data: {
+          lanes: ['personal', 'external'],
+          limitPerLane: 5,
+          purpose: 'recall_preview',
+          query,
+        },
+      });
+      expect(missingCsrf.status()).toBe(403);
+      const searched = await request.post('/api/retrieval', {
+        data: {
+          lanes: ['personal', 'external'],
+          limitPerLane: 5,
+          purpose: 'recall_preview',
+          query,
+        },
+        headers: { 'x-csrf-token': csrfToken },
+      });
+      expect(searched.status()).toBe(201);
+      const preview = (await searched.json()) as {
+        manifest: {
+          id: string;
+          items: { evidenceLane: string }[];
+          semanticRetrievalActive: boolean;
+        };
+        results: {
+          evidenceLane: string;
+          excerpt: string;
+          href: string;
+          methods: string[];
+        }[];
+      };
+      expect(preview.manifest.semanticRetrievalActive).toBe(false);
+      expect(preview.manifest.items.map((item) => item.evidenceLane)).toEqual([
+        'system_policy',
+        'personal_evidence',
+        'external_evidence',
+      ]);
+      expect(
+        preview.results.map((result) => result.evidenceLane).sort(),
+      ).toEqual(['external_evidence', 'personal_evidence']);
+      expect(
+        preview.results.every(
+          (result) =>
+            result.methods.length === 1 &&
+            result.methods[0] === 'full_text' &&
+            result.href.startsWith('/'),
+        ),
+      ).toBe(true);
+
+      const privateSearch = await request.post('/api/retrieval', {
+        data: {
+          lanes: ['personal'],
+          limitPerLane: 5,
+          purpose: 'recall_preview',
+          query: 'Private journal evidence',
+        },
+        headers: { 'x-csrf-token': csrfToken },
+      });
+      expect(privateSearch.status()).toBe(201);
+      expect(
+        ((await privateSearch.json()) as { results: unknown[] }).results,
+      ).toEqual([]);
+
+      const manifest = await request.get(
+        `/api/retrieval/manifests/${preview.manifest.id}`,
+      );
+      expect(manifest.status()).toBe(200);
+      expect(await manifest.json()).toMatchObject({
+        id: preview.manifest.id,
+        semanticRetrievalActive: false,
+      });
+      const page = await request.get('/recall');
+      expect(page.status()).toBe(200);
+      expect(await page.text()).toContain('Recall');
+
+      const sql = postgres(databaseUrl, { prepare: false });
+      try {
+        const [audit] = await sql<
+          {
+            content_leaks: string;
+            provider_events: string;
+            vector_count: string;
+          }[]
+        >`
+          select
+            (
+              select count(*)::text from domain_events
+              where event_type like 'retrieval.%'
+                and payload::text like ${`%${query}%`}
+            ) as content_leaks,
+            (
+              select count(*)::text from domain_events
+              where event_type like 'integration.%'
+                 or event_type like 'delivery.%'
+            ) as provider_events,
+            (select count(*)::text from retrieval_embeddings) as vector_count
+        `;
+        expect(audit).toEqual({
+          content_leaks: '0',
+          provider_events: '0',
+          vector_count: '0',
+        });
       } finally {
         await sql.end();
       }

@@ -19,8 +19,8 @@ related-docs: ../README.md
   owner-local date; no automatic ranking is active.
 - Goals, transparent load guidance, deterministic local planning proposals,
   owner-confirmed execution evidence, and a descriptive local Weekly are
-  active. Inferred goals, automatic prioritisation, retrieval, and broader
-  analytics remain later packages.
+  active. Inferred goals, automatic prioritisation, semantic retrieval, and
+  broader analytics remain later packages.
 - Accepted planning blocks are intent only. They are not external calendar
   bookings, notification receipts, or evidence that work occurred.
 - The Weekly uses only local plans and explicit evidence. Elapsed unconfirmed
@@ -31,8 +31,13 @@ related-docs: ../README.md
   work and require at least ten comparable observations.
 - Knowledge ingestion is local and limited to UTF-8 text, Markdown, and
   text-layer PDFs up to 10 MiB. Scanned PDFs require an inactive future OCR
-  adapter; office documents, web fetching, embeddings, retrieval, synthesis,
-  and protocol adoption are not active.
+  adapter; office documents, web fetching, synthesis, and protocol adoption
+  are not active.
+- Recall provides owner-initiated local full-text retrieval over Standard-only,
+  independently ranked personal and external lanes. Hosted semantic embeddings,
+  backfill, automatic surfacing, model context use, and approximate vector
+  indexing are inactive pending the WP-19 provider/data gate. The deterministic
+  fixture embedding adapter is test-only and makes no semantic-quality claim.
 - A knowledge deletion request freezes the source but does not erase bytes.
   Verified propagation through originals, database records, exports, and
   backups belongs to WP-22 and remains a destructive human-gated operation.

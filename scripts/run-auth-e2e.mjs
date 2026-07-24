@@ -122,18 +122,27 @@ try {
     NEXT_TELEMETRY_DISABLED: '1',
     OPENAI_API_KEY: '',
   };
-  run('pnpm', ['db:migrate'], { env: environment });
-  for (const packageName of [
-    '@meridian/domain',
-    '@meridian/application',
-    '@meridian/api-contracts',
-    '@meridian/infrastructure-auth',
-    '@meridian/infrastructure-db',
-    '@meridian/infrastructure-ms-graph',
-    '@meridian/knowledge',
-  ]) {
-    run('pnpm', ['--filter', packageName, 'build'], { env: environment });
-  }
+  run(
+    resolve('node_modules/.bin/tsx'),
+    ['packages/infrastructure-db/src/migrate.ts'],
+    { env: environment },
+  );
+  run(
+    resolve('node_modules/.bin/tsc'),
+    [
+      '--build',
+      'packages/domain',
+      'packages/scheduling',
+      'packages/retrieval',
+      'packages/application',
+      'packages/api-contracts',
+      'packages/infrastructure-auth',
+      'packages/infrastructure-db',
+      'packages/infrastructure-ms-graph',
+      'packages/knowledge',
+    ],
+    { env: environment },
+  );
   web = spawn(
     resolve('apps/web/node_modules/.bin/next'),
     ['dev', sanitizedWeb, '--hostname', '127.0.0.1', '--port', String(webPort)],
@@ -141,8 +150,8 @@ try {
   );
   await waitFor(`${baseUrl}/health`, web);
   run(
-    'pnpm',
-    ['exec', 'playwright', 'test', '--config', 'playwright.auth.config.ts'],
+    resolve('node_modules/.bin/playwright'),
+    ['test', '--config', 'playwright.auth.config.ts'],
     { env: environment },
   );
 } finally {

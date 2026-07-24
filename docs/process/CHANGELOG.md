@@ -70,3 +70,9 @@ related-docs: release.md
   passive PDFs; immutable originals/revisions/chunks; exact-span candidate
   claims and citations; owner review/correction; a non-destructive deletion
   request freeze; and no model or external-provider dependency.
+- WP-19 provider-independent local checkpoint with Standard-only full-text
+  Recall, separately ranked personal/external evidence lanes, immutable
+  reference-only context manifests, content-free audit, dormant
+  model-versioned pgvector persistence, a disabled runtime embedding adapter,
+  and fixture-only hybrid verification. Hosted embedding evaluation and
+  activation remain gated.

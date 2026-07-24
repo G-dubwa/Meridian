@@ -12,9 +12,9 @@ Responsibility: use-case contracts and workflow orchestration over domain-owned 
 
 Exclusions: domain invariants, persistence, provider implementations, HTTP presentation, and worker hosting.
 
-Allowed imports: `@meridian/domain` and the pure `@meridian/scheduling` policy
-package only. Application must not import any infrastructure package. The
-domain package never imports application.
+Allowed imports: `@meridian/domain` plus the pure `@meridian/scheduling` and
+`@meridian/retrieval` policy packages only. Application must not import any
+infrastructure package. The domain package never imports application.
 
 `AuthenticationService` owns the local owner bootstrap, login, recovery,
 session validation/renewal/revocation, password change, lockout, rate limiting,
@@ -67,8 +67,14 @@ correction invalidation, and a non-destructive deletion-request freeze. Parser
 and object-store capabilities enter through domain ports. No model, OCR, or
 external provider is composed.
 
+`RetrievalService` coordinates local owner-scoped search across deliberately
+separate personal and external evidence lanes. It persists an immutable
+reference-only context manifest and content-free event atomically. Query text
+is transient and the production composition uses a disabled embedding port
+until the hosted-embedding gate is approved.
+
 Tests: dependency-cruiser proves application-to-infrastructure imports fail.
-Authentication, journal, Today, goals, scheduling, knowledge, and event services use live
-PostgreSQL/pg-boss/Next.js
+Authentication, journal, Today, goals, scheduling, knowledge, retrieval, and
+event services use live PostgreSQL/pg-boss/Next.js
 journeys; model gateway and routing use isolated mock adapters. Unit tests cover
 schemas, policy, retry/terminal transitions, and content-safe observations.

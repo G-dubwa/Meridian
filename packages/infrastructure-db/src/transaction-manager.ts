@@ -47,6 +47,11 @@ import {
   DrizzleKnowledgeSourceRepository,
   DrizzleKnowledgeSourceRevisionRepository,
 } from './knowledge-repositories.js';
+import {
+  DrizzleContextManifestRepository,
+  DrizzleRetrievalEmbeddingRepository,
+  DrizzleRetrievalSearchRepository,
+} from './retrieval-repositories.js';
 
 function createTransactionPorts(
   database: DatabaseTransaction,
@@ -56,6 +61,7 @@ function createTransactionPorts(
     calendarBlocks: new DrizzleCalendarBlockRepository(database),
     commandReceipts: new DrizzleCommandReceiptRepository(database),
     consentRecords: new DrizzleConsentRecordRepository(database),
+    contextManifests: new DrizzleContextManifestRepository(database),
     dailyPriorities: new DrizzleDailyPriorityRepository(database),
     derivationLinks: new DrizzleDerivationLinkRepository(database),
     domainEvents: new DrizzleDomainEventRepository(database),
@@ -76,6 +82,8 @@ function createTransactionPorts(
     goals: new DrizzleGoalRepository(database),
     outbox: new DrizzleOutboxRepository(database),
     proposals: new DrizzleProposalRepository(database),
+    retrievalEmbeddings: new DrizzleRetrievalEmbeddingRepository(database),
+    retrievalSearch: new DrizzleRetrievalSearchRepository(database),
     reminderOccurrences: new DrizzleReminderOccurrenceRepository(database),
     reminders: new DrizzleReminderRepository(database),
     schedulingProposals: new DrizzleSchedulingProposalRepository(database),

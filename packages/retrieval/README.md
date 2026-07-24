@@ -8,10 +8,15 @@ related-docs: ../../docs/architecture/module-map.md
 
 # retrieval
 
-Responsibility: Search, chunking, privacy filtering, and context assembly.
+Responsibility: Privacy-filtered search, separated evidence-lane ranking,
+embedding adapter primitives, and deterministic context assembly.
 
-Exclusions: Provider SDKs and durable domain policy.
+Exclusions: Provider SDKs, provider/model selection, durable domain policy,
+automatic surfacing, and model response generation.
 
 Allowed imports: May import domain and application contracts.
 
-Tests: WP-01 supplies only the repository-wide placeholder and architecture fixture; behaviour tests arrive with the package's first scoped capability.
+Tests: WP-19 covers query normalization, fail-closed lane validation,
+deterministic ordering/deduplication, reference-only manifest assembly,
+disabled runtime behavior, and fixture-only embeddings. PostgreSQL integration
+tests cover actual full-text/pgvector search and source privacy triggers.

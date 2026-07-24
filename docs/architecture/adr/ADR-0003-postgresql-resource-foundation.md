@@ -28,7 +28,11 @@ Keep domain and application packages free of Drizzle. Keep event and outbox tabl
 
 Application access must use the transaction manager; an unscoped application connection sees no owner rows. Resource and subtype creation is atomic. PostgreSQL superusers and table owners bypass row-level security and therefore remain operational roles, never application credentials. Plain PostgreSQL tables remain compatible with `pg_dump` and `pg_restore`.
 
-Partitioning and vector search are explicitly deferred. New resource types require a registry entry, migration, generated dictionary update, and appropriate owner-scoped repository contract.
+WP-19 may add model/version/dimension-tagged pgvector rows. Until a provider
+model and measured indexing need are accepted, vectors remain variable
+dimension with no HNSW/IVFFlat index. Partitioning remains deferred. New
+resource types require a registry entry, migration, generated dictionary
+update, and appropriate owner-scoped repository contract.
 
 ## Rollback
 

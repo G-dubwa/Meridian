@@ -1127,6 +1127,59 @@ paths:
         '200': { description: Preserved original source bytes. }
         '401': { $ref: '#/components/responses/SessionInvalid' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /api/retrieval:
+    get:
+      operationId: getRetrievalStatus
+      summary: Inspect the active owner-scoped retrieval policy without content.
+      security: [{ sessionCookie: [] }]
+      responses:
+        '200':
+          description: Local retrieval status; semantic retrieval remains inactive.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RetrievalStatusResponseV1' }
+        '401': { $ref: '#/components/responses/SessionInvalid' }
+    post:
+      operationId: previewRetrieval
+      summary: Search separated local evidence lanes and create an immutable reference manifest.
+      description: The query is used transiently and is not retained in the manifest or audit event.
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/CsrfHeader' }
+        - { $ref: '#/components/parameters/RequestIdHeader' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RetrievalPreviewRequestV1' }
+      responses:
+        '201':
+          description: Separated results and their immutable reference-only context manifest.
+          content:
+            application/json:
+              schema:
+                { $ref: '#/components/schemas/RetrievalPreviewResponseV1' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '401': { $ref: '#/components/responses/SessionInvalid' }
+        '403': { $ref: '#/components/responses/CsrfInvalid' }
+  /api/retrieval/manifests/{manifestId}:
+    get:
+      operationId: getContextManifest
+      summary: Inspect one immutable owner-scoped retrieval context manifest.
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - name: manifestId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Reference-only context manifest; no query or retrieved body is retained.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ContextManifestResponseV1' }
+        '401': { $ref: '#/components/responses/SessionInvalid' }
+        '404': { $ref: '#/components/responses/NotFound' }
   /api/system/worker-health:
     get:
       operationId: getWorkerHealth
@@ -2891,6 +2944,148 @@ components:
                     sourceSpanEnd: { type: integer, minimum: 1 }
                     quotedTextHash: { type: string, pattern: '^[a-f0-9]{64}$' }
               version: { type: integer, minimum: 1 }
+    RetrievalStatusResponseV1:
+      type: object
+      additionalProperties: false
+      required: [externalLane, personalLane, policyVersion, semanticRetrieval]
+      properties:
+        externalLane: { type: string, const: local_full_text }
+        personalLane: { type: string, const: local_full_text }
+        policyVersion: { type: string, minLength: 1, maxLength: 80 }
+        semanticRetrieval: { type: string, const: inactive }
+    RetrievalPreviewRequestV1:
+      type: object
+      additionalProperties: false
+      required: [query]
+      properties:
+        lanes:
+          type: array
+          minItems: 1
+          maxItems: 2
+          uniqueItems: true
+          default: [personal, external]
+          items: { type: string, enum: [personal, external] }
+        limitPerLane:
+          type: integer
+          minimum: 1
+          maximum: 10
+          default: 5
+        purpose:
+          type: string
+          const: recall_preview
+          default: recall_preview
+        query: { type: string, minLength: 2, maxLength: 500 }
+    RetrievalResultResponseV1:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          contentHash,
+          entryRevisionId,
+          evidenceLane,
+          excerpt,
+          href,
+          knowledgeChunkId,
+          knowledgeSourceRevisionId,
+          locator,
+          methods,
+          occurredAt,
+          resourceId,
+          score,
+          sourceKind,
+          title,
+        ]
+      properties:
+        contentHash: { type: string, pattern: '^[a-f0-9]{64}$' }
+        entryRevisionId: { type: [string, 'null'], format: uuid }
+        evidenceLane:
+          { type: string, enum: [personal_evidence, external_evidence] }
+        excerpt: { type: string, maxLength: 360 }
+        href: { type: string, pattern: '^/' }
+        knowledgeChunkId: { type: [string, 'null'], format: uuid }
+        knowledgeSourceRevisionId: { type: [string, 'null'], format: uuid }
+        locator:
+          oneOf:
+            - type: object
+              additionalProperties: true
+            - type: 'null'
+        methods:
+          type: array
+          minItems: 1
+          items: { type: string, enum: [pinned, metadata, full_text, semantic] }
+        occurredAt: { type: string, format: date-time }
+        resourceId: { type: string, format: uuid }
+        score: { type: number, minimum: 0, maximum: 1 }
+        sourceKind: { type: string, enum: [entry_revision, knowledge_chunk] }
+        title: { type: string, minLength: 1, maxLength: 500 }
+    ContextManifestItemResponseV1:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          contentHash,
+          entryRevisionId,
+          evidenceLane,
+          href,
+          knowledgeChunkId,
+          knowledgeSourceRevisionId,
+          methods,
+          ordinal,
+          policyReference,
+          resourceId,
+          score,
+          sourceKind,
+        ]
+      properties:
+        contentHash:
+          oneOf:
+            - { type: string, pattern: '^[a-f0-9]{64}$' }
+            - { type: 'null' }
+        entryRevisionId: { type: [string, 'null'], format: uuid }
+        evidenceLane:
+          {
+            type: string,
+            enum: [personal_evidence, external_evidence, system_policy],
+          }
+        href: { type: [string, 'null'], pattern: '^/' }
+        knowledgeChunkId: { type: [string, 'null'], format: uuid }
+        knowledgeSourceRevisionId: { type: [string, 'null'], format: uuid }
+        methods:
+          type: array
+          items: { type: string, enum: [pinned, metadata, full_text, semantic] }
+        ordinal: { type: integer, minimum: 1 }
+        policyReference: { type: [string, 'null'] }
+        resourceId: { type: [string, 'null'], format: uuid }
+        score: { type: [number, 'null'], minimum: 0, maximum: 1 }
+        sourceKind:
+          {
+            type: [string, 'null'],
+            enum: [entry_revision, knowledge_chunk, null],
+          }
+    ContextManifestResponseV1:
+      type: object
+      additionalProperties: false
+      required:
+        [createdAt, id, items, policyVersion, purpose, semanticRetrievalActive]
+      properties:
+        createdAt: { type: string, format: date-time }
+        id: { type: string, format: uuid }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/ContextManifestItemResponseV1' }
+        policyVersion: { type: string, minLength: 1, maxLength: 80 }
+        purpose: { type: string, enum: [recall_preview, material_response] }
+        semanticRetrievalActive: { type: boolean }
+    RetrievalPreviewResponseV1:
+      type: object
+      additionalProperties: false
+      required: [manifest, results, status]
+      properties:
+        manifest: { $ref: '#/components/schemas/ContextManifestResponseV1' }
+        results:
+          type: array
+          items: { $ref: '#/components/schemas/RetrievalResultResponseV1' }
+        status: { $ref: '#/components/schemas/RetrievalStatusResponseV1' }
     ErrorResponseV1:
       type: object
       additionalProperties: false

@@ -31,6 +31,14 @@ starting the verified worker once, then stop it, grant the runtime role only
 usage plus required table/sequence/function privileges in `pgboss`, and restart
 with the runtime credential. The web process never administers pg-boss.
 
+Retrieval migration `0014_wp19_retrieval_context_manifests.sql` adds the first
+pgvector column together with forced-RLS embedding, context-manifest, and
+manifest-item tables. Stored vectors carry exact model/version/dimension
+provenance; manifests are immutable and retain references, methods, and scores,
+not query text or retrieved bodies. The checkpoint deliberately creates no
+approximate vector index. A later index or embedding backfill requires a
+separate measured migration and the hosted-embedding gate.
+
 ## Authoring
 
 1. Change the Drizzle schema.

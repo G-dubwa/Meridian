@@ -39,4 +39,7 @@ events and writes one matching pending outbox record in the state transaction.
   revisions are eligible through the AI-intended repository port.
 - A derivation link records its derived resource plus source resource and/or exact source revision. Deleting source evidence cascades so a valid link cannot outlive its source.
 - Domain events are append-only and outbox messages reference an exact owner-matching event. Both tables remain unpartitioned at personal scale.
-- The schema registry versions resource and attributes contracts. pgvector is installed but no vector representation exists before WP-19.
+- The schema registry versions resource and attributes contracts. WP-19 adds
+  provenance-bound dormant vector rows and immutable reference-only context
+  manifests. Semantic runtime composition, backfill, and approximate indexing
+  remain inactive behind the hosted-embedding gate.

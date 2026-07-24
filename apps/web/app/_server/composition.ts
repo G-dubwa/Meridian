@@ -11,6 +11,7 @@ import {
   SchedulingService,
   ProposalMaterialChangeInvalidationHook,
   OutboxHealthService,
+  RetrievalService,
   TriageService,
   TodayService,
 } from '@meridian/application';
@@ -32,6 +33,7 @@ import {
   LocalContentAddressedKnowledgeStore,
   LocalKnowledgeSourceParser,
 } from '@meridian/knowledge';
+import { DisabledEmbeddingAdapter } from '@meridian/retrieval';
 import {
   TRIAGE_EXTRACTION_PROMPT_ID,
   TRIAGE_EXTRACTION_PROMPT_VERSION,
@@ -50,6 +52,7 @@ export interface AuthenticationRuntime {
   readonly journal: JournalService;
   readonly knowledge?: KnowledgeService;
   readonly microsoft: MicrosoftConnectionService;
+  readonly retrieval: RetrievalService;
   readonly scheduling: SchedulingService;
   readonly triage: TriageService;
   readonly today: TodayService;
@@ -152,6 +155,12 @@ function createRuntime(): AuthenticationRuntime {
         database.database,
       ),
       secrets,
+      transactions,
+    }),
+    retrieval: new RetrievalService({
+      clock: new SystemClock(),
+      embeddings: new DisabledEmbeddingAdapter(),
+      ids,
       transactions,
     }),
     scheduling: new SchedulingService({

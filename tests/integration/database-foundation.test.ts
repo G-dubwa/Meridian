@@ -22,6 +22,7 @@ import {
   entryRevisionIdV1Schema,
   resourceIdV1Schema,
   proposalIdV1Schema,
+  retrievalEmbeddingIdV1Schema,
   userIdV1Schema,
   workerErrorCodeV1Schema,
 } from '../../packages/domain/src/index.js';
@@ -46,10 +47,15 @@ import { GoalService } from '../../packages/application/src/goals.js';
 import { SchedulingService } from '../../packages/application/src/scheduling.js';
 import { ExecutionService } from '../../packages/application/src/execution.js';
 import { KnowledgeService } from '../../packages/application/src/knowledge.js';
+import { RetrievalService } from '../../packages/application/src/retrieval.js';
 import {
   LocalContentAddressedKnowledgeStore,
   LocalKnowledgeSourceParser,
 } from '../../packages/knowledge/src/index.js';
+import {
+  DeterministicFixtureEmbeddingAdapter,
+  DisabledEmbeddingAdapter,
+} from '../../packages/retrieval/src/index.js';
 import {
   ProposalMaterialChangeInvalidationHook,
   TriageService,
@@ -136,6 +142,8 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
       'calendar_blocks',
       'command_receipts',
       'consent_records',
+      'context_manifest_items',
+      'context_manifests',
       'daily_priorities',
       'derivation_links',
       'domain_events',
@@ -158,6 +166,7 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
       'reminder_occurrences',
       'reminders',
       'resources',
+      'retrieval_embeddings',
       'scheduling_proposals',
       'schema_registry',
       'tasks',
@@ -169,10 +178,16 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
     `;
     if (!vector) throw new Error('pgvector extension was not installed.');
     expect(vector.extversion).toMatch(/^0\.8\./);
-    const vectorColumns = await admin.sql`
-      select 1 from information_schema.columns where udt_name = 'vector'
+    const vectorColumns = await admin.sql<
+      { column_name: string; table_name: string }[]
+    >`
+      select table_name, column_name
+      from information_schema.columns
+      where udt_name = 'vector'
     `;
-    expect(vectorColumns).toHaveLength(0);
+    expect(vectorColumns).toEqual([
+      { column_name: 'embedding', table_name: 'retrieval_embeddings' },
+    ]);
     const partitions = await admin.sql`
       select 1 from pg_partitioned_table
       where partrelid in ('domain_events'::regclass, 'outbox_messages'::regclass)
@@ -304,6 +319,14 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
           'utf8',
         ),
       );
+      await snapshotSql.unsafe(
+        readFileSync(
+          resolve(
+            'packages/infrastructure-db/migrations/0014_wp19_retrieval_context_manifests.sql',
+          ),
+          'utf8',
+        ),
+      );
       const [seeded] = await snapshotSql<{ count: string }[]>`
         select count(*)::text as count from users
       `;
@@ -359,6 +382,10 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
         select to_regclass('public.knowledge_sources')::text as name
       `;
       expect(knowledgeTable?.name).toBe('knowledge_sources');
+      const [retrievalTable] = await snapshotSql<{ name: string }[]>`
+        select to_regclass('public.context_manifests')::text as name
+      `;
+      expect(retrievalTable?.name).toBe('context_manifests');
     } finally {
       await snapshotSql.end();
       await admin.sql.unsafe(`drop database if exists ${snapshotDatabase}`);
@@ -375,7 +402,7 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
       `grant select on schema_registry, edge_type_registry to ${appRole}`,
     );
     await admin.sql.unsafe(
-      `grant select, insert, update, delete on users, resources, entries, entry_revisions, derivation_links, domain_events, outbox_messages, proposals, tasks, reminders, reminder_occurrences, command_receipts, agenda_blocks, daily_priorities, today_receipts, goals, edges, scheduling_proposals, calendar_blocks, execution_records, knowledge_sources, knowledge_source_revisions, knowledge_chunks, knowledge_claims, knowledge_claim_citations, integration_accounts, consent_records, oauth_authorization_sessions to ${appRole}`,
+      `grant select, insert, update, delete on users, resources, entries, entry_revisions, derivation_links, domain_events, outbox_messages, proposals, tasks, reminders, reminder_occurrences, command_receipts, agenda_blocks, daily_priorities, today_receipts, goals, edges, scheduling_proposals, calendar_blocks, execution_records, knowledge_sources, knowledge_source_revisions, knowledge_chunks, knowledge_claims, knowledge_claim_citations, context_manifests, context_manifest_items, retrieval_embeddings, integration_accounts, consent_records, oauth_authorization_sessions to ${appRole}`,
     );
 
     app = createDatabaseClient(appUrl.toString());
@@ -2074,6 +2101,267 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
           where id = ${firstRevision.revision.id}
         `,
       ).rejects.toThrow('append-only');
+    } finally {
+      await rm(objectRoot, { force: true, recursive: true });
+    }
+  });
+
+  it('keeps retrieval lanes privacy-filtered and stores content-free inspectable manifests', async () => {
+    if (!app) throw new Error('Application database was not initialized.');
+    const transactions = new DrizzleTransactionManager(app.database);
+    const ids = new CryptoIdGenerator();
+    const secrets = new NodeSecretService();
+    const clock = { now: () => new Date('2026-09-02T08:00:00.000Z') };
+    const journal = new JournalService({
+      clock,
+      contentHasher: secrets,
+      ids,
+      invalidation: new ProposalMaterialChangeInvalidationHook(clock),
+      transactions,
+    });
+    const personal = await journal.createEntry(
+      scopeB,
+      {
+        bodyMarkdown:
+          'A bounded retrieval marker appears in this synthetic journal fixture.',
+        processingClass: 'standard',
+      },
+      { correlationId: ids.next() },
+    );
+    const sensitive = await journal.createEntry(
+      scopeB,
+      {
+        bodyMarkdown:
+          'Sensitive excluded marker must never enter this retrieval lane.',
+        processingClass: 'sensitive',
+      },
+      { correlationId: ids.next() },
+    );
+    const privateEntry = await journal.createEntry(
+      scopeB,
+      {
+        bodyMarkdown:
+          'Private excluded marker must never enter this retrieval lane.',
+        processingClass: 'private',
+      },
+      { correlationId: ids.next() },
+    );
+    const objectRoot = await mkdtemp(join(tmpdir(), 'meridian-retrieval-db-'));
+    try {
+      const knowledge = new KnowledgeService({
+        clock,
+        ids,
+        objectStore: new LocalContentAddressedKnowledgeStore(objectRoot),
+        parser: new LocalKnowledgeSourceParser(),
+        transactions,
+      });
+      const source = await knowledge.upload(
+        scopeB,
+        {
+          authors: ['Synthetic Fixture'],
+          canonicalUrl: null,
+          copyrightAndUseNotes: 'Synthetic integration fixture.',
+          doi: null,
+          evidenceDomain: ['testing'],
+          language: 'en',
+          ownerConfirmed: true,
+          ownerConfirmedRights: true,
+          ownerNotes: null,
+          processingClass: 'standard',
+          publicationDate: null,
+          publisherOrVenue: null,
+          sourceClass: 'personal_notes',
+          title: 'Bounded retrieval marker source',
+        },
+        {
+          bytes: new TextEncoder().encode(
+            '# Retrieval\n\nA bounded retrieval marker appears in this synthetic external fixture.',
+          ),
+          fileName: 'retrieval-fixture.md',
+          mediaType: 'text/markdown',
+        },
+        { correlationId: ids.next() },
+      );
+      await knowledge.reviewSource(
+        scopeB,
+        source.source.id,
+        {
+          expectedVersion: source.source.version,
+          ownerConfirmed: true,
+          reviewStatus: 'reference_only',
+        },
+        { correlationId: ids.next() },
+      );
+      const disabled = new RetrievalService({
+        clock,
+        embeddings: new DisabledEmbeddingAdapter(),
+        ids,
+        transactions,
+      });
+      const preview = await disabled.preview(
+        scopeB,
+        {
+          lanes: ['personal', 'external'],
+          limitPerLane: 5,
+          purpose: 'recall_preview',
+          query: 'bounded retrieval marker',
+        },
+        { correlationId: ids.next() },
+      );
+      expect(preview.manifest.semanticRetrievalActive).toBe(false);
+      expect(
+        preview.candidates.map((candidate) => candidate.evidenceLane).sort(),
+      ).toEqual(['external_evidence', 'personal_evidence']);
+      expect(preview.manifest.items.map((item) => item.evidenceLane)).toEqual([
+        'system_policy',
+        'personal_evidence',
+        'external_evidence',
+      ]);
+      expect(
+        await disabled.manifest(scopeB, preview.manifest.id),
+      ).toMatchObject({ id: preview.manifest.id });
+      await expect(
+        disabled.manifest(scopeA, preview.manifest.id),
+      ).resolves.toBeNull();
+      for (const query of [
+        'Sensitive excluded marker',
+        'Private excluded marker',
+      ]) {
+        const excluded = await disabled.preview(
+          scopeB,
+          {
+            lanes: ['personal'],
+            limitPerLane: 5,
+            purpose: 'recall_preview',
+            query,
+          },
+          { correlationId: ids.next() },
+        );
+        expect(excluded.candidates).toHaveLength(0);
+      }
+
+      const fixtureEmbeddings = new DeterministicFixtureEmbeddingAdapter();
+      const personalCandidate = preview.candidates.find(
+        (candidate) => candidate.evidenceLane === 'personal_evidence',
+      );
+      const externalCandidate = preview.candidates.find(
+        (candidate) => candidate.evidenceLane === 'external_evidence',
+      );
+      if (
+        !personalCandidate?.entryRevisionId ||
+        !externalCandidate?.knowledgeChunkId
+      )
+        throw new Error('Retrieval candidate fixtures are incomplete.');
+      const personalVector = await fixtureEmbeddings.embed({
+        contentHash: personalCandidate.contentHash,
+        lane: 'personal',
+        processingClass: 'standard',
+        text: personalCandidate.text,
+      });
+      const externalVector = await fixtureEmbeddings.embed({
+        contentHash: externalCandidate.contentHash,
+        lane: 'external',
+        processingClass: 'standard',
+        text: externalCandidate.text,
+      });
+      await transactions.run(scopeB, (ports) =>
+        ports.retrievalEmbeddings.saveMany([
+          {
+            contentHash: personalCandidate.contentHash,
+            createdAt: clock.now(),
+            dimensions: personalVector.dimensions,
+            entryRevisionId: personalCandidate.entryRevisionId,
+            id: retrievalEmbeddingIdV1Schema.parse(ids.next()),
+            knowledgeChunkId: null,
+            lane: 'personal',
+            modelId: personalVector.modelId,
+            modelVersion: personalVector.modelVersion,
+            scope: scopeB,
+            sourceKind: 'entry_revision',
+            vector: personalVector.vector,
+          },
+          {
+            contentHash: externalCandidate.contentHash,
+            createdAt: clock.now(),
+            dimensions: externalVector.dimensions,
+            entryRevisionId: null,
+            id: retrievalEmbeddingIdV1Schema.parse(ids.next()),
+            knowledgeChunkId: externalCandidate.knowledgeChunkId,
+            lane: 'external',
+            modelId: externalVector.modelId,
+            modelVersion: externalVector.modelVersion,
+            scope: scopeB,
+            sourceKind: 'knowledge_chunk',
+            vector: externalVector.vector,
+          },
+        ]),
+      );
+      const hybrid = new RetrievalService({
+        clock,
+        embeddings: fixtureEmbeddings,
+        ids,
+        transactions,
+      });
+      const hybridPreview = await hybrid.preview(
+        scopeB,
+        {
+          lanes: ['personal', 'external'],
+          limitPerLane: 5,
+          purpose: 'recall_preview',
+          query: 'bounded retrieval marker',
+        },
+        { correlationId: ids.next() },
+      );
+      expect(hybridPreview.manifest.semanticRetrievalActive).toBe(true);
+      expect(
+        hybridPreview.candidates.every((candidate) =>
+          candidate.methods.includes('semantic'),
+        ),
+      ).toBe(true);
+
+      await expect(
+        admin.sql`
+          insert into retrieval_embeddings (
+            id, user_id, lane, source_kind, entry_revision_id, content_hash,
+            model_id, model_version, dimensions, embedding
+          ) values (
+            ${ids.next()}, ${scopeB.userId}, 'personal', 'entry_revision',
+            ${sensitive.currentRevision.id}, ${sensitive.currentRevision.contentHash},
+            'synthetic-invalid', '1', 2, '[1,0]'::vector
+          )
+        `,
+      ).rejects.toThrow('not Standard and owner eligible');
+      await expect(
+        admin.sql`
+          insert into retrieval_embeddings (
+            id, user_id, lane, source_kind, entry_revision_id, content_hash,
+            model_id, model_version, dimensions, embedding
+          ) values (
+            ${ids.next()}, ${scopeB.userId}, 'personal', 'entry_revision',
+            ${privateEntry.currentRevision.id}, ${privateEntry.currentRevision.contentHash},
+            'synthetic-invalid', '1', 2, '[1,0]'::vector
+          )
+        `,
+      ).rejects.toThrow('not Standard and owner eligible');
+      await expect(
+        admin.sql`
+          update context_manifests
+          set policy_version = 'tampered'
+          where id = ${preview.manifest.id}
+        `,
+      ).rejects.toThrow('append-only');
+      await expect(
+        app.sql`select id from context_manifests`,
+      ).resolves.toHaveLength(0);
+      const events = await transactions.run(scopeB, (ports) =>
+        ports.domainEvents.listByTypePrefix(scopeB, 'retrieval.', 20),
+      );
+      expect(events.length).toBeGreaterThanOrEqual(4);
+      expect(JSON.stringify(events)).not.toContain('bounded retrieval marker');
+      expect(JSON.stringify(events)).not.toContain('excluded marker');
+      expect(personal.entry.currentRevisionId).toBe(
+        personal.currentRevision.id,
+      );
     } finally {
       await rm(objectRoot, { force: true, recursive: true });
     }
