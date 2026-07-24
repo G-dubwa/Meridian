@@ -66,3 +66,7 @@ related-docs: release.md
   classes, owner-confirmed post-block responses, elapsed-unknown reconciliation,
   atomic Today completion evidence/undo, and a descriptive local Weekly with no
   provider or model dependency.
+- WP-18 local knowledge-source ingestion for owner-supplied text, Markdown, and
+  passive PDFs; immutable originals/revisions/chunks; exact-span candidate
+  claims and citations; owner review/correction; a non-destructive deletion
+  request freeze; and no model or external-provider dependency.

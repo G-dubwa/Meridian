@@ -61,8 +61,14 @@ deterministic block arithmetic, persists exact proposals, revalidates before
 owner-confirmed acceptance, and creates canonical local plan blocks atomically.
 It composes no provider and awards no execution credit.
 
+`KnowledgeService` coordinates local owner-confirmed source ingestion,
+immutable revisions/chunks, exact source-span candidate claims, owner review,
+correction invalidation, and a non-destructive deletion-request freeze. Parser
+and object-store capabilities enter through domain ports. No model, OCR, or
+external provider is composed.
+
 Tests: dependency-cruiser proves application-to-infrastructure imports fail.
-Authentication, journal, Today, goals, scheduling, and event services use live
+Authentication, journal, Today, goals, scheduling, knowledge, and event services use live
 PostgreSQL/pg-boss/Next.js
 journeys; model gateway and routing use isolated mock adapters. Unit tests cover
 schemas, policy, retry/terminal transitions, and content-safe observations.

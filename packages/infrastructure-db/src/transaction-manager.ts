@@ -40,6 +40,13 @@ import {
   DrizzleSchedulingProposalRepository,
 } from './scheduling-repositories.js';
 import { DrizzleExecutionRecordRepository } from './execution-repositories.js';
+import {
+  DrizzleKnowledgeChunkRepository,
+  DrizzleKnowledgeClaimCitationRepository,
+  DrizzleKnowledgeClaimRepository,
+  DrizzleKnowledgeSourceRepository,
+  DrizzleKnowledgeSourceRevisionRepository,
+} from './knowledge-repositories.js';
 
 function createTransactionPorts(
   database: DatabaseTransaction,
@@ -57,6 +64,15 @@ function createTransactionPorts(
     entries: new DrizzleEntryRepository(database),
     entryRevisions: new DrizzleEntryRevisionRepository(database),
     integrationAccounts: new DrizzleIntegrationAccountRepository(database),
+    knowledgeClaimCitations: new DrizzleKnowledgeClaimCitationRepository(
+      database,
+    ),
+    knowledgeClaims: new DrizzleKnowledgeClaimRepository(database),
+    knowledgeChunks: new DrizzleKnowledgeChunkRepository(database),
+    knowledgeSourceRevisions: new DrizzleKnowledgeSourceRevisionRepository(
+      database,
+    ),
+    knowledgeSources: new DrizzleKnowledgeSourceRepository(database),
     goals: new DrizzleGoalRepository(database),
     outbox: new DrizzleOutboxRepository(database),
     proposals: new DrizzleProposalRepository(database),

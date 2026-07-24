@@ -12,7 +12,7 @@ related-docs: ../README.md
 
 - Node.js 24.18.0 LTS, pinned by `.node-version` and `.nvmrc`.
 - pnpm 11.14.0, pinned by `package.json#packageManager`.
-- Docker Compose with PostgreSQL 18 and pgvector 0.8.5, or local PostgreSQL 18 plus pgvector 0.8.x for integration tests.
+- Homebrew PostgreSQL 18 with pgvector 0.8.x.
 - Git.
 
 Node 24 is selected because production applications should use an LTS line. Next.js 16.2.10 is the current stable release verified on 18 July 2026. TypeScript 6.0.3 is the latest stable version inside `typescript-eslint` 8.64.0's supported `<6.1` peer range; TypeScript 7.0.2 was checked and rejected because it breaks the required lint stack. Re-check official support, peer ranges, and security notices before changing pins.
@@ -26,11 +26,19 @@ pnpm install --frozen-lockfile
 pnpm run check
 ```
 
-Copy `.env.example` to an untracked repository-root `.env` for Docker Compose.
-Export that file in the private terminal before database/operator commands
-(`set -a; source .env; set +a`), then run `docker compose up -d postgres` and
-`pnpm db:migrate` for a persistent local database. The example credentials are
-development-only. Bootstrap the one local owner from the same private terminal:
+Copy `.env.example` to an untracked repository-root `.env`. Start and verify the
+existing Homebrew PostgreSQL 18 service, then export the private environment and
+migrate the persistent local database:
+
+```sh
+brew services start postgresql@18
+pg_isready -h 127.0.0.1 -p 5432
+set -a; source .env; set +a
+pnpm db:migrate
+```
+
+The example credentials are development-only. Bootstrap the one local owner
+from the same private terminal:
 
 ```sh
 pnpm auth:bootstrap -- --identifier owner --time-zone Africa/Johannesburg --locale en-ZA
@@ -40,8 +48,12 @@ Store the ten one-time recovery codes offline; they cannot be displayed again.
 Run the web application with `pnpm --filter @meridian/web dev`, then open
 <http://localhost:3000/login> or the unauthenticated health page at
 <http://localhost:3000/health>. After login, open
-<http://localhost:3000/journal>. See the operations runbook before automating
-bootstrap or handling lockout/recovery.
+<http://localhost:3000/journal>. WP-18 also needs
+`MERIDIAN_KNOWLEDGE_OBJECT_ROOT` in the web process environment; the example
+uses ignored `.local-data/knowledge`. Original source bytes remain there with
+owner-only file modes. If the value is absent, the Knowledge Library fails
+closed as unavailable. See the operations runbook before automating bootstrap
+or handling lockout/recovery.
 
 Build and start the separate worker after bootstrap:
 

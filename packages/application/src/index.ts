@@ -10,6 +10,7 @@ export * from './execution.js';
 export * from './actions.js';
 export * from './interpretation.js';
 export * from './journal.js';
+export * from './knowledge.js';
 export * from './microsoft-connection.js';
 export * from './model-gateway.js';
 export * from './model-routing.js';

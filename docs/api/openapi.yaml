@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: Meridian API
-  version: 0.17.0
-  description: Same-origin REST contract for owner authentication, journal evidence, Triage, internal tasks/reminders, provider-independent Today, goals, local planning, execution evidence, The Weekly, worker health, and Microsoft consent.
+  version: 0.18.0
+  description: Same-origin REST contract for owner authentication, journal evidence, Triage, internal tasks/reminders, provider-independent Today, goals, local planning, execution evidence, The Weekly, local knowledge ingestion, worker health, and Microsoft consent.
 paths:
   /api/auth/csrf:
     get:
@@ -972,6 +972,161 @@ paths:
         '403': { $ref: '#/components/responses/CsrfInvalid' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+  /api/knowledge/sources:
+    get:
+      operationId: listKnowledgeSources
+      summary: List owner-scoped local knowledge source metadata.
+      security: [{ sessionCookie: [] }]
+      responses:
+        '200':
+          description: Local source metadata; original bytes remain in the local object store.
+          content:
+            application/json:
+              schema:
+                { $ref: '#/components/schemas/KnowledgeSourceListResponseV1' }
+        '401': { $ref: '#/components/responses/SessionInvalid' }
+    post:
+      operationId: createKnowledgeSource
+      summary: Preserve and locally parse one owner-confirmed source.
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/CsrfHeader' }
+        - { $ref: '#/components/parameters/RequestIdHeader' }
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [file, metadata]
+              properties:
+                file: { type: string, format: binary }
+                metadata:
+                  type: string
+                  description: JSON-encoded CreateKnowledgeSourceMetadataRequestV1.
+      responses:
+        '201': { $ref: '#/components/responses/KnowledgeSourceDetail' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '401': { $ref: '#/components/responses/SessionInvalid' }
+        '403': { $ref: '#/components/responses/CsrfInvalid' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/knowledge/sources/{sourceId}:
+    get:
+      operationId: getKnowledgeSource
+      summary: Read one source, its immutable revisions, and exact-span claims.
+      security: [{ sessionCookie: [] }]
+      parameters: [{ $ref: '#/components/parameters/KnowledgeSourceIdPath' }]
+      responses:
+        '200': { $ref: '#/components/responses/KnowledgeSourceDetail' }
+        '401': { $ref: '#/components/responses/SessionInvalid' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/knowledge/sources/{sourceId}/revisions:
+    post:
+      operationId: reviseKnowledgeSource
+      summary: Append an owner-confirmed corrected local source revision.
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/KnowledgeSourceIdPath' }
+        - { $ref: '#/components/parameters/CsrfHeader' }
+        - { $ref: '#/components/parameters/RequestIdHeader' }
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [file, metadata]
+              properties:
+                file: { type: string, format: binary }
+                metadata:
+                  type: string
+                  description: JSON-encoded CreateKnowledgeSourceRevisionRequestV1.
+      responses:
+        '201': { $ref: '#/components/responses/KnowledgeSourceDetail' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '403': { $ref: '#/components/responses/CsrfInvalid' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/knowledge/sources/{sourceId}/review:
+    post:
+      operationId: reviewKnowledgeSource
+      summary: Record the owner source-review disposition.
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/KnowledgeSourceIdPath' }
+        - { $ref: '#/components/parameters/CsrfHeader' }
+        - { $ref: '#/components/parameters/RequestIdHeader' }
+      responses:
+        '200': { description: Updated source metadata. }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '403': { $ref: '#/components/responses/CsrfInvalid' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/knowledge/sources/{sourceId}/deletion-request:
+    post:
+      operationId: requestKnowledgeSourceDeletion
+      summary: Freeze a source and record an exact-confirmation deletion request.
+      description: Physical erasure remains a separately verified WP-22 operation.
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/KnowledgeSourceIdPath' }
+        - { $ref: '#/components/parameters/CsrfHeader' }
+        - { $ref: '#/components/parameters/RequestIdHeader' }
+      responses:
+        '202': { description: Deletion request recorded; source frozen. }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '403': { $ref: '#/components/responses/CsrfInvalid' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/knowledge/sources/{sourceId}/claims:
+    post:
+      operationId: createKnowledgeClaim
+      summary: Create an extractive candidate claim from an exact retained source span.
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/KnowledgeSourceIdPath' }
+        - { $ref: '#/components/parameters/CsrfHeader' }
+        - { $ref: '#/components/parameters/RequestIdHeader' }
+      responses:
+        '201': { description: Candidate claim with exact citation metadata. }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '403': { $ref: '#/components/responses/CsrfInvalid' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/knowledge/claims/{claimId}/review:
+    post:
+      operationId: reviewKnowledgeClaim
+      summary: Review or reject an exact-span candidate claim.
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/CsrfHeader' }
+        - { $ref: '#/components/parameters/RequestIdHeader' }
+        - name: claimId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200': { description: Reviewed claim with exact citation metadata. }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '403': { $ref: '#/components/responses/CsrfInvalid' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/knowledge/revisions/{revisionId}/original:
+    get:
+      operationId: downloadKnowledgeSourceOriginal
+      summary: Download owner-scoped original source bytes with no-store headers.
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - name: revisionId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200': { description: Preserved original source bytes. }
+        '401': { $ref: '#/components/responses/SessionInvalid' }
+        '404': { $ref: '#/components/responses/NotFound' }
   /api/system/worker-health:
     get:
       operationId: getWorkerHealth
@@ -1112,6 +1267,11 @@ components:
       schema: { type: string, format: uuid }
     ReceiptIdPath:
       name: receiptId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    KnowledgeSourceIdPath:
+      name: sourceId
       in: path
       required: true
       schema: { type: string, format: uuid }
@@ -2587,6 +2747,150 @@ components:
           type: array
           maxItems: 20
           items: { $ref: '#/components/schemas/WorkerDeadLetterV1' }
+    KnowledgeSourceResponseV1:
+      type: object
+      additionalProperties: true
+      required:
+        [
+          id,
+          title,
+          sourceClass,
+          reviewStatus,
+          correctionStatus,
+          deletionRequestedAt,
+          createdAt,
+          updatedAt,
+          version,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string, minLength: 1, maxLength: 500 }
+        sourceClass:
+          type: string
+          enum:
+            [
+              systematic_review_or_meta_analysis,
+              randomised_trial,
+              controlled_non_randomised_study,
+              observational_study,
+              mechanistic_or_laboratory_study,
+              clinical_or_professional_guideline,
+              narrative_review,
+              expert_commentary,
+              book_or_chapter,
+              podcast_or_transcript,
+              personal_notes,
+              unknown,
+            ]
+        reviewStatus:
+          type: string
+          enum:
+            [
+              unreviewed,
+              processing,
+              reviewed,
+              reference_only,
+              rejected,
+              superseded,
+            ]
+        correctionStatus:
+          type: string
+          enum:
+            [unknown, none_known, corrected, retracted, expression_of_concern]
+        deletionRequestedAt:
+          type: [string, 'null']
+          format: date-time
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        version: { type: integer, minimum: 1 }
+    KnowledgeSourceListResponseV1:
+      type: object
+      additionalProperties: false
+      required: [sources]
+      properties:
+        sources:
+          type: array
+          items: { $ref: '#/components/schemas/KnowledgeSourceResponseV1' }
+    KnowledgeSourceDetailResponseV1:
+      type: object
+      additionalProperties: false
+      required: [source, revisions, claims]
+      properties:
+        source: { $ref: '#/components/schemas/KnowledgeSourceResponseV1' }
+        revisions:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+            required:
+              [
+                id,
+                sourceId,
+                revisionNumber,
+                originalContentHash,
+                parsedText,
+                extractionQuality,
+                processingClass,
+                chunkCount,
+              ]
+            properties:
+              id: { type: string, format: uuid }
+              sourceId: { type: string, format: uuid }
+              revisionNumber: { type: integer, minimum: 1 }
+              originalContentHash: { type: string, pattern: '^[a-f0-9]{64}$' }
+              parsedText: { type: string }
+              extractionQuality:
+                {
+                  type: string,
+                  enum: [complete, partial, ocr_required, failed],
+                }
+              processingClass:
+                { type: string, enum: [standard, sensitive, private] }
+              chunkCount: { type: integer, minimum: 0 }
+        claims:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+            required:
+              [
+                id,
+                sourceId,
+                claimText,
+                epistemicStatus,
+                reviewStatus,
+                citations,
+                version,
+              ]
+            properties:
+              id: { type: string, format: uuid }
+              sourceId: { type: string, format: uuid }
+              claimText: { type: string, minLength: 1, maxLength: 4000 }
+              epistemicStatus: { type: string, const: reported_by_source }
+              reviewStatus:
+                {
+                  type: string,
+                  enum: [candidate, reviewed, rejected, superseded],
+                }
+              citations:
+                type: array
+                minItems: 1
+                items:
+                  type: object
+                  additionalProperties: true
+                  required:
+                    [
+                      sourceRevisionId,
+                      sourceSpanStart,
+                      sourceSpanEnd,
+                      quotedTextHash,
+                    ]
+                  properties:
+                    sourceRevisionId: { type: string, format: uuid }
+                    sourceSpanStart: { type: integer, minimum: 0 }
+                    sourceSpanEnd: { type: integer, minimum: 1 }
+                    quotedTextHash: { type: string, pattern: '^[a-f0-9]{64}$' }
+              version: { type: integer, minimum: 1 }
     ErrorResponseV1:
       type: object
       additionalProperties: false
@@ -2663,6 +2967,12 @@ components:
       content:
         application/json:
           schema: { $ref: '#/components/schemas/TodayReceiptResponseV1' }
+    KnowledgeSourceDetail:
+      description: Owner-scoped local source, immutable revisions, and exact-span claims.
+      content:
+        application/json:
+          schema:
+            { $ref: '#/components/schemas/KnowledgeSourceDetailResponseV1' }
     NotFound:
       description: The owner-scoped resource does not exist.
       content:
@@ -2674,8 +2984,8 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorResponseV1' }
 x-document-metadata:
-  purpose: Canonical local-owner authentication, journal, Triage, internal actions, local Today, goals, deterministic planning, execution evidence, The Weekly, worker-health, and integration REST contract.
+  purpose: Canonical local-owner authentication, journal, Triage, internal actions, local Today, goals, deterministic planning, execution evidence, The Weekly, knowledge ingestion, worker-health, and integration REST contract.
   audience: Contributors, clients, and coding agents.
-  authoritative-for: WP-04 authentication, WP-05 journal, WP-06 health, WP-07 Microsoft consent, WP-09 Triage, WP-10 tasks/reminders, WP-13A Today, WP-14 goals, WP-15 local planning, and WP-17 execution evidence HTTP request and response shapes.
+  authoritative-for: WP-04 authentication, WP-05 journal, WP-06 health, WP-07 Microsoft consent, WP-09 Triage, WP-10 tasks/reminders, WP-13A Today, WP-14 goals, WP-15 local planning, WP-17 execution evidence, and WP-18 knowledge ingestion HTTP request and response shapes.
   update-triggers: Versioned API boundary schemas, authentication, journal, system-health, or integration routes change.
   related-docs: conventions.md

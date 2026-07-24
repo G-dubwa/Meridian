@@ -41,3 +41,9 @@ WP-15 adds strict local scheduling inputs, proposal/block states, content-free
 event schemas, and owner-scoped repository ports. The domain contains no
 scheduling algorithm, provider event, external identifier, or execution
 inference.
+
+WP-18 adds provider-neutral source/revision/chunk/claim/citation records, strict
+upload and review commands, content-free lifecycle events, and parser/object
+store ports. Exact citations carry immutable source offsets and hashes. No
+parser library, file path, model, embedding, protocol, or provider type enters
+the domain.

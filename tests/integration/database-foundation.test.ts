@@ -1,4 +1,7 @@
 import { readFileSync } from 'node:fs';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { resolve } from 'node:path';
 import type {
   DerivationLinkRecord,
@@ -42,6 +45,11 @@ import { TodayService } from '../../packages/application/src/today.js';
 import { GoalService } from '../../packages/application/src/goals.js';
 import { SchedulingService } from '../../packages/application/src/scheduling.js';
 import { ExecutionService } from '../../packages/application/src/execution.js';
+import { KnowledgeService } from '../../packages/application/src/knowledge.js';
+import {
+  LocalContentAddressedKnowledgeStore,
+  LocalKnowledgeSourceParser,
+} from '../../packages/knowledge/src/index.js';
 import {
   ProposalMaterialChangeInvalidationHook,
   TriageService,
@@ -138,6 +146,11 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
       'execution_records',
       'goals',
       'integration_accounts',
+      'knowledge_chunks',
+      'knowledge_claim_citations',
+      'knowledge_claims',
+      'knowledge_source_revisions',
+      'knowledge_sources',
       'oauth_authorization_sessions',
       'outbox_messages',
       'proposals',
@@ -283,6 +296,14 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
           'utf8',
         ),
       );
+      await snapshotSql.unsafe(
+        readFileSync(
+          resolve(
+            'packages/infrastructure-db/migrations/0013_wp18_knowledge_source_ingestion.sql',
+          ),
+          'utf8',
+        ),
+      );
       const [seeded] = await snapshotSql<{ count: string }[]>`
         select count(*)::text as count from users
       `;
@@ -334,6 +355,10 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
         select to_regclass('public.execution_records')::text as name
       `;
       expect(executionTable?.name).toBe('execution_records');
+      const [knowledgeTable] = await snapshotSql<{ name: string }[]>`
+        select to_regclass('public.knowledge_sources')::text as name
+      `;
+      expect(knowledgeTable?.name).toBe('knowledge_sources');
     } finally {
       await snapshotSql.end();
       await admin.sql.unsafe(`drop database if exists ${snapshotDatabase}`);
@@ -350,7 +375,7 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
       `grant select on schema_registry, edge_type_registry to ${appRole}`,
     );
     await admin.sql.unsafe(
-      `grant select, insert, update, delete on users, resources, entries, entry_revisions, derivation_links, domain_events, outbox_messages, proposals, tasks, reminders, reminder_occurrences, command_receipts, agenda_blocks, daily_priorities, today_receipts, goals, edges, scheduling_proposals, calendar_blocks, execution_records, integration_accounts, consent_records, oauth_authorization_sessions to ${appRole}`,
+      `grant select, insert, update, delete on users, resources, entries, entry_revisions, derivation_links, domain_events, outbox_messages, proposals, tasks, reminders, reminder_occurrences, command_receipts, agenda_blocks, daily_priorities, today_receipts, goals, edges, scheduling_proposals, calendar_blocks, execution_records, knowledge_sources, knowledge_source_revisions, knowledge_chunks, knowledge_claims, knowledge_claim_citations, integration_accounts, consent_records, oauth_authorization_sessions to ${appRole}`,
     );
 
     app = createDatabaseClient(appUrl.toString());
@@ -1812,6 +1837,246 @@ describe('WP-03 PostgreSQL foundation', { concurrent: false }, () => {
     await expect(
       app.sql`select id from execution_records`,
     ).resolves.toHaveLength(0);
+  });
+
+  it('retains owner-isolated knowledge revisions and exact source-span claims locally', async () => {
+    if (!app) throw new Error('Application database was not initialized.');
+    const transactions = new DrizzleTransactionManager(app.database);
+    const ids = new CryptoIdGenerator();
+    const objectRoot = await mkdtemp(join(tmpdir(), 'meridian-knowledge-db-'));
+    const parser = new LocalKnowledgeSourceParser();
+    const knowledge = new KnowledgeService({
+      clock: { now: () => new Date('2026-09-01T08:00:00.000Z') },
+      ids,
+      objectStore: new LocalContentAddressedKnowledgeStore(objectRoot),
+      parser,
+      transactions,
+    });
+    const sourceText =
+      '# Finding\n\nA synthetic source reports a bounded result.\n\n# Limitation\n\nSynthetic fixture only.';
+    const sourceBytes = new TextEncoder().encode(sourceText);
+    const metadata = {
+      authors: ['Synthetic Fixture'],
+      canonicalUrl: null,
+      copyrightAndUseNotes: 'Owner-confirmed synthetic test fixture.',
+      doi: null,
+      evidenceDomain: ['testing'],
+      language: 'en',
+      ownerConfirmed: true,
+      ownerConfirmedRights: true,
+      ownerNotes: null,
+      processingClass: 'private',
+      publicationDate: null,
+      publisherOrVenue: null,
+      sourceClass: 'personal_notes',
+      title: 'Private synthetic knowledge title',
+    } as const;
+    try {
+      const uploadCorrelation = ids.next();
+      const detail = await knowledge.upload(
+        scopeA,
+        metadata,
+        {
+          bytes: sourceBytes,
+          fileName: 'synthetic.md',
+          mediaType: 'text/markdown',
+        },
+        { correlationId: uploadCorrelation },
+      );
+      expect(detail).toMatchObject({
+        claims: [],
+        revisions: [
+          {
+            chunkCount: 1,
+            revision: {
+              extractionQuality: 'complete',
+              parsedText: sourceText,
+              processingClass: 'private',
+              revisionNumber: 1,
+            },
+          },
+        ],
+        source: {
+          reviewStatus: 'unreviewed',
+          sourceClass: 'personal_notes',
+          version: 1,
+        },
+      });
+      await expect(
+        knowledge.upload(
+          scopeA,
+          metadata,
+          {
+            bytes: sourceBytes,
+            fileName: 'synthetic.md',
+            mediaType: 'text/markdown',
+          },
+          { correlationId: uploadCorrelation },
+        ),
+      ).resolves.toMatchObject({ source: { id: detail.source.id } });
+      await expect(
+        knowledge.upload(
+          scopeA,
+          metadata,
+          {
+            bytes: sourceBytes,
+            fileName: 'synthetic-copy.md',
+            mediaType: 'text/markdown',
+          },
+          { correlationId: ids.next() },
+        ),
+      ).rejects.toThrow('exact source file is already retained');
+      await expect(knowledge.detail(scopeB, detail.source.id)).rejects.toThrow(
+        'not found',
+      );
+
+      const reviewed = await knowledge.reviewSource(
+        scopeA,
+        detail.source.id,
+        {
+          expectedVersion: detail.source.version,
+          ownerConfirmed: true,
+          reviewStatus: 'reviewed',
+        },
+        { correlationId: ids.next() },
+      );
+      const claimText = 'A synthetic source reports a bounded result.';
+      const start = sourceText.indexOf(claimText);
+      await expect(
+        knowledge.createClaim(
+          scopeA,
+          detail.source.id,
+          {
+            claimText: 'A changed statement.',
+            claimType: 'finding',
+            direction: null,
+            effectExpression: null,
+            interventionOrExposure: null,
+            outcome: null,
+            ownerConfirmed: true,
+            populationScope: null,
+            sourceRevisionId: detail.revisions[0]?.revision.id,
+            sourceSpanEnd: start + claimText.length,
+            sourceSpanStart: start,
+          },
+          { correlationId: ids.next() },
+        ),
+      ).rejects.toThrow('exactly match');
+      const claim = await knowledge.createClaim(
+        scopeA,
+        detail.source.id,
+        {
+          claimText,
+          claimType: 'finding',
+          direction: null,
+          effectExpression: null,
+          interventionOrExposure: null,
+          outcome: null,
+          ownerConfirmed: true,
+          populationScope: null,
+          sourceRevisionId: detail.revisions[0]?.revision.id,
+          sourceSpanEnd: start + claimText.length,
+          sourceSpanStart: start,
+        },
+        { correlationId: ids.next() },
+      );
+      expect(claim).toMatchObject({
+        epistemicStatus: 'reported_by_source',
+        reviewStatus: 'candidate',
+      });
+      const acceptedClaim = await knowledge.reviewClaim(
+        scopeA,
+        claim.id,
+        {
+          decision: 'reviewed',
+          expectedVersion: claim.version,
+          ownerConfirmed: true,
+          reviewerNotes: null,
+        },
+        { correlationId: ids.next() },
+      );
+      expect(acceptedClaim.reviewStatus).toBe('reviewed');
+
+      const [firstRevision] = detail.revisions;
+      if (!firstRevision)
+        throw new Error('Knowledge source revision fixture is missing.');
+      const original = await knowledge.original(
+        scopeA,
+        firstRevision.revision.id,
+      );
+      expect(Array.from(original.bytes)).toEqual(Array.from(sourceBytes));
+      const correctedText = `${sourceText}\n\nCorrection: bounded result withdrawn.`;
+      const revised = await knowledge.revise(
+        scopeA,
+        detail.source.id,
+        {
+          expectedSourceVersion: reviewed.version,
+          ownerConfirmed: true,
+          ownerConfirmedRights: true,
+          processingClass: 'private',
+        },
+        {
+          bytes: new TextEncoder().encode(correctedText),
+          fileName: 'synthetic-corrected.md',
+          mediaType: 'text/markdown',
+        },
+        { correlationId: ids.next() },
+      );
+      expect(revised).toMatchObject({
+        source: {
+          correctionStatus: 'corrected',
+          reviewStatus: 'unreviewed',
+          version: 3,
+        },
+      });
+      expect(revised.revisions).toHaveLength(2);
+      expect(revised.claims[0]?.claim.reviewStatus).toBe('superseded');
+      const deletionRequested = await knowledge.requestDeletion(
+        scopeA,
+        detail.source.id,
+        {
+          confirmation: 'REQUEST DELETE KNOWLEDGE SOURCE',
+          expectedVersion: revised.source.version,
+          ownerConfirmed: true,
+        },
+        { correlationId: ids.next() },
+      );
+      expect(deletionRequested).toMatchObject({
+        deletionRequestedAt: new Date('2026-09-01T08:00:00.000Z'),
+        version: 4,
+      });
+      await expect(
+        knowledge.reviewSource(
+          scopeA,
+          detail.source.id,
+          {
+            expectedVersion: deletionRequested.version,
+            ownerConfirmed: true,
+            reviewStatus: 'reviewed',
+          },
+          { correlationId: ids.next() },
+        ),
+      ).rejects.toThrow('deletion is pending');
+
+      const events = await transactions.run(scopeA, (ports) =>
+        ports.domainEvents.listByTypePrefix(scopeA, 'knowledge.', 20),
+      );
+      expect(events).toHaveLength(6);
+      expect(JSON.stringify(events)).not.toContain('Private synthetic');
+      expect(JSON.stringify(events)).not.toContain(claimText);
+      await expect(
+        app.sql`select id from knowledge_sources`,
+      ).resolves.toHaveLength(0);
+      await expect(
+        admin.sql`
+          update knowledge_source_revisions
+          set parser_version = 'tampered'
+          where id = ${firstRevision.revision.id}
+        `,
+      ).rejects.toThrow('append-only');
+    } finally {
+      await rm(objectRoot, { force: true, recursive: true });
+    }
   });
 
   it('stores an exact-scope Microsoft connection encrypted, refreshes it, and disconnects without affecting local ownership', async () => {

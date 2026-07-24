@@ -60,6 +60,11 @@ same-owner task/goal/proposal/resource relationships, exact proposal-version
 updates, and an owner planning advisory lock. Stored proposal content never
 enters domain-event or outbox payloads.
 
+WP-18 adds forced-RLS source, immutable revision/chunk, claim, and immutable
+citation tables. Same-owner composite foreign keys prevent cross-owner
+provenance; hashes and exact spans have database constraints. A deletion
+request freezes the mutable source row but physical erasure remains WP-22.
+
 Tests: `pnpm test:integration` creates a temporary PostgreSQL 18 cluster when
 `TEST_DATABASE_URL` is absent. It covers empty and seeded migration paths,
 installed-but-unused pgvector, unpartitioned tables, two-user isolation,
@@ -69,6 +74,7 @@ atomicity, retry idempotency, concurrent queue dispatch, terminal dead letters,
 Private exclusion, Microsoft token lifecycle, exact-scope constraints, consent
 immutability, integration RLS, local Today isolation, priority limits,
 lifecycle undo, goal isolation, soft-load acknowledgement, dependency-cycle
-rejection, and deterministic local-plan isolation/acceptance. Playwright proves
+journal source ingestion, exact citations, deletion freeze, and deterministic
+local-plan isolation/acceptance. Playwright proves
 journal, health, Microsoft Settings/status, local Today, goal, and planning
 paths without contacting a provider.

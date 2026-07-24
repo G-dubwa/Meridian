@@ -19,6 +19,7 @@ related-docs: ../README.md
 | `domain`                  | IDs, owner scope, policies, errors, schemas, ports, event envelope | every other Meridian package                  |
 | `application`             | use-case and transaction orchestration                             | all infrastructure, presentation, prompts     |
 | `scheduling`              | deterministic availability and exact block proposal arithmetic     | infrastructure, presentation, prompts, models |
+| `knowledge`               | local parsing, chunking, hashing, and original object storage      | application, database, web, models, providers |
 | `api-contracts`           | OpenAPI/schema-generation boundary                                 | application services and infrastructure       |
 | `infrastructure-*`        | adapters implementing domain ports                                 | web presentation and domain-policy invention  |
 | `prompts`                 | versioned prompt definitions and output contracts                  | infrastructure provider SDKs                  |
@@ -81,6 +82,13 @@ events, then computes descriptive Weekly aggregates. `infrastructure-db`
 provides forced-RLS evidence storage; `api-contracts` and `apps/web` expose the
 owner-only confirmation inbox and review. No execution module imports a model,
 calendar provider, reminder-delivery provider, or analytics package.
+
+WP-18 keeps source, immutable revision/chunk, claim, and citation contracts in
+`domain`; atomic orchestration and deletion-request freeze in `application`;
+local parsing/object storage in `knowledge`; forced-RLS repositories in
+`infrastructure-db`; and same-origin presentation in `api-contracts`/`apps/web`.
+No knowledge path imports a model or provider adapter, and later retrieval can
+consume chunks without redesigning source provenance.
 
 `dependency-cruiser.config.mjs` is executable authority for accepted ADR-0002
 rules. Its negative fixtures prove both domain-to-infrastructure and

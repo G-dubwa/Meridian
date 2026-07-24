@@ -8,7 +8,7 @@ related-docs: spec.md
 
 # Roadmap
 
-Status legend: `NEXT`, `PENDING`, `DEFERRED`, `COMPLETE`.
+Status legend: `IN PROGRESS`, `NEXT`, `PENDING`, `DEFERRED`, `COMPLETE`.
 
 INFRA-01 is integrated delivery infrastructure and does not change release
 scope. Provider-dependent packages remain deferred.
@@ -33,8 +33,8 @@ scope. Provider-dependent packages remain deferred.
 | Personal Beta  |  15 | Deterministic scheduling and local proposals    | COMPLETE                      |
 | Personal Beta  |  16 | Calendar writes, adoption, and reconciliation   | DEFERRED: provider gate       |
 | Personal Beta  |  17 | Execution evidence and The Weekly               | COMPLETE                      |
-| Personal Beta  |  18 | Knowledge-source ingestion foundation           | NEXT: provider-independent    |
-| Personal v1    |  19 | Embeddings, retrieval, and context manifests    | PENDING                       |
+| Personal Beta  |  18 | Knowledge-source ingestion foundation           | COMPLETE                      |
+| Personal v1    |  19 | Embeddings, retrieval, and context manifests    | NEXT                          |
 | Personal v1    |  20 | Protocol registry, safety, and adoption         | PENDING                       |
 | Personal v1    |  21 | Summaries, metrics, trends, and v1 dashboard    | PENDING                       |
 | Personal v1    |  22 | Memory manager, export, deletion, and hardening | PENDING                       |
@@ -46,4 +46,5 @@ delivers a useful local Today surface from canonical Meridian data, while
 WP-13B retains provider-dependent agenda and notification projections behind
 future explicit gates. WP-16 is likewise non-blocking for the independent
 WP-17–WP-22 sequence. WP-17 is complete; WP-18 is next. No deferred provider is
-substituted automatically.
+substituted automatically. WP-18 closes the provider-independent Personal Beta
+release; WP-19 is next after integration.

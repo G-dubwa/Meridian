@@ -12,10 +12,10 @@ Last updated: 24 July 2026
 
 ## Current work package
 
-- WP-17 execution evidence and The Weekly is complete on
-  `wp-17-execution-evidence-weekly`, pending owner integration approval.
-- The package is provider-independent and makes no model, calendar, task,
-  notification, or other external request.
+- WP-18 local knowledge-source ingestion is complete on
+  `wp-18-knowledge-source-ingestion`, pending integration.
+- The package uses local parser and object-store adapters only and makes no
+  model, calendar, task, notification, or other external request.
 - Microsoft-dependent work remains deferred and untouched.
 
 ## Completed packages
@@ -53,14 +53,14 @@ Last updated: 24 July 2026
 - INFRA-01 — Governed Codex–Claude orchestration. Integrated completion commit
   `c586b173db9d9f9e219c6321040fd868bccb772e`.
 - WP-17 — Execution evidence and The Weekly. Package completion commit is the
-  current `wp-17-execution-evidence-weekly` branch head.
+  integrated commit `21250fde1db25863fe5b04ff7ab900198f56fdd7`.
 
 ## Branch disposition
 
-- `origin/main` is the exact verified INFRA-01 baseline at
-  `c586b173db9d9f9e219c6321040fd868bccb772e`.
-- `wp-17-execution-evidence-weekly` contains one provider-independent product
-  package on that baseline.
+- `origin/main` and `origin/wp-17-execution-evidence-weekly` are verified at
+  `21250fde1db25863fe5b04ff7ab900198f56fdd7`.
+- `wp-18-knowledge-source-ingestion` contains the next provider-independent
+  product package on that baseline.
 - Remote `wp-11-microsoft-todo-delivery-spike` is preserved at
   `7538b4123cfcba7b65765cd68c4b53c7193a6f15`.
 - The WP-11 branch is experimental, inactive, deliberately unmerged, and the
@@ -104,6 +104,14 @@ Last updated: 24 July 2026
   isolation, deterministic evidence-confidence mapping, atomic E1/undo,
   owner-confirmed E2, E5 unknown with zero progress credit, idempotency,
   content-free audit, and no provider/model call.
+- WP-18 passes formatting, lint, strict typecheck, architecture and migration
+  checks, 21 unit files/103 tests, one live PostgreSQL file/14 tests, 14
+  authenticated browser journeys, governed-document/current-dictionary checks,
+  and production builds. Evidence proves local parser safety, content-addressed
+  storage integrity, forced RLS, immutable source provenance, exact citation
+  round-trip, correction supersession, deletion-request freeze, content-free
+  audit, and zero provider activity. The browser suite now runs from a
+  sanitized temporary web workspace and never loads local environment files.
 - The default shell remains Node.js 21.6.0; Node.js 24.18.0 with pnpm 11.14.0
   is the verified repository runtime.
 - Gitleaks runs in CI; the local repository gate does not require its binary.
@@ -146,7 +154,8 @@ conclusion that Microsoft To Do is technically unsuitable.
 
 ## Next package
 
-WP-18 knowledge-source ingestion foundation is next after owner approval and
-integration of WP-17. File ingestion and parsing must remain local; any paid
-model use, personal-data transmission, destructive operation, production
-deployment, or external provider still requires its mandatory gate.
+WP-19 embeddings, retrieval, and context manifests follows successful WP-18
+verification and integration. Any paid model use, personal-data transmission,
+destructive operation, production deployment, or external provider still
+requires its mandatory gate; local deterministic retrieval work may proceed
+independently.

@@ -78,3 +78,13 @@ The bounded reminder parser is deterministic local code, so it sends no content
 to a model or delivery provider. Accepted proposals retain owner-scoped source
 proposal and exact revision/span provenance. Microsoft processing and scopes do
 not change; reminder delivery remains `undecided` behind WP-11.
+
+WP-18 retains owner-supplied originals in an ignored local content-addressed
+object root and metadata, parsed text, chunks, claims, and citations in
+forced-RLS PostgreSQL tables. Private and Sensitive knowledge text has no
+external-processing route; Standard classification alone does not authorize a
+transfer. Parsing and extraction are local and deterministic. Knowledge events
+contain only IDs and lifecycle enums, never source/claim text, metadata,
+filenames, hashes, object references, or exact locators. A deletion request
+freezes the source but makes no erasure claim; WP-22 must prove removal from
+object storage, database relationships, exports, and backup lifecycle.

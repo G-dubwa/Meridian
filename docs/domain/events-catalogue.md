@@ -152,3 +152,20 @@ ending never emits confirmed progress: absent confirmation is E5
 `dueDateChange` enum (`added`, `earlier`, `later`, `removed`, `unchanged`) so
 The Weekly can count repeated postponement without retaining due dates in an
 event.
+
+## Knowledge events v1
+
+| Event                                    | Emitted when                                    |
+| ---------------------------------------- | ----------------------------------------------- |
+| `knowledge.source_ingested.v1`           | Source, immutable revision, and chunks commit   |
+| `knowledge.source_revised.v1`            | Corrected revision and invalidation commit      |
+| `knowledge.source_reviewed.v1`           | Owner records a source-review disposition       |
+| `knowledge.source_deletion_requested.v1` | Owner freezes a source pending verified erasure |
+| `knowledge.claim_created.v1`             | Exact-span candidate claim and citation commit  |
+| `knowledge.claim_reviewed.v1`            | Owner verifies or rejects the candidate claim   |
+
+Payloads contain only source/revision/claim identifiers plus extraction and
+review enums. Titles, authors, source text, claim text, quoted text, filenames,
+URLs, DOI values, locators, offsets, hashes, notes, and object references are
+prohibited. Deletion request is audit evidence of intent, not evidence of
+physical erasure.

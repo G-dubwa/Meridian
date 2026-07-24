@@ -17,6 +17,7 @@ export default function WeeklyPage() {
           <Link href="/today">Today</Link>
           <Link href="/planning">Plan time</Link>
           <Link href="/goals">Goals</Link>
+          <Link href="/knowledge">Knowledge</Link>
         </nav>
       </header>
       <WeeklyApp />

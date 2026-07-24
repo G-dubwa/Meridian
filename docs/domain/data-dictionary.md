@@ -324,6 +324,133 @@ Foreign keys:
 
 Indexes: `goals_user_state_updated_idx`, `goals_user_target_date_idx`.
 
+## knowledge_chunks
+
+| Column | SQL type | Null | Default | Primary |
+|---|---|---|---|---|
+| `id` | `uuid` | no | no | yes |
+| `user_id` | `uuid` | no | no | no |
+| `source_revision_id` | `uuid` | no | no | no |
+| `ordinal` | `integer` | no | no | no |
+| `text` | `text` | no | no | no |
+| `source_span_start` | `integer` | no | no | no |
+| `source_span_end` | `integer` | no | no | no |
+| `content_hash` | `text` | no | no | no |
+| `locator` | `jsonb` | yes | no | no |
+| `created_at` | `timestamp with time zone` | no | yes | no |
+
+Foreign keys:
+- `knowledge_chunks_user_id_users_id_fk`: (user_id) → `users` (id)
+- `knowledge_chunks_revision_owner_fk`: (source_revision_id, user_id) → `knowledge_source_revisions` (id, user_id)
+
+Indexes: `knowledge_chunks_user_revision_idx`.
+
+## knowledge_claim_citations
+
+| Column | SQL type | Null | Default | Primary |
+|---|---|---|---|---|
+| `id` | `uuid` | no | no | yes |
+| `user_id` | `uuid` | no | no | no |
+| `claim_id` | `uuid` | no | no | no |
+| `source_revision_id` | `uuid` | no | no | no |
+| `source_span_start` | `integer` | no | no | no |
+| `source_span_end` | `integer` | no | no | no |
+| `quoted_text_hash` | `text` | no | no | no |
+| `locator` | `jsonb` | yes | no | no |
+| `created_at` | `timestamp with time zone` | no | yes | no |
+
+Foreign keys:
+- `knowledge_claim_citations_user_id_users_id_fk`: (user_id) → `users` (id)
+- `knowledge_claim_citations_claim_owner_fk`: (claim_id, user_id) → `knowledge_claims` (id, user_id)
+- `knowledge_claim_citations_revision_owner_fk`: (source_revision_id, user_id) → `knowledge_source_revisions` (id, user_id)
+
+Indexes: `knowledge_claim_citations_user_claim_idx`.
+
+## knowledge_claims
+
+| Column | SQL type | Null | Default | Primary |
+|---|---|---|---|---|
+| `id` | `uuid` | no | no | yes |
+| `user_id` | `uuid` | no | no | no |
+| `knowledge_source_id` | `uuid` | no | no | no |
+| `claim_text` | `text` | no | no | no |
+| `claim_type` | `text` | no | no | no |
+| `epistemic_status` | `text` | no | no | no |
+| `population_scope` | `text` | yes | no | no |
+| `intervention_or_exposure` | `text` | yes | no | no |
+| `outcome` | `text` | yes | no | no |
+| `direction` | `text` | yes | no | no |
+| `effect_expression` | `text` | yes | no | no |
+| `review_status` | `text` | no | yes | no |
+| `reviewer_notes` | `text` | yes | no | no |
+| `created_at` | `timestamp with time zone` | no | yes | no |
+| `updated_at` | `timestamp with time zone` | no | yes | no |
+| `version` | `integer` | no | yes | no |
+
+Foreign keys:
+- `knowledge_claims_user_id_users_id_fk`: (user_id) → `users` (id)
+- `knowledge_claims_resource_owner_fk`: (id, user_id) → `resources` (id, user_id)
+- `knowledge_claims_source_owner_fk`: (knowledge_source_id, user_id) → `knowledge_sources` (id, user_id)
+
+Indexes: `knowledge_claims_user_source_idx`.
+
+## knowledge_source_revisions
+
+| Column | SQL type | Null | Default | Primary |
+|---|---|---|---|---|
+| `id` | `uuid` | no | no | yes |
+| `user_id` | `uuid` | no | no | no |
+| `knowledge_source_id` | `uuid` | no | no | no |
+| `revision_number` | `integer` | no | no | no |
+| `original_file_ref` | `text` | no | no | no |
+| `original_file_name` | `text` | no | no | no |
+| `original_media_type` | `text` | no | no | no |
+| `original_content_hash` | `text` | no | no | no |
+| `parsed_text` | `text` | no | no | no |
+| `parser_id` | `text` | no | no | no |
+| `parser_version` | `text` | no | no | no |
+| `file_format` | `text` | no | no | no |
+| `extraction_quality` | `text` | no | no | no |
+| `page_or_section_map` | `jsonb` | no | yes | no |
+| `processing_class` | `text` | no | no | no |
+| `created_at` | `timestamp with time zone` | no | yes | no |
+
+Foreign keys:
+- `knowledge_source_revisions_user_id_users_id_fk`: (user_id) → `users` (id)
+- `knowledge_source_revisions_source_owner_fk`: (knowledge_source_id, user_id) → `knowledge_sources` (id, user_id)
+
+Indexes: `knowledge_source_revisions_user_source_idx`.
+
+## knowledge_sources
+
+| Column | SQL type | Null | Default | Primary |
+|---|---|---|---|---|
+| `id` | `uuid` | no | no | yes |
+| `user_id` | `uuid` | no | no | no |
+| `title` | `text` | no | no | no |
+| `authors` | `jsonb` | no | yes | no |
+| `source_class` | `text` | no | no | no |
+| `publisher_or_venue` | `text` | yes | no | no |
+| `publication_date` | `date` | yes | no | no |
+| `doi` | `text` | yes | no | no |
+| `canonical_url` | `text` | yes | no | no |
+| `language` | `text` | no | no | no |
+| `owner_notes` | `text` | yes | no | no |
+| `review_status` | `text` | no | yes | no |
+| `evidence_domain` | `jsonb` | no | yes | no |
+| `copyright_and_use_notes` | `text` | no | no | no |
+| `correction_status` | `text` | no | yes | no |
+| `deletion_requested_at` | `timestamp with time zone` | yes | no | no |
+| `created_at` | `timestamp with time zone` | no | yes | no |
+| `updated_at` | `timestamp with time zone` | no | yes | no |
+| `version` | `integer` | no | yes | no |
+
+Foreign keys:
+- `knowledge_sources_user_id_users_id_fk`: (user_id) → `users` (id)
+- `knowledge_sources_resource_owner_fk`: (id, user_id) → `resources` (id, user_id)
+
+Indexes: `knowledge_sources_user_updated_idx`.
+
 ## outbox_messages
 
 | Column | SQL type | Null | Default | Primary |

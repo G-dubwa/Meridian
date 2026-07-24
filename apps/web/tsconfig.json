@@ -25,6 +25,7 @@
       "@meridian/infrastructure-models": [
         "../../packages/infrastructure-models/dist/index"
       ],
+      "@meridian/knowledge": ["../../packages/knowledge/dist/index"],
       "@meridian/prompts": ["../../packages/prompts/dist/index"]
     }
   },
@@ -43,6 +44,7 @@
     { "path": "../../packages/infrastructure-db" },
     { "path": "../../packages/infrastructure-ms-graph" },
     { "path": "../../packages/infrastructure-models" },
+    { "path": "../../packages/knowledge" },
     { "path": "../../packages/prompts" }
   ]
 }

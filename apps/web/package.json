@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "next build",
+    "build": "node ../../scripts/build-web-sanitized.mjs",
     "dev": "next dev",
     "start": "next start"
   },
@@ -14,8 +14,9 @@
     "@meridian/domain": "workspace:*",
     "@meridian/infrastructure-auth": "workspace:*",
     "@meridian/infrastructure-db": "workspace:*",
-    "@meridian/infrastructure-ms-graph": "workspace:*",
     "@meridian/infrastructure-models": "workspace:*",
+    "@meridian/infrastructure-ms-graph": "workspace:*",
+    "@meridian/knowledge": "workspace:*",
     "@meridian/prompts": "workspace:*",
     "next": "16.2.10",
     "react": "19.2.7",

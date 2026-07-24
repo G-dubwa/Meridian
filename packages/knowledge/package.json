@@ -11,5 +11,9 @@
   },
   "scripts": {
     "build": "tsc --build"
+  },
+  "dependencies": {
+    "@meridian/domain": "workspace:*",
+    "pdfjs-dist": "6.1.200"
   }
 }

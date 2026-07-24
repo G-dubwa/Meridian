@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -59,6 +59,31 @@ const databaseUrl =
   `postgres://postgres@127.0.0.1:${String(databasePort)}/postgres`;
 const webPort = await availablePort();
 const baseUrl = `http://127.0.0.1:${String(webPort)}`;
+const knowledgeObjectRoot = mkdtempSync(
+  join(tmpdir(), 'meridian-auth-e2e-knowledge-'),
+);
+const sanitizedWorkspace = mkdtempSync(
+  resolve('.worktrees', 'meridian-auth-e2e-workspace-'),
+);
+const sanitizedWeb = join(sanitizedWorkspace, 'apps', 'web');
+mkdirSync(sanitizedWeb, { recursive: true });
+for (const entry of [
+  'app',
+  'next.config.ts',
+  'package.json',
+  'tsconfig.json',
+]) {
+  cpSync(resolve('apps/web', entry), join(sanitizedWeb, entry), {
+    recursive: true,
+  });
+}
+for (const entry of ['node_modules', 'packages', 'tsconfig.base.json']) {
+  symlinkSync(resolve(entry), join(sanitizedWorkspace, entry));
+}
+symlinkSync(
+  resolve('apps/web/node_modules'),
+  join(sanitizedWeb, 'node_modules'),
+);
 let postgresStarted = false;
 let web;
 
@@ -89,10 +114,13 @@ try {
     ...process.env,
     AUTH_E2E_BASE_URL: baseUrl,
     DATABASE_URL: databaseUrl,
+    MERIDIAN_KNOWLEDGE_OBJECT_ROOT: knowledgeObjectRoot,
     MICROSOFT_CLIENT_ID: '',
     MICROSOFT_CLIENT_SECRET: '',
     MICROSOFT_REDIRECT_URI: '',
     MICROSOFT_TOKEN_ENCRYPTION_KEY: '',
+    NEXT_TELEMETRY_DISABLED: '1',
+    OPENAI_API_KEY: '',
   };
   run('pnpm', ['db:migrate'], { env: environment });
   for (const packageName of [
@@ -102,22 +130,13 @@ try {
     '@meridian/infrastructure-auth',
     '@meridian/infrastructure-db',
     '@meridian/infrastructure-ms-graph',
+    '@meridian/knowledge',
   ]) {
     run('pnpm', ['--filter', packageName, 'build'], { env: environment });
   }
   web = spawn(
-    'pnpm',
-    [
-      '--filter',
-      '@meridian/web',
-      'exec',
-      'next',
-      'dev',
-      '--hostname',
-      '127.0.0.1',
-      '--port',
-      String(webPort),
-    ],
+    resolve('apps/web/node_modules/.bin/next'),
+    ['dev', sanitizedWeb, '--hostname', '127.0.0.1', '--port', String(webPort)],
     { env: environment, stdio: 'inherit' },
   );
   await waitFor(`${baseUrl}/health`, web);
@@ -144,4 +163,8 @@ try {
   }
   if (dataDirectory && dataDirectory.startsWith(tmpdir()))
     rmSync(dataDirectory, { force: true, recursive: true });
+  if (knowledgeObjectRoot.startsWith(tmpdir()))
+    rmSync(knowledgeObjectRoot, { force: true, recursive: true });
+  if (sanitizedWorkspace.startsWith(resolve('.worktrees')))
+    rmSync(sanitizedWorkspace, { force: true, recursive: true });
 }

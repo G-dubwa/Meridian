@@ -29,6 +29,13 @@ related-docs: ../README.md
 - Focus-session and external-task evidence types are reserved but no active
   capture adapter emits them. Calibration and longitudinal trends remain later
   work and require at least ten comparable observations.
+- Knowledge ingestion is local and limited to UTF-8 text, Markdown, and
+  text-layer PDFs up to 10 MiB. Scanned PDFs require an inactive future OCR
+  adapter; office documents, web fetching, embeddings, retrieval, synthesis,
+  and protocol adoption are not active.
+- A knowledge deletion request freezes the source but does not erase bytes.
+  Verified propagation through originals, database records, exports, and
+  backups belongs to WP-22 and remains a destructive human-gated operation.
 - Dependency guidance reflects explicit canonical edges only. It is not a
   success forecast, performance score, or proof that work occurred.
 - The preserved Microsoft branch is experimental and does not provide an

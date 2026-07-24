@@ -24,6 +24,11 @@ import type {
   EntryId,
   EntryRevisionId,
   GoalId,
+  KnowledgeChunkId,
+  KnowledgeCitationId,
+  KnowledgeClaimId,
+  KnowledgeSourceId,
+  KnowledgeSourceRevisionId,
   OutboxMessageId,
   ProposalId,
   ReminderId,
@@ -36,6 +41,17 @@ import type {
   UserId,
   Uuid,
 } from './ids.js';
+import type {
+  KnowledgeClaimReviewStatus,
+  KnowledgeClaimType,
+  KnowledgeCorrectionStatus,
+  KnowledgeEpistemicStatus,
+  KnowledgeExtractionQuality,
+  KnowledgeFileFormat,
+  KnowledgeLocatorV1,
+  KnowledgeReviewStatus,
+  KnowledgeSourceClass,
+} from './knowledge.js';
 import type {
   ExecutionConfidenceClass,
   ExecutionEvidenceType,
@@ -321,6 +337,128 @@ export interface ExecutionRecord {
   readonly recordedAt: Date;
   readonly retractedAt: Date | null;
   readonly retractionReason: 'owner_undo' | null;
+}
+
+export interface KnowledgeSourceRecord {
+  readonly id: KnowledgeSourceId;
+  readonly resourceId: ResourceId;
+  readonly scope: UserScope;
+  readonly title: string;
+  readonly authors: readonly string[];
+  readonly sourceClass: KnowledgeSourceClass;
+  readonly publisherOrVenue: string | null;
+  readonly publicationDate: string | null;
+  readonly doi: string | null;
+  readonly canonicalUrl: string | null;
+  readonly language: string;
+  readonly ownerNotes: string | null;
+  readonly reviewStatus: KnowledgeReviewStatus;
+  readonly evidenceDomain: readonly string[];
+  readonly copyrightAndUseNotes: string;
+  readonly correctionStatus: KnowledgeCorrectionStatus;
+  readonly deletionRequestedAt: Date | null;
+  readonly createdAt: Date;
+  readonly updatedAt: Date;
+  readonly version: number;
+}
+
+export interface KnowledgeSourceRevisionRecord {
+  readonly id: KnowledgeSourceRevisionId;
+  readonly scope: UserScope;
+  readonly knowledgeSourceId: KnowledgeSourceId;
+  readonly revisionNumber: number;
+  readonly originalFileRef: string;
+  readonly originalFileName: string;
+  readonly originalMediaType: string;
+  readonly originalContentHash: string;
+  readonly parsedText: string;
+  readonly parserId: string;
+  readonly parserVersion: string;
+  readonly fileFormat: KnowledgeFileFormat;
+  readonly extractionQuality: KnowledgeExtractionQuality;
+  readonly pageOrSectionMap: readonly KnowledgeLocatorV1[];
+  readonly processingClass: ProcessingClass;
+  readonly createdAt: Date;
+}
+
+export interface KnowledgeChunkRecord {
+  readonly id: KnowledgeChunkId;
+  readonly scope: UserScope;
+  readonly sourceRevisionId: KnowledgeSourceRevisionId;
+  readonly ordinal: number;
+  readonly text: string;
+  readonly sourceSpanStart: number;
+  readonly sourceSpanEnd: number;
+  readonly contentHash: string;
+  readonly locator: KnowledgeLocatorV1 | null;
+  readonly createdAt: Date;
+}
+
+export interface KnowledgeClaimRecord {
+  readonly id: KnowledgeClaimId;
+  readonly resourceId: ResourceId;
+  readonly scope: UserScope;
+  readonly knowledgeSourceId: KnowledgeSourceId;
+  readonly claimText: string;
+  readonly claimType: KnowledgeClaimType;
+  readonly epistemicStatus: KnowledgeEpistemicStatus;
+  readonly populationScope: string | null;
+  readonly interventionOrExposure: string | null;
+  readonly outcome: string | null;
+  readonly direction: string | null;
+  readonly effectExpression: string | null;
+  readonly reviewStatus: KnowledgeClaimReviewStatus;
+  readonly reviewerNotes: string | null;
+  readonly createdAt: Date;
+  readonly updatedAt: Date;
+  readonly version: number;
+}
+
+export interface KnowledgeClaimCitationRecord {
+  readonly id: KnowledgeCitationId;
+  readonly scope: UserScope;
+  readonly claimId: KnowledgeClaimId;
+  readonly sourceRevisionId: KnowledgeSourceRevisionId;
+  readonly sourceSpanStart: number;
+  readonly sourceSpanEnd: number;
+  readonly quotedTextHash: string;
+  readonly locator: KnowledgeLocatorV1 | null;
+  readonly createdAt: Date;
+}
+
+export interface KnowledgeUpload {
+  readonly bytes: Uint8Array;
+  readonly fileName: string;
+  readonly mediaType: string;
+}
+
+export interface ParsedKnowledgeDocument {
+  readonly originalContentHash: string;
+  readonly fileFormat: KnowledgeFileFormat;
+  readonly extractionQuality: KnowledgeExtractionQuality;
+  readonly parsedText: string;
+  readonly parserId: string;
+  readonly parserVersion: string;
+  readonly pageOrSectionMap: readonly KnowledgeLocatorV1[];
+  readonly chunks: readonly {
+    readonly contentHash: string;
+    readonly locator: KnowledgeLocatorV1 | null;
+    readonly ordinal: number;
+    readonly sourceSpanEnd: number;
+    readonly sourceSpanStart: number;
+    readonly text: string;
+  }[];
+}
+
+export interface KnowledgeSourceParser {
+  readonly maximumBytes: number;
+  hashText(text: string): string;
+  parse(upload: KnowledgeUpload): Promise<ParsedKnowledgeDocument>;
+}
+
+export interface KnowledgeObjectStore {
+  put(contentHash: string, bytes: Uint8Array): Promise<string>;
+  get(objectRef: string): Promise<Uint8Array>;
 }
 
 export interface DailyPriorityRecord {
@@ -642,6 +780,77 @@ export interface ExecutionRecordRepository {
   ): Promise<ExecutionRecord | null>;
 }
 
+export interface KnowledgeSourceRepository {
+  acquireContentHashLock(scope: UserScope, contentHash: string): Promise<void>;
+  findById(
+    scope: UserScope,
+    id: KnowledgeSourceId,
+  ): Promise<KnowledgeSourceRecord | null>;
+  list(scope: UserScope): Promise<readonly KnowledgeSourceRecord[]>;
+  save(source: KnowledgeSourceRecord): Promise<void>;
+  update(
+    source: KnowledgeSourceRecord,
+    expectedVersion: number,
+  ): Promise<boolean>;
+}
+
+export interface KnowledgeSourceRevisionRepository {
+  findById(
+    scope: UserScope,
+    id: KnowledgeSourceRevisionId,
+  ): Promise<KnowledgeSourceRevisionRecord | null>;
+  findByContentHash(
+    scope: UserScope,
+    contentHash: string,
+  ): Promise<KnowledgeSourceRevisionRecord | null>;
+  latestForSource(
+    scope: UserScope,
+    sourceId: KnowledgeSourceId,
+  ): Promise<KnowledgeSourceRevisionRecord | null>;
+  listForSource(
+    scope: UserScope,
+    sourceId: KnowledgeSourceId,
+  ): Promise<readonly KnowledgeSourceRevisionRecord[]>;
+  append(revision: KnowledgeSourceRevisionRecord): Promise<void>;
+}
+
+export interface KnowledgeChunkRepository {
+  listForRevision(
+    scope: UserScope,
+    revisionId: KnowledgeSourceRevisionId,
+  ): Promise<readonly KnowledgeChunkRecord[]>;
+  saveMany(chunks: readonly KnowledgeChunkRecord[]): Promise<void>;
+}
+
+export interface KnowledgeClaimRepository {
+  findById(
+    scope: UserScope,
+    id: KnowledgeClaimId,
+  ): Promise<KnowledgeClaimRecord | null>;
+  listForSource(
+    scope: UserScope,
+    sourceId: KnowledgeSourceId,
+  ): Promise<readonly KnowledgeClaimRecord[]>;
+  save(claim: KnowledgeClaimRecord): Promise<void>;
+  update(
+    claim: KnowledgeClaimRecord,
+    expectedVersion: number,
+  ): Promise<boolean>;
+  supersedeForSource(
+    scope: UserScope,
+    sourceId: KnowledgeSourceId,
+    at: Date,
+  ): Promise<number>;
+}
+
+export interface KnowledgeClaimCitationRepository {
+  listForClaim(
+    scope: UserScope,
+    claimId: KnowledgeClaimId,
+  ): Promise<readonly KnowledgeClaimCitationRecord[]>;
+  save(citation: KnowledgeClaimCitationRecord): Promise<void>;
+}
+
 export interface DailyPriorityRepository {
   acquireDateLock(scope: UserScope, localDate: LocalDateV1): Promise<void>;
   findById(
@@ -700,6 +909,11 @@ export interface TransactionPorts {
   readonly entries: EntryRepository;
   readonly entryRevisions: EntryRevisionRepository;
   readonly integrationAccounts: IntegrationAccountRepository;
+  readonly knowledgeClaimCitations: KnowledgeClaimCitationRepository;
+  readonly knowledgeClaims: KnowledgeClaimRepository;
+  readonly knowledgeChunks: KnowledgeChunkRepository;
+  readonly knowledgeSourceRevisions: KnowledgeSourceRevisionRepository;
+  readonly knowledgeSources: KnowledgeSourceRepository;
   readonly goals: GoalRepository;
   readonly outbox: OutboxRepository;
   readonly proposals: ProposalRepository;

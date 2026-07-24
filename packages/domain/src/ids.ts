@@ -39,6 +39,22 @@ export const calendarBlockIdV1Schema = z.uuid().brand<'CalendarBlockId'>();
 export type CalendarBlockId = z.infer<typeof calendarBlockIdV1Schema>;
 export const executionRecordIdV1Schema = z.uuid().brand<'ExecutionRecordId'>();
 export type ExecutionRecordId = z.infer<typeof executionRecordIdV1Schema>;
+export const knowledgeSourceIdV1Schema = z.uuid().brand<'KnowledgeSourceId'>();
+export type KnowledgeSourceId = z.infer<typeof knowledgeSourceIdV1Schema>;
+export const knowledgeSourceRevisionIdV1Schema = z
+  .uuid()
+  .brand<'KnowledgeSourceRevisionId'>();
+export type KnowledgeSourceRevisionId = z.infer<
+  typeof knowledgeSourceRevisionIdV1Schema
+>;
+export const knowledgeChunkIdV1Schema = z.uuid().brand<'KnowledgeChunkId'>();
+export type KnowledgeChunkId = z.infer<typeof knowledgeChunkIdV1Schema>;
+export const knowledgeClaimIdV1Schema = z.uuid().brand<'KnowledgeClaimId'>();
+export type KnowledgeClaimId = z.infer<typeof knowledgeClaimIdV1Schema>;
+export const knowledgeCitationIdV1Schema = z
+  .uuid()
+  .brand<'KnowledgeCitationId'>();
+export type KnowledgeCitationId = z.infer<typeof knowledgeCitationIdV1Schema>;
 export const dailyPriorityIdV1Schema = z.uuid().brand<'DailyPriorityId'>();
 export type DailyPriorityId = z.infer<typeof dailyPriorityIdV1Schema>;
 export const todayReceiptIdV1Schema = z.uuid().brand<'TodayReceiptId'>();
@@ -62,6 +78,11 @@ export const idSchemasV1 = {
   edgeId: edgeIdV1Schema,
   executionRecordId: executionRecordIdV1Schema,
   goalId: goalIdV1Schema,
+  knowledgeChunkId: knowledgeChunkIdV1Schema,
+  knowledgeCitationId: knowledgeCitationIdV1Schema,
+  knowledgeClaimId: knowledgeClaimIdV1Schema,
+  knowledgeSourceId: knowledgeSourceIdV1Schema,
+  knowledgeSourceRevisionId: knowledgeSourceRevisionIdV1Schema,
   outboxMessageId: outboxMessageIdV1Schema,
   proposalId: proposalIdV1Schema,
   taskId: taskIdV1Schema,

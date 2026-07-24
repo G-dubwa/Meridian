@@ -43,7 +43,7 @@ async function login(
   });
 }
 
-test.describe.serial('WP-04 through WP-17 authenticated acceptance', () => {
+test.describe.serial('WP-04 through WP-18 authenticated acceptance', () => {
   test('bootstraps exactly one owner and stores only Argon2id/recovery hashes', async () => {
     const first = spawnSync(
       'pnpm',
@@ -1282,6 +1282,197 @@ test.describe.serial('WP-04 through WP-17 authenticated acceptance', () => {
       });
     } finally {
       await sql.end();
+      await request.dispose();
+    }
+  });
+
+  test('ingests and reviews local sources with exact citations and no provider activity', async ({
+    playwright,
+  }) => {
+    const request = await playwright.request.newContext({
+      baseURL: baseUrl,
+      userAgent: 'meridian-knowledge-fixture',
+    });
+    const sourceText =
+      '# Synthetic finding\n\nA bounded synthetic fixture reports a local result.\n\n## Limitation\n\nNo personal data.';
+    const sourceFile = {
+      buffer: Buffer.from(sourceText),
+      mimeType: 'text/markdown',
+      name: 'synthetic-source.md',
+    };
+    const metadata = {
+      authors: ['Synthetic Fixture'],
+      canonicalUrl: null,
+      copyrightAndUseNotes: 'Synthetic test content.',
+      doi: null,
+      evidenceDomain: ['testing'],
+      language: 'en',
+      ownerConfirmed: true,
+      ownerConfirmedRights: true,
+      ownerNotes: null,
+      processingClass: 'private',
+      publicationDate: null,
+      publisherOrVenue: null,
+      sourceClass: 'personal_notes',
+      title: 'E2E synthetic knowledge source',
+    };
+    try {
+      expect((await request.get('/api/knowledge/sources')).status()).toBe(401);
+      expect((await login(request)).status()).toBe(200);
+      const csrfToken = await csrfCookie(request);
+      const page = await request.get('/knowledge');
+      expect(page.status()).toBe(200);
+      expect(await page.text()).toContain('Knowledge Library');
+
+      const missingCsrf = await request.post('/api/knowledge/sources', {
+        multipart: { file: sourceFile, metadata: JSON.stringify(metadata) },
+      });
+      expect(missingCsrf.status()).toBe(403);
+
+      const uploaded = await request.post('/api/knowledge/sources', {
+        headers: { 'x-csrf-token': csrfToken },
+        multipart: { file: sourceFile, metadata: JSON.stringify(metadata) },
+      });
+      expect(uploaded.status()).toBe(201);
+      const detail = (await uploaded.json()) as {
+        claims: unknown[];
+        revisions: {
+          chunkCount: number;
+          id: string;
+          originalContentHash: string;
+          parsedText: string;
+        }[];
+        source: { id: string; reviewStatus: string; version: number };
+      };
+      expect(detail).toMatchObject({
+        claims: [],
+        revisions: [
+          {
+            chunkCount: 1,
+            parsedText: sourceText,
+          },
+        ],
+        source: { reviewStatus: 'unreviewed', version: 1 },
+      });
+      expect(detail.revisions[0]?.originalContentHash).toHaveLength(64);
+
+      const claimText = 'A bounded synthetic fixture reports a local result.';
+      const sourceSpanStart = sourceText.indexOf(claimText);
+      const claim = await request.post(
+        `/api/knowledge/sources/${detail.source.id}/claims`,
+        {
+          data: {
+            claimText,
+            claimType: 'finding',
+            direction: null,
+            effectExpression: null,
+            interventionOrExposure: null,
+            outcome: null,
+            ownerConfirmed: true,
+            populationScope: null,
+            sourceRevisionId: detail.revisions[0]?.id,
+            sourceSpanEnd: sourceSpanStart + claimText.length,
+            sourceSpanStart,
+          },
+          headers: { 'x-csrf-token': csrfToken },
+        },
+      );
+      expect(claim.status()).toBe(201);
+      const claimBody = (await claim.json()) as {
+        citations: unknown[];
+        id: string;
+        reviewStatus: string;
+        version: number;
+      };
+      expect(claimBody).toMatchObject({
+        citations: [{}],
+        reviewStatus: 'candidate',
+        version: 1,
+      });
+
+      const reviewedClaim = await request.post(
+        `/api/knowledge/claims/${claimBody.id}/review`,
+        {
+          data: {
+            decision: 'reviewed',
+            expectedVersion: claimBody.version,
+            ownerConfirmed: true,
+            reviewerNotes: null,
+          },
+          headers: { 'x-csrf-token': csrfToken },
+        },
+      );
+      expect(reviewedClaim.status()).toBe(200);
+      expect(await reviewedClaim.json()).toMatchObject({
+        reviewStatus: 'reviewed',
+      });
+
+      const reviewedSource = await request.post(
+        `/api/knowledge/sources/${detail.source.id}/review`,
+        {
+          data: {
+            expectedVersion: detail.source.version,
+            ownerConfirmed: true,
+            reviewStatus: 'reviewed',
+          },
+          headers: { 'x-csrf-token': csrfToken },
+        },
+      );
+      expect(reviewedSource.status()).toBe(200);
+      expect(await reviewedSource.json()).toMatchObject({
+        reviewStatus: 'reviewed',
+      });
+
+      const original = await request.get(
+        `/api/knowledge/revisions/${detail.revisions[0]?.id ?? ''}/original`,
+      );
+      expect(original.status()).toBe(200);
+      expect(await original.text()).toBe(sourceText);
+
+      const duplicate = await request.post('/api/knowledge/sources', {
+        headers: { 'x-csrf-token': csrfToken },
+        multipart: { file: sourceFile, metadata: JSON.stringify(metadata) },
+      });
+      expect(duplicate.status()).toBe(409);
+
+      const deletionRequest = await request.post(
+        `/api/knowledge/sources/${detail.source.id}/deletion-request`,
+        {
+          data: {
+            confirmation: 'REQUEST DELETE KNOWLEDGE SOURCE',
+            expectedVersion: 2,
+            ownerConfirmed: true,
+          },
+          headers: { 'x-csrf-token': csrfToken },
+        },
+      );
+      expect(deletionRequest.status()).toBe(202);
+      expect(await deletionRequest.json()).toMatchObject({
+        deletionRequestedAt: expect.any(String),
+        version: 3,
+      });
+
+      const sql = postgres(databaseUrl, { prepare: false });
+      try {
+        const [audit] = await sql<
+          { content_leaks: string; provider_events: string }[]
+        >`
+          select
+            count(*) filter (
+              where event_type like 'knowledge.%'
+                and payload::text like '%bounded synthetic%'
+            )::text as content_leaks,
+            count(*) filter (
+              where event_type like 'integration.%'
+                 or event_type like 'delivery.%'
+            )::text as provider_events
+          from domain_events
+        `;
+        expect(audit).toEqual({ content_leaks: '0', provider_events: '0' });
+      } finally {
+        await sql.end();
+      }
+    } finally {
       await request.dispose();
     }
   });

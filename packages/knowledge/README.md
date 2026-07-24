@@ -8,10 +8,16 @@ related-docs: ../../docs/architecture/module-map.md
 
 # knowledge
 
-Responsibility: Knowledge ingestion, claims, protocols, and evidence policy.
+Responsibility: local document safety screening, deterministic parsing and
+chunking, content hashing, and content-addressed original storage.
 
-Exclusions: Personal evidence conflation and automatic protocol activation.
+Exclusions: model extraction, embeddings, OCR, office conversion, personal
+evidence conflation, and automatic protocol activation.
 
-Allowed imports: May import domain types and application ports.
+Allowed imports: `@meridian/domain` plus parser/storage implementation
+libraries. It must not import application services, persistence, web, model, or
+provider adapters.
 
-Tests: WP-01 supplies only the repository-wide placeholder and architecture fixture; behaviour tests arrive with the package's first scoped capability.
+Tests: WP-18 unit tests cover formats, exact spans, active-PDF and malware-test
+screening, limits, path confinement, duplicate storage, and corruption
+detection. PostgreSQL and authenticated journeys cover full orchestration.

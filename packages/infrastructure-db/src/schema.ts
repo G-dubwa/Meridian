@@ -1436,6 +1436,302 @@ export const executionRecords = pgTable(
   ],
 );
 
+export const knowledgeSources = pgTable(
+  'knowledge_sources',
+  {
+    id: uuid('id').primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    authors: jsonb('authors').notNull().default([]),
+    sourceClass: text('source_class').notNull(),
+    publisherOrVenue: text('publisher_or_venue'),
+    publicationDate: date('publication_date'),
+    doi: text('doi'),
+    canonicalUrl: text('canonical_url'),
+    language: text('language').notNull(),
+    ownerNotes: text('owner_notes'),
+    reviewStatus: text('review_status').notNull().default('unreviewed'),
+    evidenceDomain: jsonb('evidence_domain').notNull().default([]),
+    copyrightAndUseNotes: text('copyright_and_use_notes').notNull(),
+    correctionStatus: text('correction_status').notNull().default('unknown'),
+    deletionRequestedAt: timestamp('deletion_requested_at', {
+      withTimezone: true,
+    }),
+    ...timestamps,
+    version: integer('version').notNull().default(1),
+  },
+  (table) => [
+    unique('knowledge_sources_id_user_unique').on(table.id, table.userId),
+    foreignKey({
+      columns: [table.id, table.userId],
+      foreignColumns: [resources.id, resources.userId],
+      name: 'knowledge_sources_resource_owner_fk',
+    }).onDelete('cascade'),
+    check(
+      'knowledge_sources_title_valid',
+      sql`length(btrim(${table.title})) between 1 and 500`,
+    ),
+    check(
+      'knowledge_sources_authors_array',
+      sql`jsonb_typeof(${table.authors}) = 'array'`,
+    ),
+    check(
+      'knowledge_sources_evidence_domain_array',
+      sql`jsonb_typeof(${table.evidenceDomain}) = 'array'`,
+    ),
+    check(
+      'knowledge_sources_class_valid',
+      sql`${table.sourceClass} in ('systematic_review_or_meta_analysis', 'randomised_trial', 'controlled_non_randomised_study', 'observational_study', 'mechanistic_or_laboratory_study', 'clinical_or_professional_guideline', 'narrative_review', 'expert_commentary', 'book_or_chapter', 'podcast_or_transcript', 'personal_notes', 'unknown')`,
+    ),
+    check(
+      'knowledge_sources_review_status_valid',
+      sql`${table.reviewStatus} in ('unreviewed', 'processing', 'reviewed', 'reference_only', 'rejected', 'superseded')`,
+    ),
+    check(
+      'knowledge_sources_correction_status_valid',
+      sql`${table.correctionStatus} in ('unknown', 'none_known', 'corrected', 'retracted', 'expression_of_concern')`,
+    ),
+    check('knowledge_sources_version_positive', sql`${table.version} > 0`),
+    index('knowledge_sources_user_updated_idx').on(
+      table.userId,
+      table.updatedAt,
+    ),
+  ],
+);
+
+export const knowledgeSourceRevisions = pgTable(
+  'knowledge_source_revisions',
+  {
+    id: uuid('id').primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    knowledgeSourceId: uuid('knowledge_source_id').notNull(),
+    revisionNumber: integer('revision_number').notNull(),
+    originalFileRef: text('original_file_ref').notNull(),
+    originalFileName: text('original_file_name').notNull(),
+    originalMediaType: text('original_media_type').notNull(),
+    originalContentHash: text('original_content_hash').notNull(),
+    parsedText: text('parsed_text').notNull(),
+    parserId: text('parser_id').notNull(),
+    parserVersion: text('parser_version').notNull(),
+    fileFormat: text('file_format').notNull(),
+    extractionQuality: text('extraction_quality').notNull(),
+    pageOrSectionMap: jsonb('page_or_section_map').notNull().default([]),
+    processingClass: text('processing_class').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    unique('knowledge_source_revisions_id_user_unique').on(
+      table.id,
+      table.userId,
+    ),
+    unique('knowledge_source_revisions_source_number_unique').on(
+      table.knowledgeSourceId,
+      table.revisionNumber,
+    ),
+    unique('knowledge_source_revisions_user_hash_unique').on(
+      table.userId,
+      table.originalContentHash,
+    ),
+    foreignKey({
+      columns: [table.knowledgeSourceId, table.userId],
+      foreignColumns: [knowledgeSources.id, knowledgeSources.userId],
+      name: 'knowledge_source_revisions_source_owner_fk',
+    }).onDelete('cascade'),
+    check(
+      'knowledge_source_revisions_number_positive',
+      sql`${table.revisionNumber} > 0`,
+    ),
+    check(
+      'knowledge_source_revisions_hash_length',
+      sql`length(${table.originalContentHash}) = 64`,
+    ),
+    check(
+      'knowledge_source_revisions_map_array',
+      sql`jsonb_typeof(${table.pageOrSectionMap}) = 'array'`,
+    ),
+    check(
+      'knowledge_source_revisions_format_valid',
+      sql`${table.fileFormat} in ('plain_text', 'markdown', 'pdf')`,
+    ),
+    check(
+      'knowledge_source_revisions_quality_valid',
+      sql`${table.extractionQuality} in ('complete', 'partial', 'ocr_required', 'failed')`,
+    ),
+    check(
+      'knowledge_source_revisions_processing_class_valid',
+      sql`${table.processingClass} in ('standard', 'sensitive', 'private')`,
+    ),
+    index('knowledge_source_revisions_user_source_idx').on(
+      table.userId,
+      table.knowledgeSourceId,
+      table.revisionNumber,
+    ),
+  ],
+);
+
+export const knowledgeChunks = pgTable(
+  'knowledge_chunks',
+  {
+    id: uuid('id').primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    sourceRevisionId: uuid('source_revision_id').notNull(),
+    ordinal: integer('ordinal').notNull(),
+    text: text('text').notNull(),
+    sourceSpanStart: integer('source_span_start').notNull(),
+    sourceSpanEnd: integer('source_span_end').notNull(),
+    contentHash: text('content_hash').notNull(),
+    locator: jsonb('locator'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    unique('knowledge_chunks_id_user_unique').on(table.id, table.userId),
+    unique('knowledge_chunks_revision_ordinal_unique').on(
+      table.sourceRevisionId,
+      table.ordinal,
+    ),
+    foreignKey({
+      columns: [table.sourceRevisionId, table.userId],
+      foreignColumns: [
+        knowledgeSourceRevisions.id,
+        knowledgeSourceRevisions.userId,
+      ],
+      name: 'knowledge_chunks_revision_owner_fk',
+    }).onDelete('cascade'),
+    check('knowledge_chunks_ordinal_positive', sql`${table.ordinal} > 0`),
+    check(
+      'knowledge_chunks_span_valid',
+      sql`${table.sourceSpanStart} >= 0 and ${table.sourceSpanEnd} > ${table.sourceSpanStart}`,
+    ),
+    check(
+      'knowledge_chunks_hash_length',
+      sql`length(${table.contentHash}) = 64`,
+    ),
+    index('knowledge_chunks_user_revision_idx').on(
+      table.userId,
+      table.sourceRevisionId,
+      table.ordinal,
+    ),
+  ],
+);
+
+export const knowledgeClaims = pgTable(
+  'knowledge_claims',
+  {
+    id: uuid('id').primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    knowledgeSourceId: uuid('knowledge_source_id').notNull(),
+    claimText: text('claim_text').notNull(),
+    claimType: text('claim_type').notNull(),
+    epistemicStatus: text('epistemic_status').notNull(),
+    populationScope: text('population_scope'),
+    interventionOrExposure: text('intervention_or_exposure'),
+    outcome: text('outcome'),
+    direction: text('direction'),
+    effectExpression: text('effect_expression'),
+    reviewStatus: text('review_status').notNull().default('candidate'),
+    reviewerNotes: text('reviewer_notes'),
+    ...timestamps,
+    version: integer('version').notNull().default(1),
+  },
+  (table) => [
+    unique('knowledge_claims_id_user_unique').on(table.id, table.userId),
+    foreignKey({
+      columns: [table.id, table.userId],
+      foreignColumns: [resources.id, resources.userId],
+      name: 'knowledge_claims_resource_owner_fk',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [table.knowledgeSourceId, table.userId],
+      foreignColumns: [knowledgeSources.id, knowledgeSources.userId],
+      name: 'knowledge_claims_source_owner_fk',
+    }).onDelete('cascade'),
+    check(
+      'knowledge_claims_text_valid',
+      sql`length(${table.claimText}) between 1 and 4000`,
+    ),
+    check(
+      'knowledge_claims_type_valid',
+      sql`${table.claimType} in ('finding', 'mechanism', 'recommendation', 'limitation', 'contraindication', 'measurement', 'population', 'dose_or_schedule', 'uncertainty')`,
+    ),
+    check(
+      'knowledge_claims_epistemic_status_valid',
+      sql`${table.epistemicStatus} in ('reported_by_source', 'supported', 'mixed', 'contested', 'unsupported', 'unknown')`,
+    ),
+    check(
+      'knowledge_claims_review_status_valid',
+      sql`${table.reviewStatus} in ('candidate', 'reviewed', 'rejected', 'superseded')`,
+    ),
+    check('knowledge_claims_version_positive', sql`${table.version} > 0`),
+    index('knowledge_claims_user_source_idx').on(
+      table.userId,
+      table.knowledgeSourceId,
+      table.updatedAt,
+    ),
+  ],
+);
+
+export const knowledgeClaimCitations = pgTable(
+  'knowledge_claim_citations',
+  {
+    id: uuid('id').primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    claimId: uuid('claim_id').notNull(),
+    sourceRevisionId: uuid('source_revision_id').notNull(),
+    sourceSpanStart: integer('source_span_start').notNull(),
+    sourceSpanEnd: integer('source_span_end').notNull(),
+    quotedTextHash: text('quoted_text_hash').notNull(),
+    locator: jsonb('locator'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    unique('knowledge_claim_citations_id_user_unique').on(
+      table.id,
+      table.userId,
+    ),
+    foreignKey({
+      columns: [table.claimId, table.userId],
+      foreignColumns: [knowledgeClaims.id, knowledgeClaims.userId],
+      name: 'knowledge_claim_citations_claim_owner_fk',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [table.sourceRevisionId, table.userId],
+      foreignColumns: [
+        knowledgeSourceRevisions.id,
+        knowledgeSourceRevisions.userId,
+      ],
+      name: 'knowledge_claim_citations_revision_owner_fk',
+    }).onDelete('cascade'),
+    check(
+      'knowledge_claim_citations_span_valid',
+      sql`${table.sourceSpanStart} >= 0 and ${table.sourceSpanEnd} > ${table.sourceSpanStart}`,
+    ),
+    check(
+      'knowledge_claim_citations_hash_length',
+      sql`length(${table.quotedTextHash}) = 64`,
+    ),
+    index('knowledge_claim_citations_user_claim_idx').on(
+      table.userId,
+      table.claimId,
+    ),
+  ],
+);
+
 export const domainEvents = pgTable(
   'domain_events',
   {
@@ -1533,6 +1829,11 @@ export const schemaTables = {
   entries,
   entryRevisions,
   goals,
+  knowledgeClaimCitations,
+  knowledgeClaims,
+  knowledgeChunks,
+  knowledgeSourceRevisions,
+  knowledgeSources,
   outboxMessages,
   proposals,
   reminderOccurrences,

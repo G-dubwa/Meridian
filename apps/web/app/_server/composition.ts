@@ -5,6 +5,7 @@ import {
   ExecutionService,
   InterpretationService,
   JournalService,
+  KnowledgeService,
   MicrosoftConnectionService,
   ModelGatewayService,
   SchedulingService,
@@ -28,6 +29,10 @@ import {
 import { createMicrosoftInfrastructure } from '@meridian/infrastructure-ms-graph';
 import { OpenAiResponsesAdapter } from '@meridian/infrastructure-models';
 import {
+  LocalContentAddressedKnowledgeStore,
+  LocalKnowledgeSourceParser,
+} from '@meridian/knowledge';
+import {
   TRIAGE_EXTRACTION_PROMPT_ID,
   TRIAGE_EXTRACTION_PROMPT_VERSION,
   renderTriageExtractionPromptV1,
@@ -43,6 +48,7 @@ export interface AuthenticationRuntime {
   readonly ids: CryptoIdGenerator;
   readonly interpretation?: InterpretationService;
   readonly journal: JournalService;
+  readonly knowledge?: KnowledgeService;
   readonly microsoft: MicrosoftConnectionService;
   readonly scheduling: SchedulingService;
   readonly triage: TriageService;
@@ -71,6 +77,18 @@ function createRuntime(): AuthenticationRuntime {
     transactions,
   });
   const openAiKey = process.env.OPENAI_API_KEY;
+  const knowledgeObjectRoot = process.env.MERIDIAN_KNOWLEDGE_OBJECT_ROOT;
+  const knowledge = knowledgeObjectRoot
+    ? new KnowledgeService({
+        clock: new SystemClock(),
+        ids,
+        objectStore: new LocalContentAddressedKnowledgeStore(
+          knowledgeObjectRoot,
+        ),
+        parser: new LocalKnowledgeSourceParser(),
+        transactions,
+      })
+    : undefined;
   const interpretation = openAiKey
     ? new InterpretationService({
         gateway: new ModelGatewayService({
@@ -123,6 +141,7 @@ function createRuntime(): AuthenticationRuntime {
       ),
       transactions,
     }),
+    ...(knowledge === undefined ? {} : { knowledge }),
     microsoft: new MicrosoftConnectionService({
       ...(microsoftInfrastructure === undefined
         ? {}

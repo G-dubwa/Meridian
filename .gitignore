@@ -6,6 +6,7 @@ dist/
 coverage/
 playwright-report/
 test-results/
+.local-data/
 evals/results/*.local.json
 *.tsbuildinfo
 .env

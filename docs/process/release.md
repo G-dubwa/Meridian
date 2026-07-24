@@ -27,4 +27,7 @@ rollback, known limitations, and the next gate.
 
 Foundation evidence is
 [recorded here](releases/Foundation-release-report.md). Personal Alpha, Personal
-Beta, and Personal v1 reports are mandatory at WP-13, WP-18, and WP-22.
+Beta, and Personal v1 reports are mandatory at WP-13, WP-18, and WP-22. The
+provider-independent [Personal Alpha](releases/Personal-Alpha-local-release-report.md)
+and [Personal Beta](releases/Personal-Beta-release-report.md) reports preserve
+their explicit external-provider limitations.

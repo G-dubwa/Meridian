@@ -42,6 +42,17 @@ audit, and deterministic Weekly aggregation. The authenticated browser journey
 uses only synthetic local records, requires CSRF, rejects missing owner
 confirmation, displays the evidence boundary, and proves no provider event.
 
+WP-18 unit tests prove deterministic text/Markdown spans, size and UTF-8
+limits, malware-test and active-PDF rejection, passive malformed-PDF handling,
+content-addressed path confinement, duplicate reuse, and corruption detection.
+The live PostgreSQL suite proves empty/upgrade migrations, forced RLS,
+cross-owner denial, immutable revision/citation structures, correlation
+idempotency, exact citation round-trip, correction supersession, deletion
+freeze, content-free audit, and original-byte recovery. The authenticated
+journey uses a synthetic Markdown file only and proves session/CSRF controls,
+review, duplicate rejection, download, deletion request, and zero provider
+activity.
+
 WP-06 unit tests prove content-free job/observation schemas, idempotent duplicate
 completion, retry, and terminal classification. The live database suite installs
 real pg-boss, races two dispatchers, proves five outbox rows become five jobs,
